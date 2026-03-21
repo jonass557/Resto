@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Loader2, Store, Printer, Smartphone, Globe, Save, Lock, ToggleRight, Monitor, Unplug, Wifi, WifiOff, CheckCircle, Shield } from 'lucide-react';
+import { Loader2, Store, Printer, Smartphone, Globe, Save, Lock, ToggleRight, Unplug, Wifi, WifiOff, CheckCircle, Shield } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const featureLabels = [

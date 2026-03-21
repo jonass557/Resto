@@ -6,11 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
-import { User, Printer, Monitor, Unplug, Wifi, WifiOff, Loader2, CheckCircle, XCircle, Info } from 'lucide-react';
+import { User, Printer, Monitor, Unplug, Wifi, WifiOff, Loader2, CheckCircle, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function AgentSettings() {
