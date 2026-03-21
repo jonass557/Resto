@@ -107,6 +107,7 @@ export const ticketsAPI = {
   createInvoice: (tableId) => api.post(`/tickets/invoice/${tableId}`),
   createInvoiceFromOrders: (orderIds) => api.post('/tickets/invoice-orders', { orderIds }),
   markPrinted: (id) => api.patch(`/tickets/${id}/printed`),
+  delete: (id) => api.delete(`/tickets/${id}`),
 };
 
 // Payments
@@ -141,6 +142,8 @@ export const statsAPI = {
   getDashboard: (params) => api.get('/stats/dashboard', { params }),
   getAgents: (params) => api.get('/stats/agents', { params }),
   getAgent: (id, params) => api.get(`/stats/agent/${id}`, { params }),
+  getAgentHistory: (id, params) => api.get(`/stats/agent-history/${id}`, { params }),
+  getRevenueChart: (params) => api.get('/stats/revenue-chart', { params }),
   getSales: (params) => api.get('/stats/sales', { params }),
   getProducts: (params) => api.get('/stats/products', { params }),
 };
@@ -168,6 +171,13 @@ export const printerAPI = {
 export const settingsAPI = {
   get: () => api.get('/settings'),
   update: (data) => api.put('/settings', data),
+};
+
+// Notifications
+export const notificationsAPI = {
+  getAll: (params) => api.get('/notifications', { params }),
+  markAllRead: () => api.patch('/notifications/read-all'),
+  markRead: (id) => api.patch(`/notifications/${id}/read`),
 };
 
 export default api;

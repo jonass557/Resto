@@ -1,6 +1,7 @@
 const express = require('express');
 const { auth } = require('../middleware/auth');
 const Settings = require('../models/Settings');
+const Ticket = require('../models/Ticket');
 const net = require('net');
 
 const router = express.Router();
@@ -111,6 +112,24 @@ function buildEscPosReceipt(ticketData, paperWidth = 80) {
     cmds.push(`Paiement: ${ticketData.paymentMethod}\n`);
   }
 
+  // Mobile Money payment codes
+  if (ticketData.orangeMoneyCode || ticketData.mtnMomoCode) {
+    cmds.push('\n');
+    cmds.push(`${ESC}a\x01`); // center
+    cmds.push(`${ESC}E\x01`); // bold
+    cmds.push('--- PAIEMENT MOBILE ---\n');
+    cmds.push(`${ESC}E\x00`); // bold off
+    if (ticketData.orangeMoneyCode) {
+      cmds.push(`Orange Money: ${ticketData.orangeMoneyCode}\n`);
+      if (ticketData.orangeMoneyName) cmds.push(`Nom: ${ticketData.orangeMoneyName}\n`);
+    }
+    if (ticketData.mtnMomoCode) {
+      cmds.push(`MTN MoMo: ${ticketData.mtnMomoCode}\n`);
+      if (ticketData.mtnMomoName) cmds.push(`Nom: ${ticketData.mtnMomoName}\n`);
+    }
+    cmds.push(`${ESC}a\x00`); // left align
+  }
+
   // Footer
   cmds.push('\n');
   cmds.push(`${ESC}a\x01`); // center
@@ -186,10 +205,53 @@ router.post('/test', auth, async (req, res) => {
   }
 });
 
-// POST /api/printer/print-ticket - Print a ticket
+// POST /api/printer/print-ticket - Print a ticket (accepts ticketId or ticketData)
 router.post('/print-ticket', auth, async (req, res) => {
   try {
-    const { ticketData, printerConfig } = req.body;
+    let { ticketData, printerConfig, ticketId } = req.body;
+
+    // If ticketId is provided, fetch ticket data from DB
+    if (ticketId && !ticketData) {
+      const ticket = await Ticket.findById(ticketId)
+        .populate('table', 'number name zone')
+        .populate('agent', 'firstName lastName')
+        .populate('client', 'firstName lastName')
+        .populate('payment');
+      if (!ticket) return res.status(404).json({ success: false, message: 'Ticket non trouvé' });
+
+      const settings = await Settings.findOne();
+      const mmc = settings?.mobileMoneyConfig || {};
+
+      ticketData = {
+        ticketNumber: ticket.ticketNumber,
+        type: ticket.type,
+        orderType: ticket.orderType,
+        tableName: ticket.table ? `${ticket.table.number}${ticket.table.name ? ' - ' + ticket.table.name : ''}` : null,
+        tableNumber: ticket.table?.number || null,
+        agentName: ticket.agent ? `${ticket.agent.firstName} ${ticket.agent.lastName}` : '',
+        clientName: ticket.client ? `${ticket.client.firstName} ${ticket.client.lastName}` : null,
+        items: ticket.items || [],
+        subtotal: ticket.subtotal,
+        taxAmount: ticket.taxAmount,
+        discount: ticket.discount,
+        total: ticket.total,
+        isPaid: ticket.isPaid,
+        paymentMethod: ticket.payment?.method || null,
+        restaurantName: settings?.restaurantName || 'Restaurant',
+        address: settings?.address || '',
+        phone: settings?.phone || '',
+        currency: settings?.currencySymbol || 'FCFA',
+        footer: settings?.receiptFooter || 'Merci de votre visite!',
+        orangeMoneyCode: mmc.orangeMoneyEnabled ? mmc.orangeMoneyCode : null,
+        orangeMoneyName: mmc.orangeMoneyEnabled ? mmc.orangeMoneyName : null,
+        mtnMomoCode: mmc.mtnMomoEnabled ? mmc.mtnMomoCode : null,
+        mtnMomoName: mmc.mtnMomoEnabled ? mmc.mtnMomoName : null,
+      };
+
+      if (!printerConfig) {
+        printerConfig = settings?.printerConfig || {};
+      }
+    }
     const config = printerConfig || {};
     const receiptBuffer = buildEscPosReceipt(ticketData, config.paperWidth || 80);
 
@@ -231,7 +293,7 @@ router.post('/print-ticket', auth, async (req, res) => {
     receiptLines.push({ type: 'text', value: ticketData.address || '', align: 'center' });
     receiptLines.push({ type: 'text', value: ticketData.phone || '', align: 'center' });
     receiptLines.push({ type: 'line' });
-    receiptLines.push({ type: 'text', value: `Ticket: ${ticketData.ticketNumber}`, align: 'left' });
+    receiptLines.push({ type: 'text', value: `${ticketData.type === 'invoice' ? 'Facture' : 'Ticket'}: ${ticketData.ticketNumber}`, align: 'left' });
     if (ticketData.tableName) receiptLines.push({ type: 'text', value: `Table: ${ticketData.tableName}`, align: 'left' });
     receiptLines.push({ type: 'text', value: `Serveur: ${ticketData.agentName}`, align: 'left' });
     receiptLines.push({ type: 'text', value: `Date: ${new Date().toLocaleString('fr-FR')}`, align: 'left' });
@@ -248,6 +310,21 @@ router.post('/print-ticket', auth, async (req, res) => {
     receiptLines.push({ type: 'line' });
     receiptLines.push({ type: 'item', name: 'TOTAL', price: `${ticketData.total} ${ticketData.currency || 'FCFA'}`, bold: true });
     receiptLines.push({ type: 'line' });
+
+    // Add mobile money codes to fallback receipt
+    if (ticketData.orangeMoneyCode || ticketData.mtnMomoCode) {
+      receiptLines.push({ type: 'text', value: '--- PAIEMENT MOBILE ---', align: 'center', bold: true });
+      if (ticketData.orangeMoneyCode) {
+        receiptLines.push({ type: 'text', value: `Orange Money: ${ticketData.orangeMoneyCode}`, align: 'center' });
+        if (ticketData.orangeMoneyName) receiptLines.push({ type: 'text', value: `Nom: ${ticketData.orangeMoneyName}`, align: 'center' });
+      }
+      if (ticketData.mtnMomoCode) {
+        receiptLines.push({ type: 'text', value: `MTN MoMo: ${ticketData.mtnMomoCode}`, align: 'center' });
+        if (ticketData.mtnMomoName) receiptLines.push({ type: 'text', value: `Nom: ${ticketData.mtnMomoName}`, align: 'center' });
+      }
+      receiptLines.push({ type: 'line' });
+    }
+
     receiptLines.push({ type: 'text', value: ticketData.footer || 'Merci de votre visite!', align: 'center' });
 
     res.json({

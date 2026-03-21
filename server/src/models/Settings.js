@@ -24,8 +24,12 @@ const settingsSchema = new mongoose.Schema({
   mobileMoneyConfig: {
     mtnMomoEnabled: { type: Boolean, default: false },
     mtnMomoApiKey: { type: String, default: '' },
+    mtnMomoCode: { type: String, default: '' },
+    mtnMomoName: { type: String, default: '' },
     orangeMoneyEnabled: { type: Boolean, default: false },
-    orangeMoneyApiKey: { type: String, default: '' }
+    orangeMoneyApiKey: { type: String, default: '' },
+    orangeMoneyCode: { type: String, default: '' },
+    orangeMoneyName: { type: String, default: '' }
   },
   features: {
     verificationCagnotteClient: { type: Boolean, default: false },

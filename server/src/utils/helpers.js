@@ -57,6 +57,12 @@ function getDateRange(period) {
       start = new Date(now.getFullYear(), now.getMonth(), 1);
       end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
       break;
+    case 'semester':
+      const currentMonth = now.getMonth();
+      const semesterStart = currentMonth < 6 ? 0 : 6;
+      start = new Date(now.getFullYear(), semesterStart, 1);
+      end = new Date(now.getFullYear(), semesterStart + 6, 1);
+      break;
     case 'year':
       start = new Date(now.getFullYear(), 0, 1);
       end = new Date(now.getFullYear() + 1, 0, 1);

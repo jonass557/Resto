@@ -1,6 +1,7 @@
 const express = require('express');
 const CashRegister = require('../models/CashRegister');
 const Ticket = require('../models/Ticket');
+const Notification = require('../models/Notification');
 const { auth } = require('../middleware/auth');
 const { generateSessionNumber } = require('../utils/helpers');
 
@@ -64,6 +65,16 @@ router.post('/open', auth, async (req, res) => {
     const io = req.app.get('io');
     io.emit('cashRegister:opened', session);
 
+    // Notify admin
+    const notif = await Notification.create({
+      type: 'cash_opened',
+      title: 'Caisse ouverte',
+      message: `${req.user.firstName} ${req.user.lastName} a ouvert sa caisse (${session.sessionNumber}) avec ${openingAmount || 0} FCFA`,
+      agent: req.user._id,
+      data: { sessionId: session._id, sessionNumber: session.sessionNumber, openingAmount: openingAmount || 0 }
+    });
+    io.emit('notification:new', notif);
+
     res.status(201).json({ success: true, data: session });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -116,6 +127,20 @@ router.post('/close', auth, async (req, res) => {
 
     const io = req.app.get('io');
     io.emit('cashRegister:closed', session);
+
+    // Notify admin
+    const notif = await Notification.create({
+      type: 'cash_closed',
+      title: 'Caisse clôturée',
+      message: `${req.user.firstName} ${req.user.lastName} a clôturé sa caisse (${session.sessionNumber}) — Total ventes: ${session.totalSales} FCFA, Écart: ${session.difference} FCFA`,
+      agent: req.user._id,
+      data: {
+        sessionId: session._id, sessionNumber: session.sessionNumber,
+        totalSales: session.totalSales, closingAmount, difference: session.difference,
+        totalCash: session.totalCash, totalCard: session.totalCard, totalMobileMoney: session.totalMobileMoney
+      }
+    });
+    io.emit('notification:new', notif);
 
     res.json({ success: true, data: session });
   } catch (error) {

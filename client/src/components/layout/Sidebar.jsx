@@ -20,6 +20,7 @@ const agentNav = [
   { to: '/agent/tickets', icon: Receipt, label: 'Tickets' },
   { to: '/agent/cash-register', icon: Wallet, label: 'Caisse' },
   { to: '/agent/clients', icon: UserCircle, label: 'Clients' },
+  { to: '/agent/history', icon: FileText, label: 'Historique' },
   { to: '/agent/settings', icon: Settings, label: 'Paramètres' },
 ];
 

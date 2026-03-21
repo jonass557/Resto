@@ -5,6 +5,7 @@ const Order = require('../models/Order');
 const Table = require('../models/Table');
 const Client = require('../models/Client');
 const CashRegister = require('../models/CashRegister');
+const Notification = require('../models/Notification');
 const { auth } = require('../middleware/auth');
 const { generatePaymentNumber } = require('../utils/helpers');
 
@@ -135,6 +136,26 @@ router.post('/', auth, async (req, res) => {
     io.emit('payment:created', payment);
     io.emit('ticket:paid', { ticketId: ticket._id, payment });
     if (table) io.emit('table:updated', table);
+
+    // Notify admin about payment with method details
+    const methodLabels = { cash: 'Espèces', card: 'Carte', mobile_money: 'Mobile Money', mixed: 'Mixte', gift_card: 'Carte cadeau' };
+    const providerLabels = { mtn_momo: 'MTN MoMo', orange_money: 'Orange Money', none: '' };
+    let methodDesc = methodLabels[method] || method;
+    if (method === 'mobile_money' && mobileMoneyProvider) {
+      methodDesc += ` (${providerLabels[mobileMoneyProvider] || mobileMoneyProvider})`;
+    }
+    const notif = await Notification.create({
+      type: 'payment_received',
+      title: 'Paiement re\u00e7u',
+      message: `${req.user.firstName} ${req.user.lastName} a encaiss\u00e9 ${ticket.total} FCFA par ${methodDesc} — Facture ${ticket.ticketNumber}${table ? ' (Table ' + (table.number || '') + ')' : ''}`,
+      agent: req.user._id,
+      data: {
+        paymentId: payment._id, ticketId: ticket._id, ticketNumber: ticket.ticketNumber,
+        amount: ticket.total, method, mobileMoneyProvider: mobileMoneyProvider || 'none',
+        tableNumber: table?.number || null
+      }
+    });
+    io.emit('notification:new', notif);
 
     res.status(201).json({ success: true, data: payment });
   } catch (error) {

@@ -13,6 +13,7 @@ import CashRegister from './pages/agent/CashRegister';
 import Clients from './pages/agent/Clients';
 import AgentSettings from './pages/agent/AgentSettings';
 import NewOrder from './pages/agent/NewOrder';
+import TransactionHistory from './pages/agent/TransactionHistory';
 
 // Admin pages
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -85,6 +86,7 @@ export default function App() {
         <Route path="cash-register" element={<CashRegister />} />
         <Route path="clients" element={<Clients />} />
         <Route path="settings" element={<AgentSettings />} />
+        <Route path="history" element={<TransactionHistory />} />
       </Route>
 
       {/* Admin Routes */}

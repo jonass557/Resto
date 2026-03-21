@@ -2,7 +2,9 @@ const express = require('express');
 const Ticket = require('../models/Ticket');
 const Order = require('../models/Order');
 const Table = require('../models/Table');
-const { auth } = require('../middleware/auth');
+const Payment = require('../models/Payment');
+const Notification = require('../models/Notification');
+const { auth, adminOnly } = require('../middleware/auth');
 const { generateTicketNumber } = require('../utils/helpers');
 
 const router = express.Router();
@@ -204,6 +206,42 @@ router.patch('/:id/printed', auth, async (req, res) => {
     );
     if (!ticket) return res.status(404).json({ success: false, message: 'Ticket non trouvé' });
     res.json({ success: true, data: ticket });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// DELETE /api/tickets/:id — Admin only can delete a ticket or invoice
+router.delete('/:id', auth, adminOnly, async (req, res) => {
+  try {
+    const ticket = await Ticket.findById(req.params.id).populate('table', 'number name');
+    if (!ticket) return res.status(404).json({ success: false, message: 'Ticket non trouvé' });
+
+    // If paid, also remove the payment
+    if (ticket.payment) {
+      await Payment.findByIdAndDelete(ticket.payment);
+    }
+
+    const ticketNumber = ticket.ticketNumber;
+    const ticketType = ticket.type;
+    const tableNumber = ticket.table?.number || null;
+
+    await Ticket.findByIdAndDelete(req.params.id);
+
+    // Notify
+    const notif = await Notification.create({
+      type: ticketType === 'invoice' ? 'invoice_deleted' : 'ticket_deleted',
+      title: ticketType === 'invoice' ? 'Facture supprimée' : 'Ticket supprimé',
+      message: `L'administrateur a supprimé ${ticketType === 'invoice' ? 'la facture' : 'le ticket'} ${ticketNumber}${tableNumber ? ' (Table ' + tableNumber + ')' : ''}`,
+      agent: req.user._id,
+      data: { ticketNumber, ticketType, tableNumber }
+    });
+
+    const io = req.app.get('io');
+    io.emit('notification:new', notif);
+    io.emit('ticket:deleted', { ticketId: req.params.id, ticketNumber });
+
+    res.json({ success: true, message: `${ticketType === 'invoice' ? 'Facture' : 'Ticket'} ${ticketNumber} supprimé(e)` });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

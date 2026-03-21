@@ -21,6 +21,7 @@ const statsRoutes = require('./routes/stats');
 const accountingRoutes = require('./routes/accounting');
 const printerRoutes = require('./routes/printer');
 const settingsRoutes = require('./routes/settings');
+const notificationRoutes = require('./routes/notifications');
 
 const app = express();
 const server = http.createServer(app);
@@ -70,6 +71,7 @@ app.use('/api/stats', statsRoutes);
 app.use('/api/accounting', accountingRoutes);
 app.use('/api/printer', printerRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

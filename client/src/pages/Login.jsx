@@ -102,14 +102,39 @@ export default function Login() {
       </div>
 
       {/* Right — Login form */}
-      <div className="flex-1 flex items-center justify-center p-6 bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950">
-        <div className={`w-full max-w-md transition-all duration-700 delay-200 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
+      <div className="flex-1 flex items-center justify-center p-4 sm:p-6 bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950 relative overflow-hidden">
+        {/* Mobile floating icons */}
+        <div className="lg:hidden absolute inset-0 overflow-hidden pointer-events-none">
+          {Array.from({ length: 6 }).map((_, i) => {
+            const Icon = [ChefHat, Utensils, Coffee, Wine, UtensilsCrossed][i % 5];
+            const left = 10 + (i * 16) % 80;
+            const delay = i * 1.5;
+            const duration = 12 + i * 2;
+            return (
+              <div
+                key={`m-${i}`}
+                className="absolute animate-float-up-mobile"
+                style={{
+                  left: `${left}%`,
+                  bottom: '-30px',
+                  animationDelay: `${delay}s`,
+                  animationDuration: `${duration}s`,
+                  opacity: 0.06
+                }}
+              >
+                <Icon style={{ width: 18, height: 18 }} className="text-blue-600" />
+              </div>
+            );
+          })}
+        </div>
+
+        <div className={`w-full max-w-md relative z-10 transition-all duration-700 delay-200 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
           {/* Mobile logo */}
-          <div className="lg:hidden text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 shadow-lg mb-4">
-              <UtensilsCrossed className="w-8 h-8 text-white" />
+          <div className="lg:hidden text-center mb-6 sm:mb-8">
+            <div className={`inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 shadow-lg mb-3 sm:mb-4 transition-all duration-1000 ${mounted ? 'scale-100 opacity-100' : 'scale-75 opacity-0'}`}>
+              <UtensilsCrossed className="w-7 h-7 sm:w-8 sm:h-8 text-white" />
             </div>
-            <h1 className="text-2xl font-bold">Restaurant Manager</h1>
+            <h1 className="text-xl sm:text-2xl font-bold">Restaurant Manager</h1>
           </div>
 
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-8">

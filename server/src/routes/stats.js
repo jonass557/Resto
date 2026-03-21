@@ -200,4 +200,81 @@ router.get('/products', auth, async (req, res) => {
   }
 });
 
+// GET /api/stats/agent-history/:id - Agent's full transaction history
+router.get('/agent-history/:id', auth, async (req, res) => {
+  try {
+    const agentId = req.params.id;
+    const { startDate, endDate, page = 1, limit = 50 } = req.query;
+
+    // Default to last 30 days if no dates
+    const start = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const end = endDate ? new Date(endDate) : new Date();
+    end.setHours(23, 59, 59, 999);
+
+    const filter = {
+      agent: agentId,
+      status: 'completed',
+      createdAt: { $gte: start, $lte: end }
+    };
+
+    const total = await Payment.countDocuments(filter);
+    const payments = await Payment.find(filter)
+      .populate('ticket', 'ticketNumber type total table')
+      .populate({ path: 'ticket', populate: { path: 'table', select: 'number name' } })
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * parseInt(limit))
+      .limit(parseInt(limit));
+
+    // Summary by day
+    const allPayments = await Payment.find(filter);
+    const totalRevenue = allPayments.reduce((s, p) => s + p.amount, 0);
+    const byMethod = {
+      cash: allPayments.filter(p => p.method === 'cash').reduce((s, p) => s + p.amount, 0),
+      card: allPayments.filter(p => p.method === 'card').reduce((s, p) => s + p.amount, 0),
+      mobile_money: allPayments.filter(p => p.method === 'mobile_money').reduce((s, p) => s + p.amount, 0),
+      gift_card: allPayments.filter(p => p.method === 'gift_card').reduce((s, p) => s + p.amount, 0),
+    };
+
+    res.json({
+      success: true,
+      data: payments,
+      summary: { totalRevenue, totalTransactions: total, byMethod },
+      pagination: { total, page: parseInt(page), limit: parseInt(limit), pages: Math.ceil(total / parseInt(limit)) }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// GET /api/stats/revenue-chart - Revenue data for charts (daily/weekly/monthly/semester/yearly)
+router.get('/revenue-chart', auth, async (req, res) => {
+  try {
+    const { period = 'month' } = req.query;
+    const { start, end } = getDateRange(period);
+
+    const payments = await Payment.find({
+      createdAt: { $gte: start, $lt: end },
+      status: 'completed'
+    }).sort({ createdAt: 1 });
+
+    // Group by day
+    const byDay = {};
+    for (const p of payments) {
+      const key = p.createdAt.toISOString().split('T')[0];
+      if (!byDay[key]) byDay[key] = { date: key, revenue: 0, count: 0 };
+      byDay[key].revenue += p.amount;
+      byDay[key].count++;
+    }
+
+    res.json({
+      success: true,
+      data: Object.values(byDay),
+      totalRevenue: payments.reduce((s, p) => s + p.amount, 0),
+      totalTransactions: payments.length
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 module.exports = router;

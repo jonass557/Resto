@@ -93,6 +93,27 @@
   animation: pulse-slow 3s ease-in-out infinite;
 }
 
+/* Mobile floating icons for login */
+@keyframes float-up-mobile {
+  0% { transform: translateY(0) rotate(0deg) scale(0.7); opacity: 0; }
+  10% { opacity: 0.6; }
+  90% { opacity: 0.6; }
+  100% { transform: translateY(-100vh) rotate(180deg) scale(0.7); opacity: 0; }
+}
+@media (max-width: 1023px) {
+  .animate-float-up-mobile {
+    animation: float-up-mobile linear infinite;
+  }
+}
+
+/* Mobile login form adjustments */
+@media (max-width: 640px) {
+  .login-mobile-card {
+    border-radius: 1rem;
+    padding: 1.25rem;
+  }
+}
+
 /* Print styles */
 @media print {
   .no-print {

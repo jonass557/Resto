@@ -1,6 +1,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const Notification = require('../models/Notification');
 const { auth } = require('../middleware/auth');
 
 const router = express.Router();
@@ -33,6 +34,19 @@ router.post('/login', async (req, res) => {
     const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, {
       expiresIn: process.env.JWT_EXPIRES_IN || '7d'
     });
+
+    // Notify admin when an agent logs in
+    if (user.role === 'agent') {
+      const notif = await Notification.create({
+        type: 'agent_login',
+        title: 'Connexion agent',
+        message: `${user.firstName} ${user.lastName} s'est connecté(e)`,
+        agent: user._id,
+        data: { loginTime: new Date() }
+      });
+      const io = req.app.get('io');
+      io.emit('notification:new', notif);
+    }
 
     res.json({
       success: true,
