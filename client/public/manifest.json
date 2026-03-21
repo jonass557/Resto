@@ -1,0 +1,17 @@
+{
+  "name": "Restaurant Manager",
+  "short_name": "RestoManager",
+  "description": "Système de gestion de restauration",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1e40af",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
