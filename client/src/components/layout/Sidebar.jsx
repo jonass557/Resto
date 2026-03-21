@@ -1,10 +1,12 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useOffline } from '@/contexts/OfflineContext';
 import { cn } from '@/lib/utils';
 import {
   UtensilsCrossed, LayoutDashboard, ShoppingCart, Receipt, CreditCard,
   Users, BarChart3, Package, Settings, LogOut, ChefHat, Wallet,
-  BookOpen, UserCircle, Printer, TrendingUp, FileText, PieChart, Truck
+  BookOpen, UserCircle, Printer, TrendingUp, FileText, PieChart, Truck,
+  Wifi, WifiOff, RefreshCw, Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -37,6 +39,7 @@ const adminNav = [
 
 export default function Sidebar() {
   const { user, isAdmin, logout } = useAuth();
+  const { isOnline, pendingCount, syncing, syncPendingActions } = useOffline();
   const navigate = useNavigate();
   const navItems = isAdmin ? adminNav : agentNav;
 
@@ -79,6 +82,29 @@ export default function Sidebar() {
           </NavLink>
         ))}
       </nav>
+
+      {/* Online / Offline status + Sync */}
+      <div className="px-3 pb-2">
+        <div className={cn(
+          'flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium',
+          isOnline ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
+        )}>
+          <div className="flex items-center gap-2">
+            {isOnline ? <Wifi className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
+            {isOnline ? 'En ligne' : 'Hors ligne'}
+          </div>
+          {pendingCount > 0 && (
+            <button
+              onClick={syncPendingActions}
+              disabled={syncing || !isOnline}
+              className="flex items-center gap-1 px-2 py-0.5 rounded bg-white/70 hover:bg-white border text-xs disabled:opacity-50"
+            >
+              {syncing ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+              Sync ({pendingCount})
+            </button>
+          )}
+        </div>
+      </div>
 
       <Separator />
 

@@ -1,6 +1,7 @@
 import axios from 'axios';
+import { queueOfflineAction } from '@/lib/offlineStorage';
 
-const API_URL = '/api';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -16,15 +17,30 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Response interceptor - handle 401
+// Response interceptor - handle 401 + offline queuing
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';
     }
+
+    // If offline and it's a write request, queue for later sync
+    if (!navigator.onLine && error.message === 'Network Error') {
+      const { method, url, data } = error.config;
+      const writeMethods = ['post', 'put', 'patch', 'delete'];
+      if (writeMethods.includes(method)) {
+        try {
+          await queueOfflineAction({ method: method.toUpperCase(), url, data: data ? JSON.parse(data) : undefined });
+          return Promise.resolve({ data: { success: true, offline: true, message: 'Action enregistrée hors-ligne' } });
+        } catch (e) {
+          // Fall through to reject
+        }
+      }
+    }
+
     return Promise.reject(error);
   }
 );
@@ -35,6 +51,7 @@ export const authAPI = {
   getMe: () => api.get('/auth/me'),
   updateProfile: (data) => api.put('/auth/profile', data),
   changePassword: (data) => api.put('/auth/password', data),
+  changeUserPassword: (userId, newPassword) => api.put(`/auth/password/${userId}`, { newPassword }),
 };
 
 // Users

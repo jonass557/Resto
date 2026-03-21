@@ -52,9 +52,13 @@ router.get('/me', auth, async (req, res) => {
   }
 });
 
-// PUT /api/auth/profile
+// PUT /api/auth/profile — admin only (agents cannot modify their own profile)
 router.put('/profile', auth, async (req, res) => {
   try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Seul l\'administrateur peut modifier les profils' });
+    }
+
     const { firstName, lastName, phone, avatar, settings } = req.body;
     const user = await User.findById(req.user._id);
 
@@ -71,9 +75,13 @@ router.put('/profile', auth, async (req, res) => {
   }
 });
 
-// PUT /api/auth/password
+// PUT /api/auth/password — admin only (agents cannot change passwords)
 router.put('/password', auth, async (req, res) => {
   try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Seul l\'administrateur peut modifier les mots de passe' });
+    }
+
     const { currentPassword, newPassword } = req.body;
     const user = await User.findById(req.user._id);
 
@@ -86,6 +94,32 @@ router.put('/password', auth, async (req, res) => {
     await user.save();
 
     res.json({ success: true, message: 'Mot de passe mis à jour' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// PUT /api/auth/password/:userId — admin changes any user's password
+router.put('/password/:userId', auth, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Seul l\'administrateur peut modifier les mots de passe' });
+    }
+
+    const { newPassword } = req.body;
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ success: false, message: 'Le mot de passe doit contenir au moins 6 caractères' });
+    }
+
+    const user = await User.findById(req.params.userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    res.json({ success: true, message: `Mot de passe de ${user.firstName} ${user.lastName} mis à jour` });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

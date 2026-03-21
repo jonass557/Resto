@@ -26,6 +26,15 @@ const settingsSchema = new mongoose.Schema({
     mtnMomoApiKey: { type: String, default: '' },
     orangeMoneyEnabled: { type: Boolean, default: false },
     orangeMoneyApiKey: { type: String, default: '' }
+  },
+  features: {
+    verificationCagnotteClient: { type: Boolean, default: false },
+    autoriserCashBank: { type: Boolean, default: false },
+    autoriserPouvoirs: { type: Boolean, default: false },
+    verificationSoldeDebiteur: { type: Boolean, default: false },
+    recuperationBaseClient: { type: Boolean, default: false },
+    gestionDemarques: { type: Boolean, default: false },
+    limiteursUtilisationTitres: { type: Boolean, default: false }
   }
 }, { timestamps: true });
 

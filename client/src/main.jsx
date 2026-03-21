@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import { AuthProvider } from './contexts/AuthContext'
 import { SocketProvider } from './contexts/SocketContext'
+import { OfflineProvider } from './contexts/OfflineContext'
 import { Toaster } from 'react-hot-toast'
 import './index.css'
 
@@ -12,14 +13,16 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <BrowserRouter>
       <AuthProvider>
         <SocketProvider>
-          <App />
-          <Toaster
-            position="top-right"
-            toastOptions={{
-              duration: 3000,
-              style: { borderRadius: '8px', background: '#333', color: '#fff' }
-            }}
-          />
+          <OfflineProvider>
+            <App />
+            <Toaster
+              position="top-right"
+              toastOptions={{
+                duration: 3000,
+                style: { borderRadius: '8px', background: '#333', color: '#fff' }
+              }}
+            />
+          </OfflineProvider>
         </SocketProvider>
       </AuthProvider>
     </BrowserRouter>
