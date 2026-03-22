@@ -33,6 +33,7 @@ const agentNav = [
 const adminNav = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { to: '/admin/supervision', icon: BarChart3, label: 'Supervision' },
+  { to: '/admin/tables', icon: UtensilsCrossed, label: 'Tables' },
   { to: '/admin/orders', icon: ShoppingCart, label: 'Commandes' },
   { to: '/admin/tickets', icon: Receipt, label: 'Tickets' },
   { to: '/admin/users', icon: Users, label: 'Utilisateurs' },

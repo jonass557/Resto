@@ -25,6 +25,7 @@ import AdminClients from './pages/admin/AdminClients';
 import Sales from './pages/admin/Sales';
 import Accounting from './pages/admin/Accounting';
 import Reports from './pages/admin/Reports';
+import AdminTables from './pages/admin/AdminTables';
 import AdminSettings from './pages/admin/AdminSettings';
 
 function ProtectedRoute({ children, requiredRole }) {
@@ -94,6 +95,7 @@ export default function App() {
         }>
           <Route index element={<AdminDashboard />} />
           <Route path="supervision" element={<Supervision />} />
+          <Route path="tables" element={<AdminTables />} />
           <Route path="orders" element={<AdminOrders />} />
           <Route path="tickets" element={<AdminTickets />} />
           <Route path="users" element={<UserManagement />} />

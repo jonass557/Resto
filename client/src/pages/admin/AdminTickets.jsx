@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
-import { Loader2, Printer, FileText, Receipt, Hash, Trash2 } from 'lucide-react';
+import { Loader2, Printer, FileText, Receipt, Hash, Trash2, CheckCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import toast from 'react-hot-toast';
 
@@ -18,6 +18,7 @@ export default function AdminTickets() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [printing, setPrinting] = useState(false);
+  const [marking, setMarking] = useState(false);
   const { socket } = useSocket();
 
   const loadTickets = useCallback(async () => {
@@ -79,6 +80,20 @@ export default function AdminTickets() {
       toast.error(error.response?.data?.message || 'Erreur suppression');
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const markAsPaid = async (ticket) => {
+    setMarking(true);
+    try {
+      await ticketsAPI.markPaid(ticket._id);
+      toast.success('Ticket marqué comme payé');
+      setSelectedTicket(null);
+      loadTickets();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Erreur');
+    } finally {
+      setMarking(false);
     }
   };
 
@@ -184,11 +199,17 @@ export default function AdminTickets() {
                 </div>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <Button className="flex-1" onClick={() => printTicket(selectedTicket)} disabled={printing}>
                   {printing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Printer className="w-4 h-4 mr-2" />}
                   Imprimer
                 </Button>
+                {!selectedTicket.isPaid && (
+                  <Button variant="outline" className="text-green-600 border-green-300 hover:bg-green-50" onClick={() => markAsPaid(selectedTicket)} disabled={marking}>
+                    {marking ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-2" />}
+                    Marquer payé
+                  </Button>
+                )}
                 <Button variant="destructive" onClick={() => setDeleteTarget(selectedTicket)}>
                   <Trash2 className="w-4 h-4 mr-2" /> Supprimer
                 </Button>

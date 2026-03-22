@@ -211,6 +211,38 @@ router.patch('/:id/printed', auth, async (req, res) => {
   }
 });
 
+// PATCH /api/tickets/:id/mark-paid — Admin force-mark ticket as paid
+router.patch('/:id/mark-paid', auth, adminOnly, async (req, res) => {
+  try {
+    const ticket = await Ticket.findById(req.params.id);
+    if (!ticket) return res.status(404).json({ success: false, message: 'Ticket non trouvé' });
+    if (ticket.isPaid) return res.status(400).json({ success: false, message: 'Ce ticket est déjà payé' });
+
+    ticket.isPaid = true;
+    await ticket.save();
+
+    // Also mark related order tickets as paid if this is an invoice
+    if (ticket.type === 'invoice' && ticket.orders.length > 0) {
+      await Ticket.updateMany(
+        { orders: { $in: ticket.orders }, type: 'order', isPaid: false },
+        { isPaid: true }
+      );
+    }
+
+    // Mark orders as paid
+    if (ticket.orders.length > 0) {
+      await Order.updateMany({ _id: { $in: ticket.orders } }, { status: 'paid' });
+    }
+
+    const io = req.app.get('io');
+    io.emit('ticket:paid', { ticketId: ticket._id });
+
+    res.json({ success: true, data: ticket, message: 'Ticket marqué comme payé' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // DELETE /api/tickets/:id — Admin only can delete a ticket or invoice
 router.delete('/:id', auth, adminOnly, async (req, res) => {
   try {

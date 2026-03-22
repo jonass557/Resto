@@ -107,6 +107,7 @@ export const ticketsAPI = {
   createInvoice: (tableId) => api.post(`/tickets/invoice/${tableId}`),
   createInvoiceFromOrders: (orderIds) => api.post('/tickets/invoice-orders', { orderIds }),
   markPrinted: (id) => api.patch(`/tickets/${id}/printed`),
+  markPaid: (id) => api.patch(`/tickets/${id}/mark-paid`),
   delete: (id) => api.delete(`/tickets/${id}`),
 };
 
