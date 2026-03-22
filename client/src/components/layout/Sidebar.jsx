@@ -162,11 +162,14 @@ export default function Sidebar({ onNavigate }) {
               <Input type="number" placeholder="0" value={closingAmount} onChange={e => setClosingAmount(e.target.value)} />
             </div>
           </div>
-          <DialogFooter className="gap-2">
+          <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button variant="outline" onClick={() => setShowCloseDialog(false)}>Annuler</Button>
             <Button onClick={handleCloseAndLogout} disabled={closingLoading}>
               {closingLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Clôturer et se déconnecter
+            </Button>
+            <Button variant="ghost" className="text-xs text-muted-foreground" onClick={() => { setShowCloseDialog(false); logout(); navigate('/login'); }}>
+              Se déconnecter sans clôturer
             </Button>
           </DialogFooter>
         </DialogContent>
