@@ -27,6 +27,7 @@ import Accounting from './pages/admin/Accounting';
 import Reports from './pages/admin/Reports';
 import AdminTables from './pages/admin/AdminTables';
 import AdminSettings from './pages/admin/AdminSettings';
+import RevenueHistory from './pages/admin/RevenueHistory';
 
 function ProtectedRoute({ children, requiredRole }) {
   const { isAuthenticated, user, loading } = useAuth();
@@ -100,6 +101,7 @@ export default function App() {
           <Route path="sales" element={<Sales />} />
           <Route path="accounting" element={<Accounting />} />
           <Route path="reports" element={<Reports />} />
+          <Route path="revenue-history" element={<RevenueHistory />} />
           <Route path="settings" element={<AdminSettings />} />
         </Route>
 

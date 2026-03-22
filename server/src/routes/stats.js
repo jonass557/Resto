@@ -365,4 +365,179 @@ router.get('/agent-performance', auth, adminOnly, async (req, res) => {
   }
 });
 
+// GET /api/stats/revenue-history - Full revenue history (daily + monthly aggregation)
+router.get('/revenue-history', auth, adminOnly, async (req, res) => {
+  try {
+    const { year, month } = req.query;
+    const now = new Date();
+    const targetYear = year ? parseInt(year) : now.getFullYear();
+
+    if (month) {
+      // Daily breakdown for a specific month
+      const targetMonth = parseInt(month) - 1;
+      const start = new Date(targetYear, targetMonth, 1);
+      const end = new Date(targetYear, targetMonth + 1, 1);
+
+      const payments = await Payment.find({
+        createdAt: { $gte: start, $lt: end },
+        status: 'completed'
+      }).sort({ createdAt: 1 });
+
+      const byDay = {};
+      const daysInMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
+      for (let d = 1; d <= daysInMonth; d++) {
+        const key = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        byDay[key] = { date: key, revenue: 0, transactions: 0, cash: 0, card: 0, mobile_money: 0 };
+      }
+
+      for (const p of payments) {
+        const key = p.createdAt.toISOString().split('T')[0];
+        if (byDay[key]) {
+          byDay[key].revenue += p.amount;
+          byDay[key].transactions++;
+          if (p.method === 'cash') byDay[key].cash += p.amount;
+          else if (p.method === 'card') byDay[key].card += p.amount;
+          else if (p.method === 'mobile_money') byDay[key].mobile_money += p.amount;
+        }
+      }
+
+      const totalRevenue = payments.reduce((s, p) => s + p.amount, 0);
+      const totalTransactions = payments.length;
+
+      res.json({
+        success: true,
+        data: Object.values(byDay),
+        totalRevenue,
+        totalTransactions,
+        period: { year: targetYear, month: parseInt(month) }
+      });
+    } else {
+      // Monthly breakdown for a year
+      const start = new Date(targetYear, 0, 1);
+      const end = new Date(targetYear + 1, 0, 1);
+
+      const payments = await Payment.find({
+        createdAt: { $gte: start, $lt: end },
+        status: 'completed'
+      }).sort({ createdAt: 1 });
+
+      const byMonth = {};
+      for (let m = 0; m < 12; m++) {
+        const key = `${targetYear}-${String(m + 1).padStart(2, '0')}`;
+        byMonth[key] = { month: key, monthName: new Date(targetYear, m).toLocaleString('fr-FR', { month: 'long' }), revenue: 0, transactions: 0, cash: 0, card: 0, mobile_money: 0 };
+      }
+
+      for (const p of payments) {
+        const m = p.createdAt.getMonth();
+        const key = `${targetYear}-${String(m + 1).padStart(2, '0')}`;
+        if (byMonth[key]) {
+          byMonth[key].revenue += p.amount;
+          byMonth[key].transactions++;
+          if (p.method === 'cash') byMonth[key].cash += p.amount;
+          else if (p.method === 'card') byMonth[key].card += p.amount;
+          else if (p.method === 'mobile_money') byMonth[key].mobile_money += p.amount;
+        }
+      }
+
+      const totalRevenue = payments.reduce((s, p) => s + p.amount, 0);
+      const totalTransactions = payments.length;
+
+      res.json({
+        success: true,
+        data: Object.values(byMonth),
+        totalRevenue,
+        totalTransactions,
+        period: { year: targetYear }
+      });
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// GET /api/stats/daily-report/:date - Detailed daily report for PDF/print
+router.get('/daily-report/:date', auth, adminOnly, async (req, res) => {
+  try {
+    const dateStr = req.params.date;
+    const start = new Date(dateStr + 'T00:00:00.000Z');
+    const end = new Date(dateStr + 'T23:59:59.999Z');
+
+    const [payments, orders, tickets] = await Promise.all([
+      Payment.find({ createdAt: { $gte: start, $lte: end }, status: 'completed' })
+        .populate('agent', 'firstName lastName')
+        .populate('ticket', 'ticketNumber type')
+        .sort({ createdAt: 1 }),
+      Order.find({ createdAt: { $gte: start, $lte: end }, status: { $ne: 'cancelled' } })
+        .populate('agent', 'firstName lastName')
+        .populate('table', 'number name'),
+      Ticket.find({ createdAt: { $gte: start, $lte: end } })
+    ]);
+
+    const totalRevenue = payments.reduce((s, p) => s + p.amount, 0);
+    const byMethod = {
+      cash: payments.filter(p => p.method === 'cash').reduce((s, p) => s + p.amount, 0),
+      card: payments.filter(p => p.method === 'card').reduce((s, p) => s + p.amount, 0),
+      mobile_money: payments.filter(p => p.method === 'mobile_money').reduce((s, p) => s + p.amount, 0),
+      gift_card: payments.filter(p => p.method === 'gift_card').reduce((s, p) => s + p.amount, 0),
+    };
+
+    // Product breakdown
+    const productMap = {};
+    for (const order of orders) {
+      for (const item of order.items) {
+        const key = item.name;
+        if (!productMap[key]) productMap[key] = { name: key, quantity: 0, revenue: 0 };
+        productMap[key].quantity += item.quantity;
+        productMap[key].revenue += item.totalPrice;
+      }
+    }
+    const products = Object.values(productMap).sort((a, b) => b.revenue - a.revenue);
+
+    // Agent breakdown
+    const agentMap = {};
+    for (const p of payments) {
+      const aId = p.agent?._id?.toString() || 'unknown';
+      const aName = p.agent ? `${p.agent.firstName} ${p.agent.lastName}` : 'Inconnu';
+      if (!agentMap[aId]) agentMap[aId] = { name: aName, revenue: 0, transactions: 0 };
+      agentMap[aId].revenue += p.amount;
+      agentMap[aId].transactions++;
+    }
+    const agents = Object.values(agentMap).sort((a, b) => b.revenue - a.revenue);
+
+    // Hourly breakdown
+    const hourly = Array.from({ length: 24 }, (_, i) => ({ hour: i, revenue: 0, transactions: 0 }));
+    for (const p of payments) {
+      const h = new Date(p.createdAt).getHours();
+      hourly[h].revenue += p.amount;
+      hourly[h].transactions++;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        date: dateStr,
+        totalRevenue,
+        totalTransactions: payments.length,
+        totalOrders: orders.length,
+        totalTickets: tickets.length,
+        byMethod,
+        payments: payments.map(p => ({
+          _id: p._id,
+          paymentNumber: p.paymentNumber,
+          amount: p.amount,
+          method: p.method,
+          agent: p.agent ? `${p.agent.firstName} ${p.agent.lastName}` : 'Inconnu',
+          ticket: p.ticket?.ticketNumber || '',
+          time: p.createdAt
+        })),
+        products,
+        agents,
+        hourly
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 module.exports = router;

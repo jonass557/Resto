@@ -43,6 +43,7 @@ const adminNav = [
   { to: '/admin/sales', icon: TrendingUp, label: 'Ventes' },
   { to: '/admin/accounting', icon: BookOpen, label: 'Comptabilité' },
   { to: '/admin/reports', icon: FileText, label: 'Rapports' },
+  { to: '/admin/revenue-history', icon: PieChart, label: 'Historique CA' },
   { to: '/admin/settings', icon: Settings, label: 'Paramètres' },
 ];
 
@@ -136,13 +137,13 @@ export default function Sidebar({ onNavigate }) {
                 {user?.firstName?.[0]}{user?.lastName?.[0]}
               </AvatarFallback>
             </Avatar>
-            <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-card ${connected ? 'bg-green-500' : 'bg-gray-400'}`} />
+            <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-card bg-green-500" />
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium truncate">{user?.firstName} {user?.lastName}</p>
             <div className="flex items-center gap-1.5">
-              <span className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-green-500' : 'bg-gray-400'}`} />
-              <p className="text-xs text-muted-foreground">{connected ? 'En ligne' : 'Hors ligne'}</p>
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+              <p className="text-xs text-muted-foreground">En ligne</p>
             </div>
           </div>
         </div>
