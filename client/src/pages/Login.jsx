@@ -43,7 +43,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const { login, logout, isAuthenticated } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -59,8 +59,6 @@ export default function Login() {
     }
     setLoading(true);
     try {
-      // Clear any existing session before new login
-      if (isAuthenticated) logout();
       const user = await login(email, password);
       toast.success(`Bienvenue, ${user.firstName}!`);
       navigate(user.role === 'admin' ? '/admin' : '/agent');

@@ -63,7 +63,11 @@ export default function App() {
 
   return (
       <Routes>
-        <Route path="/login" element={<Login />} />
+        <Route path="/login" element={
+          isAuthenticated
+            ? <Navigate to={user?.role === 'admin' ? '/admin' : '/agent'} replace />
+            : <Login />
+        } />
 
         {/* Agent Routes */}
         <Route path="/agent" element={
