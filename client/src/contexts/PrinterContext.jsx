@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './AuthContext';
-import { settingsAPI } from '@/services/api';
+import { settingsAPI, printerAPI, ticketsAPI } from '@/services/api';
 import toast from 'react-hot-toast';
 
 const PrinterContext = createContext(null);
@@ -240,7 +240,6 @@ export function PrinterProvider({ children }) {
 
     // 2. Try backend printer (network/USB)
     try {
-      const { printerAPI } = await import('@/services/api');
       const { data } = await printerAPI.printTicket({ ticketData });
       if (data.data?.printed) {
         toast.success('Ticket imprimé');
@@ -259,7 +258,6 @@ export function PrinterProvider({ children }) {
     // If Bluetooth is connected, get ticket data from backend and print locally
     if (btConnected && characteristic) {
       try {
-        const { ticketsAPI } = await import('@/services/api');
         const { data } = await ticketsAPI.getById(ticketId);
         const ticket = data.data;
         const ticketData = {
@@ -283,7 +281,6 @@ export function PrinterProvider({ children }) {
 
     // Fallback: send to backend printer
     try {
-      const { printerAPI } = await import('@/services/api');
       const { data } = await printerAPI.printTicket({ ticketId });
       if (data.data?.printed) { toast.success('Ticket imprimé'); return true; }
     } catch { /* fall through */ }
