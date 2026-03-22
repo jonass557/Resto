@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSocket } from '@/contexts/SocketContext';
 import { useOffline } from '@/contexts/OfflineContext';
 import { cashRegisterAPI } from '@/services/api';
 import { cn } from '@/lib/utils';
@@ -47,6 +48,7 @@ const adminNav = [
 
 export default function Sidebar({ onNavigate }) {
   const { user, isAdmin, logout } = useAuth();
+  const { connected } = useSocket();
   const { isOnline, pendingCount, syncing, syncPendingActions } = useOffline();
   const navigate = useNavigate();
   const navItems = isAdmin ? adminNav : agentNav;
@@ -128,14 +130,20 @@ export default function Sidebar({ onNavigate }) {
 
       <div className="p-3">
         <div className="flex items-center gap-3 px-3 py-2 mb-2">
-          <Avatar className="h-8 w-8">
-            <AvatarFallback className="text-xs bg-primary/10 text-primary">
-              {user?.firstName?.[0]}{user?.lastName?.[0]}
-            </AvatarFallback>
-          </Avatar>
+          <div className="relative">
+            <Avatar className="h-8 w-8">
+              <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                {user?.firstName?.[0]}{user?.lastName?.[0]}
+              </AvatarFallback>
+            </Avatar>
+            <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-card ${connected ? 'bg-green-500' : 'bg-gray-400'}`} />
+          </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium truncate">{user?.firstName} {user?.lastName}</p>
-            <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+            <div className="flex items-center gap-1.5">
+              <span className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-green-500' : 'bg-gray-400'}`} />
+              <p className="text-xs text-muted-foreground">{connected ? 'En ligne' : 'Hors ligne'}</p>
+            </div>
           </div>
         </div>
         <Button variant="ghost" className="w-full justify-start gap-3 text-muted-foreground" onClick={handleLogout}>

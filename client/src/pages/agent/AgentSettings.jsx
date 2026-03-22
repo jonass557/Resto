@@ -1,64 +1,23 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { printerAPI, settingsAPI } from '@/services/api';
+import { usePrinter } from '@/contexts/PrinterContext';
+import { settingsAPI } from '@/services/api';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { User, Printer, Monitor, Unplug, Wifi, WifiOff, Loader2, CheckCircle, Info } from 'lucide-react';
+import { User, Printer, Monitor, Unplug, Bluetooth, Loader2, CheckCircle, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function AgentSettings() {
   const { user } = useAuth();
-  const [printerConfig, setPrinterConfig] = useState({ type: 'none', address: '', port: 9100 });
-  const [printerStatus, setPrinterStatus] = useState(null);
+  const { btConnected, connecting, connectBluetooth, disconnectBluetooth, printerName } = usePrinter();
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [testing, setTesting] = useState(false);
 
   useEffect(() => {
-    loadData();
+    settingsAPI.get().then(res => setSettings(res.data.data)).catch(() => {}).finally(() => setLoading(false));
   }, []);
-
-  const loadData = async () => {
-    try {
-      const [settingsRes, statusRes] = await Promise.all([
-        settingsAPI.get(),
-        printerAPI.getStatus()
-      ]);
-      setSettings(settingsRes.data.data);
-      setPrinterStatus(statusRes.data.data);
-      if (settingsRes.data.data.printerConfig) {
-        setPrinterConfig(settingsRes.data.data.printerConfig);
-      }
-    } catch (error) {
-      toast.error('Erreur chargement paramètres');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const testPrinter = async () => {
-    setTesting(true);
-    try {
-      const { data } = await printerAPI.test(printerConfig);
-      setPrinterStatus(data.data);
-      toast.success('Test imprimante réussi');
-    } catch (error) {
-      toast.error('Erreur connexion imprimante');
-    } finally {
-      setTesting(false);
-    }
-  };
-
-  const disconnectPrinter = () => {
-    setPrinterConfig({ type: 'none', address: '', port: 9100 });
-    setPrinterStatus({ connected: false, type: 'none', message: 'Déconnecté' });
-    toast.success('Imprimante déconnectée');
-  };
 
   const features = settings?.features || {};
 
@@ -100,70 +59,65 @@ export default function AgentSettings() {
           </CardContent>
         </Card>
 
-        {/* Peripherals — Printer */}
+        {/* Peripherals — Bluetooth Printer */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Printer className="w-5 h-5" /> Périphériques — Imprimante</CardTitle>
-            <CardDescription>Connectez et gérez votre imprimante de tickets</CardDescription>
+            <CardTitle className="flex items-center gap-2"><Printer className="w-5 h-5" /> Imprimante Bluetooth</CardTitle>
+            <CardDescription>Connectez votre imprimante de tickets via Bluetooth. La connexion est automatique.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between p-3 rounded-lg border">
               <div className="flex items-center gap-3">
-                {printerStatus?.connected ? (
-                  <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center"><Wifi className="w-5 h-5 text-green-600" /></div>
-                ) : (
-                  <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center"><WifiOff className="w-5 h-5 text-gray-400" /></div>
-                )}
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${btConnected ? 'bg-green-100' : 'bg-gray-100'}`}>
+                  <Bluetooth className={`w-5 h-5 ${btConnected ? 'text-green-600' : 'text-gray-400'}`} />
+                </div>
                 <div>
-                  <p className="font-medium text-sm">Imprimante de tickets</p>
-                  <p className="text-xs text-muted-foreground">{printerStatus?.message || 'Non configurée'}</p>
+                  <p className="font-medium text-sm">{printerName || 'Imprimante de tickets'}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {btConnected ? 'Connectée via Bluetooth — impression automatique' : 'Non connectée'}
+                  </p>
                 </div>
               </div>
-              <Badge variant={printerStatus?.connected ? 'default' : 'secondary'}>
-                {printerStatus?.connected ? 'Connectée' : 'Déconnectée'}
+              <Badge variant={btConnected ? 'default' : 'secondary'} className={btConnected ? 'bg-green-600' : ''}>
+                {btConnected ? 'Connectée' : 'Déconnectée'}
               </Badge>
             </div>
 
-            <div>
-              <Label>Type de connexion</Label>
-              <Select value={printerConfig.type} onValueChange={v => setPrinterConfig({...printerConfig, type: v})}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Aucune</SelectItem>
-                  <SelectItem value="usb">USB</SelectItem>
-                  <SelectItem value="network">Réseau (IP)</SelectItem>
-                  <SelectItem value="bluetooth">Bluetooth</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {printerConfig.type === 'network' && (
-              <div className="grid grid-cols-2 gap-3">
-                <div><Label>Adresse IP</Label><Input value={printerConfig.address} onChange={e => setPrinterConfig({...printerConfig, address: e.target.value})} placeholder="192.168.1.100" /></div>
-                <div><Label>Port</Label><Input type="number" value={printerConfig.port} onChange={e => setPrinterConfig({...printerConfig, port: parseInt(e.target.value)})} /></div>
+            {!btConnected && (
+              <div className="p-3 rounded-lg bg-blue-50 border border-blue-200 text-sm text-blue-800 space-y-1">
+                <p className="font-medium">Comment connecter :</p>
+                <p>1. Allumez votre imprimante Bluetooth</p>
+                <p>2. Cliquez sur "Connecter l'imprimante" ci-dessous</p>
+                <p>3. Sélectionnez votre imprimante dans la liste</p>
+                <p>Les tickets et factures seront envoyés automatiquement à l'imprimante.</p>
               </div>
             )}
 
-            {printerConfig.type === 'usb' && (
-              <div className="p-3 rounded-lg bg-blue-50 text-sm text-blue-800">
-                Branchez l'imprimante via USB. Elle sera détectée automatiquement.
+            {btConnected && (
+              <div className="p-3 rounded-lg bg-green-50 border border-green-200 text-sm text-green-800 flex items-start gap-2">
+                <CheckCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>Imprimante prête. Les tickets et factures seront imprimés automatiquement lorsque vous cliquez sur "Imprimer".</span>
               </div>
             )}
 
-            {printerConfig.type === 'bluetooth' && (
-              <div className="p-3 rounded-lg bg-blue-50 text-sm text-blue-800">
-                Assurez-vous que l'imprimante est appairée via les paramètres Bluetooth de votre appareil.
+            {!navigator.bluetooth && (
+              <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800 flex items-start gap-2">
+                <Info className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>Bluetooth non supporté par ce navigateur. Utilisez Chrome ou Edge sur un appareil compatible.</span>
               </div>
             )}
 
             <div className="flex gap-2">
-              <Button variant="outline" onClick={testPrinter} disabled={printerConfig.type === 'none' || testing}>
-                {testing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-2" />}
-                Tester la connexion
-              </Button>
-              <Button variant="destructive" size="sm" onClick={disconnectPrinter} disabled={printerConfig.type === 'none'}>
-                <Unplug className="w-4 h-4 mr-2" /> Déconnecter
-              </Button>
+              {!btConnected ? (
+                <Button onClick={connectBluetooth} disabled={connecting || !navigator.bluetooth}>
+                  {connecting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Bluetooth className="w-4 h-4 mr-2" />}
+                  {connecting ? 'Connexion...' : 'Connecter l\'imprimante'}
+                </Button>
+              ) : (
+                <Button variant="destructive" size="sm" onClick={disconnectBluetooth}>
+                  <Unplug className="w-4 h-4 mr-2" /> Déconnecter
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
