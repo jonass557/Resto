@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ticketsAPI } from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
 import { useSocket } from '@/contexts/SocketContext';
 import { usePrinter } from '@/contexts/PrinterContext';
 import TopBar from '@/components/layout/TopBar';
@@ -17,19 +18,20 @@ export default function Tickets() {
   const [filter, setFilter] = useState('all');
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [printing, setPrinting] = useState(false);
+  const { user } = useAuth();
   const { socket } = useSocket();
   const { printTicketById } = usePrinter();
 
   const loadTickets = useCallback(async () => {
     try {
-      const { data } = await ticketsAPI.getAll({ limit: 100 });
+      const { data } = await ticketsAPI.getAll({ agent: user?._id, limit: 100 });
       setTickets(data.data);
     } catch (error) {
       toast.error('Erreur chargement tickets');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user?._id]);
 
   useEffect(() => { loadTickets(); }, [loadTickets]);
 
