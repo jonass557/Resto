@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ticketsAPI, printerAPI } from '@/services/api';
+import { ticketsAPI } from '@/services/api';
 import { useSocket } from '@/contexts/SocketContext';
+import { usePrinter } from '@/contexts/PrinterContext';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,6 +21,7 @@ export default function AdminTickets() {
   const [printing, setPrinting] = useState(false);
   const [marking, setMarking] = useState(false);
   const { socket } = useSocket();
+  const { printTicketById } = usePrinter();
 
   const loadTickets = useCallback(async () => {
     try {
@@ -56,12 +58,11 @@ export default function AdminTickets() {
   const printTicket = async (ticket) => {
     setPrinting(true);
     try {
-      await printerAPI.printTicket({ ticketId: ticket._id });
+      await printTicketById(ticket._id);
       await ticketsAPI.markPrinted(ticket._id);
-      toast.success('Envoyé à l\'imprimante');
       loadTickets();
     } catch {
-      window.print();
+      toast.error('Erreur impression');
     } finally {
       setPrinting(false);
     }
