@@ -540,4 +540,86 @@ router.get('/daily-report/:date', auth, adminOnly, async (req, res) => {
   }
 });
 
+// GET /api/stats/daily-invoices?date=YYYY-MM-DD — All paid invoices for a day, grouped by agent
+router.get('/daily-invoices', auth, adminOnly, async (req, res) => {
+  try {
+    const dateStr = req.query.date || new Date().toISOString().split('T')[0];
+    const start = new Date(dateStr + 'T00:00:00.000Z');
+    const end = new Date(dateStr + 'T23:59:59.999Z');
+
+    const invoices = await Ticket.find({
+      type: 'invoice',
+      isPaid: true,
+      createdAt: { $gte: start, $lte: end }
+    })
+      .populate('agent', 'firstName lastName')
+      .populate('table', 'number name')
+      .populate('payment')
+      .sort({ createdAt: 1 });
+
+    // Group by agent
+    const byAgent = {};
+    let grandTotal = 0;
+    let totalCash = 0;
+    let totalMobileMoney = 0;
+    let totalCard = 0;
+
+    for (const inv of invoices) {
+      const agentId = inv.agent?._id?.toString() || 'unknown';
+      const agentName = inv.agent ? `${inv.agent.firstName} ${inv.agent.lastName}` : 'Inconnu';
+
+      if (!byAgent[agentId]) {
+        byAgent[agentId] = { agentName, invoices: [], total: 0, cash: 0, mobileMoney: 0, card: 0 };
+      }
+
+      const entry = {
+        _id: inv._id,
+        ticketNumber: inv.ticketNumber,
+        table: inv.table ? `Table ${inv.table.number}` : (inv.orderType === 'delivery' ? 'Livraison' : 'À emporter'),
+        items: inv.items,
+        total: inv.total,
+        createdAt: inv.createdAt,
+        paymentMethod: inv.payment?.method || 'unknown',
+        mixedPayments: inv.payment?.mixedPayments || []
+      };
+
+      // Aggregate by payment method
+      if (inv.payment) {
+        if (inv.payment.method === 'mixed' && inv.payment.mixedPayments?.length > 0) {
+          for (const mp of inv.payment.mixedPayments) {
+            if (mp.method === 'cash') { byAgent[agentId].cash += mp.amount; totalCash += mp.amount; }
+            else if (mp.method === 'mobile_money') { byAgent[agentId].mobileMoney += mp.amount; totalMobileMoney += mp.amount; }
+            else if (mp.method === 'card') { byAgent[agentId].card += mp.amount; totalCard += mp.amount; }
+          }
+        } else if (inv.payment.method === 'cash') {
+          byAgent[agentId].cash += inv.total; totalCash += inv.total;
+        } else if (inv.payment.method === 'mobile_money') {
+          byAgent[agentId].mobileMoney += inv.total; totalMobileMoney += inv.total;
+        } else if (inv.payment.method === 'card') {
+          byAgent[agentId].card += inv.total; totalCard += inv.total;
+        }
+      }
+
+      byAgent[agentId].invoices.push(entry);
+      byAgent[agentId].total += inv.total;
+      grandTotal += inv.total;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        date: dateStr,
+        invoiceCount: invoices.length,
+        grandTotal,
+        totalCash,
+        totalMobileMoney,
+        totalCard,
+        agents: Object.values(byAgent)
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 module.exports = router;

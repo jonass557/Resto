@@ -153,14 +153,19 @@ router.post('/', auth, async (req, res) => {
     if (method === 'mobile_money' && mobileMoneyProvider) {
       methodDesc += ` (${providerLabels[mobileMoneyProvider] || mobileMoneyProvider})`;
     }
+    if (method === 'mixed' && mixedPayments && mixedPayments.length > 0) {
+      const parts = mixedPayments.map(mp => `${methodLabels[mp.method] || mp.method}: ${mp.amount} FCFA`);
+      methodDesc = parts.join(' + ');
+    }
     const notif = await Notification.create({
       type: 'payment_received',
-      title: 'Paiement re\u00e7u',
-      message: `${req.user.firstName} ${req.user.lastName} a encaiss\u00e9 ${ticket.total} FCFA par ${methodDesc} — Facture ${ticket.ticketNumber}${table ? ' (Table ' + (table.number || '') + ')' : ''}`,
+      title: 'Paiement reçu',
+      message: `${req.user.firstName} ${req.user.lastName} a encaissé ${ticket.total} FCFA par ${methodDesc} — Facture ${ticket.ticketNumber}${table ? ' (Table ' + (table.number || '') + ')' : ''}`,
       agent: req.user._id,
       data: {
         paymentId: payment._id, ticketId: ticket._id, ticketNumber: ticket.ticketNumber,
-        amount: ticket.total, method, mobileMoneyProvider: mobileMoneyProvider || 'none',
+        amount: ticket.total, method, mixedPayments: mixedPayments || [],
+        mobileMoneyProvider: mobileMoneyProvider || 'none',
         tableNumber: table?.number || null
       }
     });

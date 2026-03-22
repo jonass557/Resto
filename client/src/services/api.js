@@ -8,6 +8,56 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' }
 });
 
+// ── In-memory GET cache (stale-while-revalidate) ──
+const _cache = new Map();
+const CACHE_TTL = 8000; // 8s — serve instantly, revalidate in background
+const MAX_CACHE = 80;
+
+function cacheKey(url, params) {
+  return url + (params ? '?' + new URLSearchParams(params).toString() : '');
+}
+
+function pruneCache() {
+  if (_cache.size > MAX_CACHE) {
+    const oldest = [..._cache.entries()].sort((a, b) => a[1].ts - b[1].ts);
+    for (let i = 0; i < 20; i++) _cache.delete(oldest[i][0]);
+  }
+}
+
+// Invalidate cache entries matching a prefix (called on write ops)
+export function invalidateCache(prefix) {
+  for (const key of _cache.keys()) {
+    if (key.startsWith(prefix)) _cache.delete(key);
+  }
+}
+
+// Cached GET — returns cached data instantly if fresh, else fetches
+export function cachedGet(url, params) {
+  const key = cacheKey(url, params);
+  const entry = _cache.get(key);
+  const now = Date.now();
+
+  // Fresh cache hit — return immediately
+  if (entry && now - entry.ts < CACHE_TTL) {
+    return Promise.resolve(entry.data);
+  }
+
+  // Stale cache — return stale data but refresh in background
+  const fetchPromise = api.get(url, { params }).then(res => {
+    _cache.set(key, { data: res, ts: Date.now() });
+    pruneCache();
+    return res;
+  });
+
+  if (entry) {
+    // Trigger background revalidation, return stale immediately
+    fetchPromise.catch(() => {});
+    return Promise.resolve(entry.data);
+  }
+
+  return fetchPromise;
+}
+
 // Request interceptor - add token
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
@@ -65,29 +115,29 @@ export const usersAPI = {
 
 // Products
 export const productsAPI = {
-  getAll: (params) => api.get('/products', { params }),
+  getAll: (params) => cachedGet('/products', params),
   getById: (id) => api.get(`/products/${id}`),
-  create: (data) => api.post('/products', data),
-  update: (id, data) => api.put(`/products/${id}`, data),
-  delete: (id) => api.delete(`/products/${id}`),
-  updateStock: (id, data) => api.patch(`/products/${id}/stock`, data),
+  create: (data) => api.post('/products', data).then(r => { invalidateCache('/products'); return r; }),
+  update: (id, data) => api.put(`/products/${id}`, data).then(r => { invalidateCache('/products'); return r; }),
+  delete: (id) => api.delete(`/products/${id}`).then(r => { invalidateCache('/products'); return r; }),
+  updateStock: (id, data) => api.patch(`/products/${id}/stock`, data).then(r => { invalidateCache('/products'); return r; }),
 };
 
 // Categories
 export const categoriesAPI = {
-  getAll: () => api.get('/categories'),
-  create: (data) => api.post('/categories', data),
-  update: (id, data) => api.put(`/categories/${id}`, data),
-  delete: (id) => api.delete(`/categories/${id}`),
+  getAll: () => cachedGet('/categories'),
+  create: (data) => api.post('/categories', data).then(r => { invalidateCache('/categories'); return r; }),
+  update: (id, data) => api.put(`/categories/${id}`, data).then(r => { invalidateCache('/categories'); return r; }),
+  delete: (id) => api.delete(`/categories/${id}`).then(r => { invalidateCache('/categories'); return r; }),
 };
 
 // Tables
 export const tablesAPI = {
-  getAll: (params) => api.get('/tables', { params }),
-  create: (data) => api.post('/tables', data),
-  update: (id, data) => api.put(`/tables/${id}`, data),
-  updateStatus: (id, status) => api.patch(`/tables/${id}/status`, { status }),
-  delete: (id) => api.delete(`/tables/${id}`),
+  getAll: (params) => cachedGet('/tables', params),
+  create: (data) => api.post('/tables', data).then(r => { invalidateCache('/tables'); return r; }),
+  update: (id, data) => api.put(`/tables/${id}`, data).then(r => { invalidateCache('/tables'); return r; }),
+  updateStatus: (id, status) => api.patch(`/tables/${id}/status`, { status }).then(r => { invalidateCache('/tables'); return r; }),
+  delete: (id) => api.delete(`/tables/${id}`).then(r => { invalidateCache('/tables'); return r; }),
 };
 
 // Orders
@@ -151,6 +201,7 @@ export const statsAPI = {
   getAgentPerformance: (params) => api.get('/stats/agent-performance', { params }),
   getRevenueHistory: (params) => api.get('/stats/revenue-history', { params }),
   getDailyReport: (date) => api.get(`/stats/daily-report/${date}`),
+  getDailyInvoices: (params) => api.get('/stats/daily-invoices', { params }),
 };
 
 // Accounting

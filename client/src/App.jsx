@@ -28,6 +28,7 @@ import Reports from './pages/admin/Reports';
 import AdminTables from './pages/admin/AdminTables';
 import AdminSettings from './pages/admin/AdminSettings';
 import RevenueHistory from './pages/admin/RevenueHistory';
+import DailyInvoices from './pages/admin/DailyInvoices';
 
 function ProtectedRoute({ children, requiredRole }) {
   const { isAuthenticated, user, loading } = useAuth();
@@ -102,6 +103,7 @@ export default function App() {
           <Route path="accounting" element={<Accounting />} />
           <Route path="reports" element={<Reports />} />
           <Route path="revenue-history" element={<RevenueHistory />} />
+          <Route path="daily-invoices" element={<DailyInvoices />} />
           <Route path="settings" element={<AdminSettings />} />
         </Route>
 

@@ -183,8 +183,8 @@ export default function AdminTickets() {
               </div>
 
               <div className="text-sm text-muted-foreground">
-                <p>Agent: {selectedTicket.agent?.firstName} {selectedTicket.agent?.lastName}</p>
-                <p>Date: {formatDateTime(selectedTicket.createdAt)}</p>
+                <p><strong>Agent :</strong> {selectedTicket.agent?.firstName} {selectedTicket.agent?.lastName}</p>
+                <p><strong>Date :</strong> {formatDateTime(selectedTicket.createdAt)}</p>
               </div>
 
               <div className="bg-muted p-3 rounded-lg text-sm space-y-1">
@@ -199,6 +199,26 @@ export default function AdminTickets() {
                   <span>{formatCurrency(selectedTicket.total)}</span>
                 </div>
               </div>
+
+              {/* Payment breakdown for paid invoices */}
+              {selectedTicket.isPaid && selectedTicket.payment && (
+                <div className="p-3 rounded-lg bg-green-50 border border-green-200 text-sm space-y-1">
+                  <p className="font-semibold text-green-800 mb-1">Détails du paiement</p>
+                  {selectedTicket.payment.method === 'mixed' && selectedTicket.payment.mixedPayments?.length > 0 ? (
+                    selectedTicket.payment.mixedPayments.map((mp, i) => (
+                      <div key={i} className="flex justify-between">
+                        <span>{mp.method === 'cash' ? 'Espèces' : mp.method === 'mobile_money' ? 'Mobile Money' : mp.method === 'card' ? 'Carte bancaire' : mp.method}</span>
+                        <span className="font-medium">{formatCurrency(mp.amount)}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="flex justify-between">
+                      <span>{selectedTicket.payment.method === 'cash' ? 'Espèces' : selectedTicket.payment.method === 'mobile_money' ? 'Mobile Money' : selectedTicket.payment.method === 'card' ? 'Carte bancaire' : selectedTicket.payment.method}</span>
+                      <span className="font-medium">{formatCurrency(selectedTicket.payment.amount)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="flex gap-2 flex-wrap">
                 <Button className="flex-1" onClick={() => printTicket(selectedTicket)} disabled={printing}>

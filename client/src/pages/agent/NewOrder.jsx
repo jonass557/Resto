@@ -1,19 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { productsAPI, categoriesAPI, ordersAPI, ticketsAPI, paymentsAPI } from '@/services/api';
+import { productsAPI, categoriesAPI, ordersAPI, ticketsAPI } from '@/services/api';
 import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
+import PaymentDialog from '@/components/PaymentDialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatCurrency } from '@/lib/utils';
-import { ArrowLeft, Plus, Minus, Trash2, Send, Search, Receipt, CreditCard, Loader2, Truck, ShoppingBag, MapPin, Phone, User } from 'lucide-react';
+import { ArrowLeft, Plus, Minus, Trash2, Send, Search, Receipt, Loader2, Truck, ShoppingBag, MapPin, Phone, User } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function NewOrder() {
@@ -35,8 +33,6 @@ export default function NewOrder() {
   // Payment dialog
   const [paymentDialog, setPaymentDialog] = useState(false);
   const [currentInvoice, setCurrentInvoice] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState('cash');
-  const [amountReceived, setAmountReceived] = useState('');
 
   // Track orders placed in this session (for consolidated invoice)
   const [sessionOrders, setSessionOrders] = useState([]);
@@ -149,26 +145,11 @@ export default function NewOrder() {
     }
   };
 
-  const processPayment = async () => {
-    if (!currentInvoice) return;
-    setSubmitting(true);
-    try {
-      await paymentsAPI.create({
-        ticketId: currentInvoice._id,
-        method: paymentMethod,
-        amountReceived: parseFloat(amountReceived) || currentInvoice.total
-      });
-      toast.success('Paiement effectué!');
-      setPaymentDialog(false);
-      setCurrentInvoice(null);
-      setAmountReceived('');
-      setSessionOrders([]);
-      navigate('/agent/orders');
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Erreur paiement');
-    } finally {
-      setSubmitting(false);
-    }
+  const onPaymentSuccess = () => {
+    setPaymentDialog(false);
+    setCurrentInvoice(null);
+    setSessionOrders([]);
+    navigate('/agent/orders');
   };
 
   const sessionTotal = sessionOrders.reduce((sum, o) => sum + o.total, 0);
@@ -341,65 +322,14 @@ export default function NewOrder() {
         </div>
       </div>
 
-      {/* Payment Dialog */}
-      <Dialog open={paymentDialog} onOpenChange={setPaymentDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Paiement — Facture {currentInvoice?.ticketNumber}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            {orderType === 'delivery' && deliveryInfo.clientName && (
-              <div className="p-3 rounded-lg bg-blue-50 text-sm">
-                <p className="font-medium">{deliveryInfo.clientName}</p>
-                <p className="text-muted-foreground">{deliveryInfo.phone} {deliveryInfo.address && `| ${deliveryInfo.address}`}</p>
-              </div>
-            )}
-
-            <div className="bg-muted p-3 rounded-lg text-sm space-y-1">
-              {currentInvoice?.items?.map((item, i) => (
-                <div key={i} className="flex justify-between">
-                  <span>{item.quantity}x {item.name}</span>
-                  <span>{formatCurrency(item.totalPrice)}</span>
-                </div>
-              ))}
-              <Separator className="my-2" />
-              <div className="flex justify-between font-bold text-base">
-                <span>Total</span>
-                <span>{formatCurrency(currentInvoice?.total || 0)}</span>
-              </div>
-            </div>
-
-            <div>
-              <Label>Mode de paiement</Label>
-              <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cash">Espèces</SelectItem>
-                  <SelectItem value="card">Carte bancaire</SelectItem>
-                  <SelectItem value="mobile_money">Mobile Money</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {paymentMethod === 'cash' && (
-              <div>
-                <Label>Montant reçu</Label>
-                <Input type="number" placeholder={currentInvoice?.total?.toString()} value={amountReceived} onChange={e => setAmountReceived(e.target.value)} />
-                {amountReceived && parseFloat(amountReceived) > (currentInvoice?.total || 0) && (
-                  <p className="text-sm text-green-600 mt-1">Monnaie: {formatCurrency(parseFloat(amountReceived) - (currentInvoice?.total || 0))}</p>
-                )}
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPaymentDialog(false)}>Annuler</Button>
-            <Button onClick={processPayment} disabled={submitting}>
-              {submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CreditCard className="w-4 h-4 mr-2" />}
-              Encaisser {formatCurrency(currentInvoice?.total || 0)}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Split Payment Dialog */}
+      <PaymentDialog
+        open={paymentDialog}
+        onOpenChange={setPaymentDialog}
+        invoice={currentInvoice}
+        onSuccess={onPaymentSuccess}
+        deliveryInfo={orderType === 'delivery' ? deliveryInfo : null}
+      />
     </div>
   );
 }

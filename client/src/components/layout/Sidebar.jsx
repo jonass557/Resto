@@ -44,6 +44,7 @@ const adminNav = [
   { to: '/admin/accounting', icon: BookOpen, label: 'Comptabilité' },
   { to: '/admin/reports', icon: FileText, label: 'Rapports' },
   { to: '/admin/revenue-history', icon: PieChart, label: 'Historique CA' },
+  { to: '/admin/daily-invoices', icon: Printer, label: 'Facture Globale' },
   { to: '/admin/settings', icon: Settings, label: 'Paramètres' },
 ];
 

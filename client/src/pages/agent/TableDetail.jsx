@@ -1,18 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { tablesAPI, productsAPI, categoriesAPI, ordersAPI, ticketsAPI, paymentsAPI } from '@/services/api';
+import { tablesAPI, productsAPI, categoriesAPI, ordersAPI, ticketsAPI } from '@/services/api';
 import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
+import PaymentDialog from '@/components/PaymentDialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
 import { formatCurrency, getStatusColor, getStatusLabel } from '@/lib/utils';
-import { ArrowLeft, Plus, Minus, Trash2, Send, Search, Receipt, CreditCard, Loader2, Printer } from 'lucide-react';
+import { ArrowLeft, Plus, Minus, Trash2, Send, Search, Receipt, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function TableDetail() {
@@ -30,8 +28,6 @@ export default function TableDetail() {
   const [submitting, setSubmitting] = useState(false);
   const [paymentDialog, setPaymentDialog] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState('cash');
-  const [amountReceived, setAmountReceived] = useState('');
 
   const loadData = useCallback(async () => {
     try {
@@ -143,25 +139,10 @@ export default function TableDetail() {
     }
   };
 
-  const processPayment = async () => {
-    if (!selectedInvoice) return;
-    setSubmitting(true);
-    try {
-      await paymentsAPI.create({
-        ticketId: selectedInvoice._id,
-        method: paymentMethod,
-        amountReceived: parseFloat(amountReceived) || selectedInvoice.total
-      });
-      toast.success('Paiement effectué!');
-      setPaymentDialog(false);
-      setSelectedInvoice(null);
-      setAmountReceived('');
-      loadData();
-    } catch (error) {
-      toast.error(error.response?.data?.message || 'Erreur paiement');
-    } finally {
-      setSubmitting(false);
-    }
+  const onPaymentSuccess = () => {
+    setPaymentDialog(false);
+    setSelectedInvoice(null);
+    loadData();
   };
 
   if (loading) {
@@ -334,67 +315,13 @@ export default function TableDetail() {
         </div>
       </div>
 
-      {/* Payment Dialog */}
-      <Dialog open={paymentDialog} onOpenChange={setPaymentDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Paiement - Facture {selectedInvoice?.ticketNumber}</DialogTitle>
-          </DialogHeader>
-          {selectedInvoice && (
-            <div className="space-y-4">
-              <div className="bg-muted p-3 rounded-lg space-y-1 text-sm">
-                {selectedInvoice.items?.map((item, i) => (
-                  <div key={i} className="flex justify-between">
-                    <span>{item.quantity}x {item.name}</span>
-                    <span>{formatCurrency(item.totalPrice)}</span>
-                  </div>
-                ))}
-                <Separator className="my-2" />
-                <div className="flex justify-between font-bold text-base">
-                  <span>Total</span>
-                  <span>{formatCurrency(selectedInvoice.total)}</span>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Mode de paiement</Label>
-                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="cash">Espèces</SelectItem>
-                    <SelectItem value="card">Carte bancaire</SelectItem>
-                    <SelectItem value="mobile_money">Mobile Money</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {paymentMethod === 'cash' && (
-                <div className="space-y-2">
-                  <Label>Montant reçu</Label>
-                  <Input
-                    type="number"
-                    value={amountReceived}
-                    onChange={(e) => setAmountReceived(e.target.value)}
-                    placeholder={selectedInvoice.total.toString()}
-                  />
-                  {parseFloat(amountReceived) > selectedInvoice.total && (
-                    <p className="text-sm text-green-600">
-                      Monnaie à rendre: {formatCurrency(parseFloat(amountReceived) - selectedInvoice.total)}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPaymentDialog(false)}>Annuler</Button>
-            <Button onClick={processPayment} disabled={submitting}>
-              {submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CreditCard className="w-4 h-4 mr-2" />}
-              Confirmer le paiement
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Split Payment Dialog */}
+      <PaymentDialog
+        open={paymentDialog}
+        onOpenChange={setPaymentDialog}
+        invoice={selectedInvoice}
+        onSuccess={onPaymentSuccess}
+      />
     </div>
   );
 }
