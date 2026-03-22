@@ -39,7 +39,6 @@ const ticketSchema = new mongoose.Schema({
   notes: { type: String, default: '' }
 }, { timestamps: true });
 
-ticketSchema.index({ ticketNumber: 1 });
 ticketSchema.index({ table: 1, type: 1 });
 
 module.exports = mongoose.model('Ticket', ticketSchema);
