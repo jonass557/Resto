@@ -24,7 +24,7 @@ export default function ProductManagement() {
   // Product dialog
   const [productDialog, setProductDialog] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
-  const [productForm, setProductForm] = useState({ name: '', price: '', costPrice: '', category: '', description: '', stock: '-1', taxRate: '0', isAvailable: true });
+  const [productForm, setProductForm] = useState({ name: '', price: '', category: '', description: '', taxRate: '0', isAvailable: true });
 
   // Category dialog
   const [categoryDialog, setCategoryDialog] = useState(false);
@@ -55,16 +55,16 @@ export default function ProductManagement() {
   // Product handlers
   const openCreateProduct = () => {
     setEditingProduct(null);
-    setProductForm({ name: '', price: '', costPrice: '', category: categories[0]?._id || '', description: '', stock: '-1', taxRate: '0', isAvailable: true });
+    setProductForm({ name: '', price: '', category: categories[0]?._id || '', description: '', taxRate: '0', isAvailable: true });
     setProductDialog(true);
   };
 
   const openEditProduct = (product) => {
     setEditingProduct(product);
     setProductForm({
-      name: product.name, price: product.price.toString(), costPrice: (product.costPrice || 0).toString(),
+      name: product.name, price: product.price.toString(),
       category: product.category?._id || '', description: product.description || '',
-      stock: product.stock.toString(), taxRate: (product.taxRate || 0).toString(), isAvailable: product.isAvailable
+      taxRate: (product.taxRate || 0).toString(), isAvailable: product.isAvailable
     });
     setProductDialog(true);
   };
@@ -76,8 +76,8 @@ export default function ProductManagement() {
       const data = {
         ...productForm,
         price: parseFloat(productForm.price),
-        costPrice: parseFloat(productForm.costPrice) || 0,
-        stock: parseInt(productForm.stock),
+        costPrice: 0,
+        stock: -1,
         taxRate: parseFloat(productForm.taxRate) || 0
       };
       if (editingProduct) {
@@ -192,7 +192,6 @@ export default function ProductManagement() {
                           <p className="font-bold">{product.name}</p>
                           <div className="flex gap-2 mt-1">
                             <Badge style={{ backgroundColor: product.category?.color + '20', color: product.category?.color }}>{product.category?.name}</Badge>
-                            {product.stock !== -1 && <Badge variant={product.stock > product.minStock ? 'outline' : 'destructive'}>Stock: {product.stock}</Badge>}
                             {!product.isAvailable && <Badge variant="destructive">Indisponible</Badge>}
                           </div>
                         </div>
@@ -200,7 +199,6 @@ export default function ProductManagement() {
                       <div className="flex items-center gap-4">
                         <div className="text-right">
                           <p className="font-bold text-primary">{formatCurrency(product.price)}</p>
-                          {product.costPrice > 0 && <p className="text-xs text-muted-foreground">Coût: {formatCurrency(product.costPrice)}</p>}
                         </div>
                         <Button size="icon" variant="ghost" onClick={() => openEditProduct(product)}><Edit className="w-4 h-4" /></Button>
                         <Button size="icon" variant="ghost" className="text-destructive" onClick={() => deleteProduct(product)}><Trash2 className="w-4 h-4" /></Button>
@@ -251,10 +249,7 @@ export default function ProductManagement() {
           <DialogHeader><DialogTitle>{editingProduct ? 'Modifier le produit' : 'Nouveau produit'}</DialogTitle></DialogHeader>
           <div className="space-y-3 max-h-96 overflow-y-auto">
             <div><Label>Nom *</Label><Input value={productForm.name} onChange={e => setProductForm({...productForm, name: e.target.value})} /></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Prix de vente *</Label><Input type="number" value={productForm.price} onChange={e => setProductForm({...productForm, price: e.target.value})} /></div>
-              <div><Label>Prix de revient</Label><Input type="number" value={productForm.costPrice} onChange={e => setProductForm({...productForm, costPrice: e.target.value})} /></div>
-            </div>
+            <div><Label>Prix de vente *</Label><Input type="number" value={productForm.price} onChange={e => setProductForm({...productForm, price: e.target.value})} /></div>
             <div><Label>Catégorie *</Label>
               <Select value={productForm.category} onValueChange={v => setProductForm({...productForm, category: v})}>
                 <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
@@ -262,10 +257,7 @@ export default function ProductManagement() {
               </Select>
             </div>
             <div><Label>Description</Label><Input value={productForm.description} onChange={e => setProductForm({...productForm, description: e.target.value})} /></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Stock (-1 = illimité)</Label><Input type="number" value={productForm.stock} onChange={e => setProductForm({...productForm, stock: e.target.value})} /></div>
-              <div><Label>Taux de taxe (%)</Label><Input type="number" value={productForm.taxRate} onChange={e => setProductForm({...productForm, taxRate: e.target.value})} /></div>
-            </div>
+            <div><Label>Taux de taxe (%)</Label><Input type="number" value={productForm.taxRate} onChange={e => setProductForm({...productForm, taxRate: e.target.value})} /></div>
             <div className="flex items-center gap-2">
               <Switch checked={productForm.isAvailable} onCheckedChange={v => setProductForm({...productForm, isAvailable: v})} />
               <Label>Disponible à la vente</Label>

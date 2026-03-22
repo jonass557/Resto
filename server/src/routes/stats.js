@@ -277,4 +277,92 @@ router.get('/revenue-chart', auth, async (req, res) => {
   }
 });
 
+// GET /api/stats/product-analytics - Detailed product analytics with daily breakdown
+router.get('/product-analytics', auth, async (req, res) => {
+  try {
+    const { period = 'month' } = req.query;
+    const { start, end } = getDateRange(period);
+
+    const orders = await Order.find({
+      createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' }
+    });
+
+    const productStats = {};
+    const dailyBreakdown = {};
+
+    for (const order of orders) {
+      const dayKey = order.createdAt.toISOString().split('T')[0];
+      for (const item of order.items) {
+        const pid = item.product?.toString() || item.name;
+        if (!productStats[pid]) {
+          productStats[pid] = { productId: pid, name: item.name, totalQuantity: 0, totalRevenue: 0, totalOrders: 0, daily: {} };
+        }
+        productStats[pid].totalQuantity += item.quantity;
+        productStats[pid].totalRevenue += item.totalPrice;
+        productStats[pid].totalOrders++;
+
+        if (!productStats[pid].daily[dayKey]) productStats[pid].daily[dayKey] = { quantity: 0, revenue: 0 };
+        productStats[pid].daily[dayKey].quantity += item.quantity;
+        productStats[pid].daily[dayKey].revenue += item.totalPrice;
+
+        if (!dailyBreakdown[dayKey]) dailyBreakdown[dayKey] = { date: dayKey, totalQuantity: 0, totalRevenue: 0 };
+        dailyBreakdown[dayKey].totalQuantity += item.quantity;
+        dailyBreakdown[dayKey].totalRevenue += item.totalPrice;
+      }
+    }
+
+    const sorted = Object.values(productStats)
+      .map(p => ({ ...p, daily: Object.values(p.daily) }))
+      .sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+    res.json({
+      success: true,
+      data: sorted,
+      dailyBreakdown: Object.values(dailyBreakdown).sort((a, b) => a.date.localeCompare(b.date)),
+      totalProducts: sorted.length
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// GET /api/stats/agent-performance - Agent performance with percentages
+router.get('/agent-performance', auth, adminOnly, async (req, res) => {
+  try {
+    const { period = 'today' } = req.query;
+    const { start, end } = getDateRange(period);
+
+    const agents = await User.find({ role: 'agent', isActive: true }).select('-password');
+
+    // Totals across all agents for the period
+    const allOrders = await Order.countDocuments({ createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' } });
+    const allPayments = await Payment.find({ createdAt: { $gte: start, $lt: end }, status: 'completed' });
+    const totalRevenueAll = allPayments.reduce((s, p) => s + p.amount, 0);
+
+    const agentPerf = [];
+    for (const agent of agents) {
+      const agOrders = await Order.countDocuments({ agent: agent._id, createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' } });
+      const agPayments = await Payment.find({ agent: agent._id, createdAt: { $gte: start, $lt: end }, status: 'completed' });
+      const agRevenue = agPayments.reduce((s, p) => s + p.amount, 0);
+      const agTickets = await Ticket.countDocuments({ agent: agent._id, createdAt: { $gte: start, $lt: end } });
+
+      agentPerf.push({
+        agent: { _id: agent._id, firstName: agent.firstName, lastName: agent.lastName, email: agent.email },
+        orders: agOrders,
+        revenue: agRevenue,
+        tickets: agTickets,
+        transactions: agPayments.length,
+        orderPercent: allOrders > 0 ? Math.round((agOrders / allOrders) * 100) : 0,
+        revenuePercent: totalRevenueAll > 0 ? Math.round((agRevenue / totalRevenueAll) * 100) : 0,
+        lastLogin: agent.lastLogin
+      });
+    }
+
+    agentPerf.sort((a, b) => b.revenue - a.revenue);
+    res.json({ success: true, data: agentPerf, totals: { orders: allOrders, revenue: totalRevenueAll } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 module.exports = router;

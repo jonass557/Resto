@@ -93,6 +93,15 @@ router.post('/', auth, async (req, res) => {
       await Order.findByIdAndUpdate(order._id || order, { status: 'paid' });
     }
 
+    // If this is an invoice, also mark all related order tickets as paid
+    if (ticket.type === 'invoice' && ticket.orders.length > 0) {
+      const orderIds = ticket.orders.map(o => o._id || o);
+      await Ticket.updateMany(
+        { orders: { $in: orderIds }, type: 'order', isPaid: false },
+        { isPaid: true, payment: payment._id }
+      );
+    }
+
     // Update table
     const table = await Table.findById(ticket.table);
     if (table) {

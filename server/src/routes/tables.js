@@ -21,8 +21,8 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
-// POST /api/tables
-router.post('/', auth, adminOnly, async (req, res) => {
+// POST /api/tables (agents and admins can create)
+router.post('/', auth, async (req, res) => {
   try {
     const table = new Table(req.body);
     await table.save();

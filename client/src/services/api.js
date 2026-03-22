@@ -146,6 +146,8 @@ export const statsAPI = {
   getRevenueChart: (params) => api.get('/stats/revenue-chart', { params }),
   getSales: (params) => api.get('/stats/sales', { params }),
   getProducts: (params) => api.get('/stats/products', { params }),
+  getProductAnalytics: (params) => api.get('/stats/product-analytics', { params }),
+  getAgentPerformance: (params) => api.get('/stats/agent-performance', { params }),
 };
 
 // Accounting

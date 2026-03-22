@@ -1,16 +1,22 @@
+import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useOffline } from '@/contexts/OfflineContext';
+import { cashRegisterAPI } from '@/services/api';
 import { cn } from '@/lib/utils';
 import {
   UtensilsCrossed, LayoutDashboard, ShoppingCart, Receipt, CreditCard,
   Users, BarChart3, Package, Settings, LogOut, ChefHat, Wallet,
   BookOpen, UserCircle, Printer, TrendingUp, FileText, PieChart, Truck,
-  Wifi, WifiOff, RefreshCw, Loader2
+  Wifi, WifiOff, RefreshCw, Loader2, AlertTriangle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import toast from 'react-hot-toast';
 
 const agentNav = [
   { to: '/agent', icon: LayoutDashboard, label: 'Tableau de bord', end: true },
@@ -38,15 +44,47 @@ const adminNav = [
   { to: '/admin/settings', icon: Settings, label: 'Paramètres' },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ onNavigate }) {
   const { user, isAdmin, logout } = useAuth();
   const { isOnline, pendingCount, syncing, syncPendingActions } = useOffline();
   const navigate = useNavigate();
   const navItems = isAdmin ? adminNav : agentNav;
 
-  const handleLogout = () => {
+  const [showCloseDialog, setShowCloseDialog] = useState(false);
+  const [closingAmount, setClosingAmount] = useState('');
+  const [closingLoading, setClosingLoading] = useState(false);
+
+  const handleLogout = async () => {
+    if (isAdmin) {
+      logout();
+      navigate('/login');
+      return;
+    }
+    // Agent: check if cash register is open
+    try {
+      const res = await cashRegisterAPI.getCurrent();
+      if (res.data.data) {
+        setShowCloseDialog(true);
+        return;
+      }
+    } catch { /* no open register, proceed */ }
     logout();
     navigate('/login');
+  };
+
+  const handleCloseAndLogout = async () => {
+    setClosingLoading(true);
+    try {
+      await cashRegisterAPI.close({ closingAmount: parseFloat(closingAmount) || 0 });
+      toast.success('Caisse clôturée avec succès');
+      setShowCloseDialog(false);
+      logout();
+      navigate('/login');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Erreur lors de la clôture');
+    } finally {
+      setClosingLoading(false);
+    }
   };
 
   return (
@@ -69,6 +107,7 @@ export default function Sidebar() {
             key={item.to}
             to={item.to}
             end={item.end}
+            onClick={onNavigate}
             className={({ isActive }) =>
               cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
@@ -126,6 +165,34 @@ export default function Sidebar() {
           Déconnexion
         </Button>
       </div>
+
+      {/* Cash register close dialog for agents */}
+      <Dialog open={showCloseDialog} onOpenChange={setShowCloseDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-yellow-500" />
+              Clôturer la caisse
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Vous devez clôturer votre caisse avant de vous déconnecter. L'administrateur sera informé de la fermeture.
+          </p>
+          <div className="space-y-3">
+            <div>
+              <Label>Montant en caisse (FCFA)</Label>
+              <Input type="number" placeholder="0" value={closingAmount} onChange={e => setClosingAmount(e.target.value)} />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowCloseDialog(false)}>Annuler</Button>
+            <Button onClick={handleCloseAndLogout} disabled={closingLoading}>
+              {closingLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Clôturer et se déconnecter
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </aside>
   );
 }

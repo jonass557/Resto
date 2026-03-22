@@ -10,7 +10,7 @@ import { formatCurrency, formatDateTime } from '@/lib/utils';
 import {
   DollarSign, ShoppingCart, Receipt, TrendingUp, Users, Loader2,
   Bell, BellRing, CheckCheck, Wallet, LogIn, CreditCard, Banknote,
-  Smartphone, ArrowUpRight
+  Smartphone, ArrowUpRight, Package, BarChart2
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -32,6 +32,8 @@ const NOTIF_ICONS = {
 export default function AdminDashboard() {
   const [stats, setStats] = useState(null);
   const [agentStats, setAgentStats] = useState([]);
+  const [agentPerf, setAgentPerf] = useState([]);
+  const [productAnalytics, setProductAnalytics] = useState([]);
   const [revenueData, setRevenueData] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -41,14 +43,18 @@ export default function AdminDashboard() {
 
   const loadStats = useCallback(async () => {
     try {
-      const [dashRes, agentsRes, revenueRes] = await Promise.all([
+      const [dashRes, agentsRes, revenueRes, perfRes, prodRes] = await Promise.all([
         statsAPI.getDashboard({ period }),
         statsAPI.getAgents({ period }),
-        statsAPI.getRevenueChart({ period })
+        statsAPI.getRevenueChart({ period }),
+        statsAPI.getAgentPerformance({ period }),
+        statsAPI.getProductAnalytics({ period })
       ]);
       setStats(dashRes.data.data);
       setAgentStats(agentsRes.data.data);
       setRevenueData(revenueRes.data.data || []);
+      setAgentPerf(perfRes.data.data || []);
+      setProductAnalytics(prodRes.data.data?.slice(0, 15) || []);
     } catch (error) {
       console.error('Erreur chargement stats:', error);
     } finally {
@@ -116,12 +122,12 @@ export default function AdminDashboard() {
   return (
     <div>
       <TopBar title="Dashboard Administrateur" />
-      <div className="p-6 space-y-6">
+      <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
         {/* Period Selector */}
-        <div className="flex justify-between items-center">
-          <h2 className="text-lg font-semibold">Vue d'ensemble</h2>
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+          <h2 className="text-base sm:text-lg font-semibold">Vue d'ensemble</h2>
           <Select value={period} onValueChange={setPeriod}>
-            <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-44"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="today">Aujourd'hui</SelectItem>
               <SelectItem value="week">Cette semaine</SelectItem>
@@ -133,17 +139,17 @@ export default function AdminDashboard() {
         </div>
 
         {/* Stat Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {statCards.map((stat) => (
             <Card key={stat.title}>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">{stat.title}</p>
-                    <p className="text-2xl font-bold mt-1">{stat.value}</p>
+              <CardContent className="pt-4 sm:pt-6 pb-4">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs sm:text-sm text-muted-foreground truncate">{stat.title}</p>
+                    <p className="text-lg sm:text-2xl font-bold mt-1">{stat.value}</p>
                   </div>
-                  <div className={`w-12 h-12 rounded-lg ${stat.bg} flex items-center justify-center`}>
-                    <stat.icon className={`w-6 h-6 ${stat.color}`} />
+                  <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-lg ${stat.bg} flex items-center justify-center shrink-0`}>
+                    <stat.icon className={`w-5 h-5 sm:w-6 sm:h-6 ${stat.color}`} />
                   </div>
                 </div>
               </CardContent>
@@ -210,31 +216,40 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Agent Performance */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+          {/* Agent Performance with Percentages */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base"><Users className="w-5 h-5" /> Revenus par agent</CardTitle>
+              <CardTitle className="flex items-center gap-2 text-base"><Users className="w-5 h-5" /> Performance des agents</CardTitle>
             </CardHeader>
             <CardContent>
-              {agentStats.length > 0 ? (
+              {agentPerf.length > 0 ? (
                 <div className="space-y-3">
-                  {agentStats.map((stat, i) => (
-                    <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-muted">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                          <span className="text-xs font-bold text-primary">{stat.agent.firstName[0]}{stat.agent.lastName[0]}</span>
+                  {agentPerf.map((stat, i) => (
+                    <div key={i} className="p-3 rounded-lg bg-muted/50 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ backgroundColor: COLORS[i % COLORS.length] }}>
+                            {stat.agent.firstName[0]}{stat.agent.lastName[0]}
+                          </div>
+                          <div>
+                            <p className="font-medium text-sm">{stat.agent.firstName} {stat.agent.lastName}</p>
+                            <p className="text-xs text-muted-foreground">{stat.orders} cmd · {stat.tickets} tickets</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-medium text-sm">{stat.agent.firstName} {stat.agent.lastName}</p>
-                          <p className="text-xs text-muted-foreground">{stat.orders} cmd · {stat.transactions} trans.</p>
+                        <p className="font-bold text-sm">{formatCurrency(stat.revenue)}</p>
+                      </div>
+                      <div className="flex gap-2 items-center text-xs">
+                        <span className="w-20 text-muted-foreground shrink-0">CA {stat.revenuePercent}%</span>
+                        <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                          <div className="h-full rounded-full transition-all" style={{ width: `${stat.revenuePercent}%`, backgroundColor: COLORS[i % COLORS.length] }} />
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-bold text-primary">{formatCurrency(stat.revenue)}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {stat.lastLogin ? `Dernière connexion: ${new Date(stat.lastLogin).toLocaleDateString('fr-FR')}` : 'Jamais connecté'}
-                        </p>
+                      <div className="flex gap-2 items-center text-xs">
+                        <span className="w-20 text-muted-foreground shrink-0">Cmd {stat.orderPercent}%</span>
+                        <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                          <div className="h-full rounded-full transition-all" style={{ width: `${stat.orderPercent}%`, backgroundColor: COLORS[i % COLORS.length], opacity: 0.6 }} />
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -289,24 +304,46 @@ export default function AdminDashboard() {
           </Card>
         </div>
 
-        {/* Top Products */}
+        {/* Product Analytics */}
         <Card>
-          <CardHeader><CardTitle className="text-base">Top Produits</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base"><Package className="w-5 h-5" /> Analytique des produits</CardTitle>
+          </CardHeader>
           <CardContent>
-            {stats?.topProducts?.length > 0 ? (
-              <div className="space-y-2">
-                {stats.topProducts.map((product, i) => (
-                  <div key={i} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted">
-                    <div className="flex items-center gap-3">
-                      <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center">{i + 1}</span>
-                      <span className="font-medium">{product.name}</span>
-                    </div>
-                    <div className="flex items-center gap-4 text-sm">
-                      <span className="text-muted-foreground">{product.quantity} vendus</span>
-                      <span className="font-bold">{formatCurrency(product.revenue)}</span>
-                    </div>
-                  </div>
-                ))}
+            {productAnalytics.length > 0 ? (
+              <div className="space-y-4">
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={productAnalytics.slice(0, 8)} layout="vertical" margin={{ left: 80 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis type="number" tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v} />
+                    <YAxis dataKey="name" type="category" width={75} tick={{ fontSize: 11 }} />
+                    <Tooltip formatter={(value, name) => [name === 'totalRevenue' ? formatCurrency(value) : value, name === 'totalRevenue' ? 'CA' : 'Qté']} />
+                    <Bar dataKey="totalQuantity" fill="#10B981" radius={[0, 4, 4, 0]} name="Quantité" />
+                  </BarChart>
+                </ResponsiveContainer>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {productAnalytics.map((product, i) => {
+                    const maxRev = productAnalytics[0]?.totalRevenue || 1;
+                    const pct = Math.round((product.totalRevenue / maxRev) * 100);
+                    return (
+                      <div key={i} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted">
+                        <span className="w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center shrink-0">{i + 1}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex justify-between text-sm">
+                            <span className="font-medium truncate">{product.name}</span>
+                            <span className="font-bold shrink-0 ml-2">{formatCurrency(product.totalRevenue)}</span>
+                          </div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                              <div className="h-full rounded-full bg-emerald-500" style={{ width: `${pct}%` }} />
+                            </div>
+                            <span className="text-xs text-muted-foreground shrink-0">{product.totalQuantity} vendus</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             ) : (
               <p className="text-center text-muted-foreground py-4">Aucune donnée</p>

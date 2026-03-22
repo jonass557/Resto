@@ -203,21 +203,6 @@ export default function Login() {
               </Button>
             </form>
 
-            <div className="mt-6 p-4 rounded-xl bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-600">
-              <p className="font-semibold text-xs text-gray-600 dark:text-gray-300 mb-2 uppercase tracking-wide">Comptes de démonstration</p>
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="p-2 rounded-lg bg-white dark:bg-gray-800 border">
-                  <p className="font-medium text-blue-600">Admin</p>
-                  <p className="text-gray-500 mt-0.5">admin@restaurant.com</p>
-                  <p className="text-gray-400">admin123</p>
-                </div>
-                <div className="p-2 rounded-lg bg-white dark:bg-gray-800 border">
-                  <p className="font-medium text-green-600">Agent</p>
-                  <p className="text-gray-500 mt-0.5">agent@restaurant.com</p>
-                  <p className="text-gray-400">agent123</p>
-                </div>
-              </div>
-            </div>
           </div>
 
           <p className="text-center text-xs text-gray-400 mt-6">

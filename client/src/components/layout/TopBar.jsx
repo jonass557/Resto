@@ -10,9 +10,9 @@ export default function TopBar({ title }) {
   const { connected } = useSocket();
 
   return (
-    <header className="sticky top-0 z-30 h-16 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60 border-b flex items-center justify-between px-6">
-      <div className="flex items-center gap-4">
-        <h1 className="text-xl font-bold">{title}</h1>
+    <header className="sticky top-0 z-30 h-14 sm:h-16 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60 border-b flex items-center justify-between px-3 sm:px-6">
+      <div className="flex items-center gap-4 min-w-0">
+        <h1 className="text-base sm:text-xl font-bold truncate">{title}</h1>
       </div>
 
       <div className="flex items-center gap-3">

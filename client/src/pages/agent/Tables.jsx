@@ -62,9 +62,9 @@ export default function Tables() {
   return (
     <div>
       <TopBar title="Tables & Commandes" />
-      <div className="p-6 space-y-6">
+      <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
         {/* Filters */}
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-1.5 sm:gap-2 flex-wrap">
           {['all', 'available', 'occupied', 'reserved', 'cleaning'].map((status) => (
             <Button
               key={status}
