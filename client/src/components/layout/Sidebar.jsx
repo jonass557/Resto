@@ -88,7 +88,7 @@ export default function Sidebar({ onNavigate }) {
   };
 
   return (
-    <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-card border-r flex flex-col">
+    <aside className="h-screen w-64 bg-card border-r flex flex-col">
       <div className="p-4 flex items-center gap-3">
         <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
           <UtensilsCrossed className="w-5 h-5 text-primary-foreground" />

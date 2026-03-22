@@ -1,34 +1,50 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { authAPI } from '../services/api';
 
 const AuthContext = createContext(null);
 
+// Read cached user from localStorage instantly (no async)
+function getCachedUser() {
+  try {
+    const cached = localStorage.getItem('user');
+    return cached ? JSON.parse(cached) : null;
+  } catch { return null; }
+}
+
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem('token'));
-  const [loading, setLoading] = useState(true);
+  const storedToken = localStorage.getItem('token');
+  const cachedUser = getCachedUser();
 
-  const fetchUser = useCallback(async () => {
-    if (!token) {
-      setLoading(false);
-      return;
-    }
-    try {
-      const { data } = await authAPI.getMe();
-      setUser(data.data);
-    } catch {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      setToken(null);
-      setUser(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [token]);
+  const [user, setUser] = useState(storedToken ? cachedUser : null);
+  const [token, setToken] = useState(storedToken);
+  // If we have a cached user + token, skip the loading state entirely
+  const [loading, setLoading] = useState(storedToken && !cachedUser);
+  const didRefresh = useRef(false);
 
+  // Background refresh: validate token + update user data silently
   useEffect(() => {
-    fetchUser();
-  }, [fetchUser]);
+    if (!token || didRefresh.current) return;
+    didRefresh.current = true;
+
+    // If we have no cached user, we must wait for this call
+    const mustWait = !cachedUser;
+
+    const refresh = async () => {
+      try {
+        const { data } = await authAPI.getMe();
+        setUser(data.data);
+        localStorage.setItem('user', JSON.stringify(data.data));
+      } catch {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        setToken(null);
+        setUser(null);
+      } finally {
+        if (mustWait) setLoading(false);
+      }
+    };
+    refresh();
+  }, [token]);
 
   const login = async (email, password) => {
     const { data } = await authAPI.login({ email, password });
@@ -37,6 +53,7 @@ export function AuthProvider({ children }) {
     localStorage.setItem('user', JSON.stringify(userData));
     setToken(newToken);
     setUser(userData);
+    didRefresh.current = false;
     return userData;
   };
 
@@ -45,6 +62,7 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('user');
     setToken(null);
     setUser(null);
+    didRefresh.current = false;
   };
 
   const updateUser = (userData) => {
