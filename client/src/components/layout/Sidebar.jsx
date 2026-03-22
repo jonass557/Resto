@@ -123,29 +123,6 @@ export default function Sidebar({ onNavigate }) {
         ))}
       </nav>
 
-      {/* Online / Offline status + Sync */}
-      <div className="px-3 pb-2">
-        <div className={cn(
-          'flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium',
-          isOnline ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'
-        )}>
-          <div className="flex items-center gap-2">
-            {isOnline ? <Wifi className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
-            {isOnline ? 'En ligne' : 'Hors ligne'}
-          </div>
-          {pendingCount > 0 && (
-            <button
-              onClick={syncPendingActions}
-              disabled={syncing || !isOnline}
-              className="flex items-center gap-1 px-2 py-0.5 rounded bg-white/70 hover:bg-white border text-xs disabled:opacity-50"
-            >
-              {syncing ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-              Sync ({pendingCount})
-            </button>
-          )}
-        </div>
-      </div>
-
       <Separator />
 
       <div className="p-3">

@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { statsAPI, cashRegisterAPI } from '@/services/api';
 import TopBar from '@/components/layout/TopBar';
@@ -22,8 +23,10 @@ export default function AgentDashboard() {
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState('today');
 
+  const firstLoad = useRef(true);
+
   const loadData = useCallback(async () => {
-    setLoading(true);
+    if (firstLoad.current) setLoading(true);
     try {
       const [statsRes, cashRes] = await Promise.all([
         statsAPI.getAgent(user._id, { period }),
@@ -35,6 +38,7 @@ export default function AgentDashboard() {
       console.error('Erreur chargement dashboard:', error);
     } finally {
       setLoading(false);
+      firstLoad.current = false;
     }
   }, [user._id, period]);
 
@@ -123,22 +127,22 @@ export default function AgentDashboard() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <a href="/agent/tables" className="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-lg border hover:bg-accent transition-colors">
+              <Link to="/agent/tables" className="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-lg border hover:bg-accent transition-colors">
                 <ShoppingCart className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
                 <span className="text-xs sm:text-sm font-medium text-center">Nouvelle commande</span>
-              </a>
-              <a href="/agent/tickets" className="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-lg border hover:bg-accent transition-colors">
+              </Link>
+              <Link to="/agent/tickets" className="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-lg border hover:bg-accent transition-colors">
                 <Receipt className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
                 <span className="text-xs sm:text-sm font-medium text-center">Voir tickets</span>
-              </a>
-              <a href="/agent/cash-register" className="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-lg border hover:bg-accent transition-colors">
+              </Link>
+              <Link to="/agent/cash-register" className="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-lg border hover:bg-accent transition-colors">
                 <Wallet className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
                 <span className="text-xs sm:text-sm font-medium text-center">Gérer caisse</span>
-              </a>
-              <a href="/agent/history" className="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-lg border hover:bg-accent transition-colors">
+              </Link>
+              <Link to="/agent/history" className="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-lg border hover:bg-accent transition-colors">
                 <TrendingUp className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
                 <span className="text-xs sm:text-sm font-medium text-center">Historique</span>
-              </a>
+              </Link>
             </div>
           </CardContent>
         </Card>

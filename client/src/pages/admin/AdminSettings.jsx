@@ -317,14 +317,21 @@ export default function AdminSettings() {
 
         {/* Mobile Money */}
         <Card>
-          <CardHeader><CardTitle className="flex items-center gap-2"><Smartphone className="w-5 h-5" /> Mobile Money</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Smartphone className="w-5 h-5" /> Mobile Money — Codes de paiement</CardTitle>
+            <CardDescription>Configurez les numéros de paiement qui seront affichés sur les tickets et factures imprimés</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <Label>MTN MoMo</Label>
               <Switch checked={settings.mobileMoneyConfig?.mtnMomoEnabled || false} onCheckedChange={v => setSettings({...settings, mobileMoneyConfig: { ...settings.mobileMoneyConfig, mtnMomoEnabled: v }})} />
             </div>
             {settings.mobileMoneyConfig?.mtnMomoEnabled && (
-              <div><Label>Clé API MTN MoMo</Label><Input type="password" value={settings.mobileMoneyConfig?.mtnMomoApiKey || ''} onChange={e => setSettings({...settings, mobileMoneyConfig: { ...settings.mobileMoneyConfig, mtnMomoApiKey: e.target.value }})} /></div>
+              <div className="space-y-3 pl-2 border-l-2 border-yellow-300">
+                <div><Label>Numéro MTN MoMo (affiché sur les tickets)</Label><Input placeholder="Ex: 650 123 456" value={settings.mobileMoneyConfig?.mtnMomoCode || ''} onChange={e => setSettings({...settings, mobileMoneyConfig: { ...settings.mobileMoneyConfig, mtnMomoCode: e.target.value }})} /></div>
+                <div><Label>Nom du compte MTN MoMo</Label><Input placeholder="Ex: Restaurant Le Bon Plat" value={settings.mobileMoneyConfig?.mtnMomoName || ''} onChange={e => setSettings({...settings, mobileMoneyConfig: { ...settings.mobileMoneyConfig, mtnMomoName: e.target.value }})} /></div>
+                <div><Label>Clé API MTN MoMo (optionnel)</Label><Input type="password" value={settings.mobileMoneyConfig?.mtnMomoApiKey || ''} onChange={e => setSettings({...settings, mobileMoneyConfig: { ...settings.mobileMoneyConfig, mtnMomoApiKey: e.target.value }})} /></div>
+              </div>
             )}
             <Separator />
             <div className="flex items-center justify-between">
@@ -332,7 +339,11 @@ export default function AdminSettings() {
               <Switch checked={settings.mobileMoneyConfig?.orangeMoneyEnabled || false} onCheckedChange={v => setSettings({...settings, mobileMoneyConfig: { ...settings.mobileMoneyConfig, orangeMoneyEnabled: v }})} />
             </div>
             {settings.mobileMoneyConfig?.orangeMoneyEnabled && (
-              <div><Label>Clé API Orange Money</Label><Input type="password" value={settings.mobileMoneyConfig?.orangeMoneyApiKey || ''} onChange={e => setSettings({...settings, mobileMoneyConfig: { ...settings.mobileMoneyConfig, orangeMoneyApiKey: e.target.value }})} /></div>
+              <div className="space-y-3 pl-2 border-l-2 border-orange-300">
+                <div><Label>Numéro Orange Money (affiché sur les tickets)</Label><Input placeholder="Ex: 655 987 654" value={settings.mobileMoneyConfig?.orangeMoneyCode || ''} onChange={e => setSettings({...settings, mobileMoneyConfig: { ...settings.mobileMoneyConfig, orangeMoneyCode: e.target.value }})} /></div>
+                <div><Label>Nom du compte Orange Money</Label><Input placeholder="Ex: Restaurant Le Bon Plat" value={settings.mobileMoneyConfig?.orangeMoneyName || ''} onChange={e => setSettings({...settings, mobileMoneyConfig: { ...settings.mobileMoneyConfig, orangeMoneyName: e.target.value }})} /></div>
+                <div><Label>Clé API Orange Money (optionnel)</Label><Input type="password" value={settings.mobileMoneyConfig?.orangeMoneyApiKey || ''} onChange={e => setSettings({...settings, mobileMoneyConfig: { ...settings.mobileMoneyConfig, orangeMoneyApiKey: e.target.value }})} /></div>
+              </div>
             )}
           </CardContent>
         </Card>
