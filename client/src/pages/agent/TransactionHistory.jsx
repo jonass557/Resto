@@ -60,25 +60,27 @@ export default function TransactionHistory() {
   return (
     <div>
       <TopBar title="Historique des transactions" />
-      <div className="p-6 space-y-6">
+      <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
         {/* Date filters */}
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex flex-wrap items-end gap-4">
-              <div className="space-y-1">
-                <Label className="text-xs">Du</Label>
-                <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-40" />
+          <CardContent className="pt-4 sm:pt-6">
+            <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-end gap-3 sm:gap-4">
+              <div className="flex gap-3 w-full sm:w-auto">
+                <div className="space-y-1 flex-1 sm:flex-none">
+                  <Label className="text-xs">Du</Label>
+                  <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="sm:w-40" />
+                </div>
+                <div className="space-y-1 flex-1 sm:flex-none">
+                  <Label className="text-xs">Au</Label>
+                  <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="sm:w-40" />
+                </div>
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Au</Label>
-                <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-40" />
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => quickFilter(0)}>Aujourd'hui</Button>
-                <Button variant="outline" size="sm" onClick={() => quickFilter(7)}>7 jours</Button>
-                <Button variant="outline" size="sm" onClick={() => quickFilter(30)}>30 jours</Button>
-                <Button variant="outline" size="sm" onClick={() => quickFilter(90)}>3 mois</Button>
-                <Button variant="outline" size="sm" onClick={() => quickFilter(180)}>6 mois</Button>
+              <div className="flex gap-1.5 sm:gap-2 flex-wrap">
+                <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => quickFilter(0)}>Aujourd'hui</Button>
+                <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => quickFilter(7)}>7j</Button>
+                <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => quickFilter(30)}>30j</Button>
+                <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => quickFilter(90)}>3 mois</Button>
+                <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => quickFilter(180)}>6 mois</Button>
               </div>
             </div>
           </CardContent>
@@ -86,29 +88,29 @@ export default function TransactionHistory() {
 
         {/* Summary cards */}
         {summary && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <Card>
-              <CardContent className="pt-6 text-center">
-                <p className="text-sm text-muted-foreground">Total revenus</p>
-                <p className="text-xl font-bold text-primary">{formatCurrency(summary.totalRevenue)}</p>
+              <CardContent className="pt-4 sm:pt-6 pb-4 text-center">
+                <p className="text-xs sm:text-sm text-muted-foreground">Total revenus</p>
+                <p className="text-lg sm:text-xl font-bold text-primary">{formatCurrency(summary.totalRevenue)}</p>
               </CardContent>
             </Card>
             <Card>
-              <CardContent className="pt-6 text-center">
-                <p className="text-sm text-muted-foreground">Transactions</p>
-                <p className="text-xl font-bold">{summary.totalTransactions}</p>
+              <CardContent className="pt-4 sm:pt-6 pb-4 text-center">
+                <p className="text-xs sm:text-sm text-muted-foreground">Transactions</p>
+                <p className="text-lg sm:text-xl font-bold">{summary.totalTransactions}</p>
               </CardContent>
             </Card>
             <Card>
-              <CardContent className="pt-6 text-center">
-                <p className="text-sm text-muted-foreground">Espèces</p>
-                <p className="text-xl font-bold text-green-600">{formatCurrency(summary.byMethod?.cash || 0)}</p>
+              <CardContent className="pt-4 sm:pt-6 pb-4 text-center">
+                <p className="text-xs sm:text-sm text-muted-foreground">Espèces</p>
+                <p className="text-lg sm:text-xl font-bold text-green-600">{formatCurrency(summary.byMethod?.cash || 0)}</p>
               </CardContent>
             </Card>
             <Card>
-              <CardContent className="pt-6 text-center">
-                <p className="text-sm text-muted-foreground">Mobile Money</p>
-                <p className="text-xl font-bold text-orange-600">{formatCurrency(summary.byMethod?.mobile_money || 0)}</p>
+              <CardContent className="pt-4 sm:pt-6 pb-4 text-center">
+                <p className="text-xs sm:text-sm text-muted-foreground">Mobile Money</p>
+                <p className="text-lg sm:text-xl font-bold text-orange-600">{formatCurrency(summary.byMethod?.mobile_money || 0)}</p>
               </CardContent>
             </Card>
           </div>
@@ -133,10 +135,10 @@ export default function TransactionHistory() {
                   const methodInfo = METHOD_LABELS[payment.method] || METHOD_LABELS.cash;
                   const Icon = methodInfo.icon;
                   return (
-                    <div key={payment._id} className="flex items-center justify-between p-3 rounded-lg bg-muted hover:bg-muted/80 transition-colors">
+                    <div key={payment._id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg bg-muted hover:bg-muted/80 transition-colors">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center">
-                          <Icon className={`w-5 h-5 ${methodInfo.color}`} />
+                        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-white flex items-center justify-center shrink-0">
+                          <Icon className={`w-4 h-4 sm:w-5 sm:h-5 ${methodInfo.color}`} />
                         </div>
                         <div>
                           <p className="font-medium text-sm">
@@ -148,14 +150,14 @@ export default function TransactionHistory() {
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 sm:gap-3">
                         <Badge variant="outline" className="text-xs">{methodInfo.label}</Badge>
                         {payment.mobileMoneyProvider && payment.mobileMoneyProvider !== 'none' && (
                           <Badge variant="secondary" className="text-xs">
                             {payment.mobileMoneyProvider === 'orange_money' ? 'Orange' : 'MTN'}
                           </Badge>
                         )}
-                        <p className="font-bold text-primary">{formatCurrency(payment.amount)}</p>
+                        <p className="font-bold text-primary text-sm">{formatCurrency(payment.amount)}</p>
                       </div>
                     </div>
                   );

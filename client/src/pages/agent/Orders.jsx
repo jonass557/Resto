@@ -58,8 +58,8 @@ export default function Orders() {
   return (
     <div>
       <TopBar title="Commandes" />
-      <div className="p-6 space-y-4">
-        <div className="flex gap-2 flex-wrap">
+      <div className="p-3 sm:p-6 space-y-4">
+        <div className="flex gap-1.5 sm:gap-2 flex-wrap">
           {['all', 'pending', 'in_progress', 'ready', 'served', 'paid', 'cancelled'].map((s) => (
             <Button key={s} variant={filter === s ? 'default' : 'outline'} size="sm" onClick={() => setFilter(s)}>
               {s === 'all' ? 'Toutes' : getStatusLabel(s)}
@@ -78,23 +78,21 @@ export default function Orders() {
           <div className="grid gap-3">
             {filtered.map(order => (
               <Card key={order._id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setSelectedOrder(order)}>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div>
-                        <p className="font-bold">{order.orderNumber}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {order.orderType === 'dine_in' ? `Table ${order.table?.number || '?'}` : order.orderType === 'delivery' ? `Livraison — ${order.deliveryInfo?.clientName || ''}` : 'À emporter'}
-                          {' | '}{order.agent?.firstName} {order.agent?.lastName}
-                        </p>
-                      </div>
+                <CardContent className="p-3 sm:p-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <p className="font-bold text-sm sm:text-base">{order.orderNumber}</p>
+                      <p className="text-xs sm:text-sm text-muted-foreground">
+                        {order.orderType === 'dine_in' ? `Table ${order.table?.number || '?'}` : order.orderType === 'delivery' ? `Livraison — ${order.deliveryInfo?.clientName || ''}` : 'À emporter'}
+                        {' | '}{order.agent?.firstName} {order.agent?.lastName}
+                      </p>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <Badge variant="outline" className="text-xs">
                         {order.orderType === 'dine_in' ? <><UtensilsCrossed className="w-3 h-3 mr-1" />Sur place</> : order.orderType === 'delivery' ? <><Truck className="w-3 h-3 mr-1" />Livraison</> : <><ShoppingBag className="w-3 h-3 mr-1" />Emporter</>}
                       </Badge>
                       <Badge className={getStatusColor(order.status)}>{getStatusLabel(order.status)}</Badge>
-                      <p className="font-bold text-primary">{formatCurrency(order.total)}</p>
+                      <p className="font-bold text-primary text-sm">{formatCurrency(order.total)}</p>
                       <p className="text-xs text-muted-foreground">{formatDateTime(order.createdAt)}</p>
                     </div>
                   </div>

@@ -96,29 +96,29 @@ export default function CashRegister() {
   return (
     <div>
       <TopBar title="Caisse" />
-      <div className="p-6 space-y-6">
+      <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
         {/* Current Session */}
         {currentSession ? (
           <Card className="border-green-200">
             <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
-                    <Wallet className="w-5 h-5 text-green-600" />
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-green-100 flex items-center justify-center shrink-0">
+                    <Wallet className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />
                   </div>
                   <div>
-                    <CardTitle className="text-lg">Session {currentSession.sessionNumber}</CardTitle>
-                    <p className="text-sm text-muted-foreground">Ouverte le {formatDateTime(currentSession.openedAt)}</p>
+                    <CardTitle className="text-base sm:text-lg">Session {currentSession.sessionNumber}</CardTitle>
+                    <p className="text-xs sm:text-sm text-muted-foreground">Ouverte le {formatDateTime(currentSession.openedAt)}</p>
                   </div>
                 </div>
-                <Button variant="destructive" onClick={() => setCloseDialog(true)}>
+                <Button variant="destructive" size="sm" className="w-full sm:w-auto" onClick={() => setCloseDialog(true)}>
                   <DoorClosed className="w-4 h-4 mr-2" /> Fermer la caisse
                   {!canClose && <Badge variant="destructive" className="ml-2">{unpaidTickets.length}</Badge>}
                 </Button>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 <div className="p-3 rounded-lg bg-blue-50">
                   <div className="flex items-center gap-2 mb-1">
                     <Banknote className="w-4 h-4 text-blue-600" />
@@ -148,7 +148,7 @@ export default function CashRegister() {
                   <p className="text-lg font-bold">{formatCurrency(currentSession.totalSales)}</p>
                 </div>
               </div>
-              <div className="mt-4 grid grid-cols-3 gap-4 text-sm">
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4 text-sm">
                 <div><span className="text-muted-foreground">Ouverture:</span> <span className="font-medium">{formatCurrency(currentSession.openingAmount)}</span></div>
                 <div><span className="text-muted-foreground">Attendu en caisse:</span> <span className="font-medium">{formatCurrency(currentSession.expectedAmount)}</span></div>
                 <div><span className="text-muted-foreground">Transactions:</span> <span className="font-medium">{currentSession.transactionCount}</span></div>
@@ -202,18 +202,18 @@ export default function CashRegister() {
             ) : (
               <div className="space-y-2">
                 {history.filter(s => s.status === 'closed').map(session => (
-                  <div key={session._id} className="flex items-center justify-between p-3 rounded-lg bg-muted">
+                  <div key={session._id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg bg-muted">
                     <div>
-                      <p className="font-medium">{session.sessionNumber}</p>
+                      <p className="font-medium text-sm">{session.sessionNumber}</p>
                       <p className="text-xs text-muted-foreground">{formatDateTime(session.openedAt)} - {formatDateTime(session.closedAt)}</p>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3">
                       <div className="text-right">
-                        <p className="font-bold">{formatCurrency(session.totalSales)}</p>
-                        <p className="text-xs text-muted-foreground">{session.transactionCount} transactions</p>
+                        <p className="font-bold text-sm">{formatCurrency(session.totalSales)}</p>
+                        <p className="text-xs text-muted-foreground">{session.transactionCount} trans.</p>
                       </div>
                       <Badge className={session.difference >= 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
-                        Écart: {formatCurrency(session.difference)}
+                        {formatCurrency(session.difference)}
                       </Badge>
                     </div>
                   </div>

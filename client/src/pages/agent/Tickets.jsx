@@ -70,8 +70,8 @@ export default function Tickets() {
   return (
     <div>
       <TopBar title="Tickets & Factures" />
-      <div className="p-6 space-y-4">
-        <div className="flex gap-2 flex-wrap">
+      <div className="p-3 sm:p-6 space-y-4">
+        <div className="flex gap-1.5 sm:gap-2 flex-wrap">
           {[
             { key: 'all', label: 'Tous' },
             { key: 'order', label: 'Tickets' },
@@ -93,14 +93,15 @@ export default function Tickets() {
           <div className="grid gap-3">
             {filtered.map(ticket => (
               <Card key={ticket._id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setSelectedTicket(ticket)}>
-                <CardContent className="p-4 flex items-center justify-between flex-wrap gap-2">
-                  <div className="flex items-center gap-4">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${ticket.type === 'invoice' ? 'bg-green-50' : 'bg-blue-50'}`}>
-                      {ticket.type === 'invoice' ? <FileText className="w-5 h-5 text-green-600" /> : <Receipt className="w-5 h-5 text-blue-600" />}
+                <CardContent className="p-3 sm:p-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center shrink-0 ${ticket.type === 'invoice' ? 'bg-green-50' : 'bg-blue-50'}`}>
+                      {ticket.type === 'invoice' ? <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" /> : <Receipt className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />}
                     </div>
                     <div>
-                      <p className="font-bold">{ticket.ticketNumber}</p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="font-bold text-sm sm:text-base">{ticket.ticketNumber}</p>
+                      <p className="text-xs sm:text-sm text-muted-foreground">
                         {ticket.table ? `Table ${ticket.table.number}` : 'À emporter'} · {ticket.agent?.firstName} {ticket.agent?.lastName}
                       </p>
                     </div>
@@ -119,8 +120,9 @@ export default function Tickets() {
                         {ticket.isPaid ? 'Payé' : 'Impayé'}
                       </Badge>
                     )}
-                    <p className="font-bold text-primary">{formatCurrency(ticket.total)}</p>
+                    <p className="font-bold text-primary text-sm">{formatCurrency(ticket.total)}</p>
                     <p className="text-xs text-muted-foreground">{formatDateTime(ticket.createdAt)}</p>
+                  </div>
                   </div>
                 </CardContent>
               </Card>
