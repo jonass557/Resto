@@ -63,11 +63,7 @@ export default function App() {
 
   return (
       <Routes>
-        <Route path="/login" element={
-          isAuthenticated
-            ? <Navigate to={user?.role === 'admin' ? '/admin' : '/agent'} replace />
-            : <Login />
-        } />
+        <Route path="/login" element={<Login />} />
 
         {/* Agent Routes */}
         <Route path="/agent" element={
@@ -107,12 +103,8 @@ export default function App() {
           <Route path="settings" element={<AdminSettings />} />
         </Route>
 
-        {/* Default redirect */}
-        <Route path="/" element={
-          isAuthenticated
-            ? <Navigate to={user?.role === 'admin' ? '/admin' : '/agent'} replace />
-            : <Navigate to="/login" replace />
-        } />
+        {/* Default — always show login */}
+        <Route path="/" element={<Login />} />
 
         {/* 404 */}
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -43,10 +43,12 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const { login } = useAuth();
+  const { login, logout } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Clear any previous session so login page is always fresh
+    logout();
     const t = setTimeout(() => setMounted(true), 100);
     return () => clearTimeout(t);
   }, []);
