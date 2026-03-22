@@ -53,6 +53,5 @@ const orderSchema = new mongoose.Schema({
 
 orderSchema.index({ table: 1, status: 1 });
 orderSchema.index({ agent: 1, createdAt: -1 });
-orderSchema.index({ orderNumber: 1 });
 
 module.exports = mongoose.model('Order', orderSchema);
