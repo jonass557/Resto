@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { tablesAPI, productsAPI, categoriesAPI, ordersAPI, ticketsAPI } from '@/services/api';
+import { tablesAPI, productsAPI, categoriesAPI, ordersAPI, ticketsAPI, invalidateCache } from '@/services/api';
 import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
 import PaymentDialog from '@/components/PaymentDialog';
@@ -142,7 +142,10 @@ export default function TableDetail() {
   const onPaymentSuccess = () => {
     setPaymentDialog(false);
     setSelectedInvoice(null);
+    invalidateCache('/tables');
+    invalidateCache('/orders');
     loadData();
+    toast.success('Paiement confirmé — vous pouvez passer une nouvelle commande', { duration: 3000 });
   };
 
   if (loading) {

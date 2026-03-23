@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { statsAPI } from '@/services/api';
+import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -18,6 +19,7 @@ import toast from 'react-hot-toast';
 const MONTHS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 
 export default function RevenueHistory() {
+  const { socket } = useSocket();
   const [view, setView] = useState('months');
   const [year, setYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(null);
@@ -60,6 +62,17 @@ export default function RevenueHistory() {
   useEffect(() => {
     if (view === 'months') loadMonthly();
   }, [view, loadMonthly]);
+
+  // Auto-refresh when a payment is confirmed
+  useEffect(() => {
+    if (!socket) return;
+    const refresh = () => {
+      if (view === 'months') loadMonthly();
+      else if (view === 'days' && selectedMonth) loadDaily(selectedMonth);
+    };
+    socket.on('payment:created', refresh);
+    return () => socket.off('payment:created', refresh);
+  }, [socket, view, selectedMonth, loadMonthly, loadDaily]);
 
   const openMonth = (monthNum) => {
     setSelectedMonth(monthNum);

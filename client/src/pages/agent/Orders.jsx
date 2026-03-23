@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency, formatDateTime, getStatusColor, getStatusLabel } from '@/lib/utils';
-import { Loader2, Eye, CheckCircle, XCircle, UtensilsCrossed, Truck, ShoppingBag } from 'lucide-react';
+import { Loader2, CheckCircle, UtensilsCrossed, Truck, ShoppingBag } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import toast from 'react-hot-toast';
 
@@ -62,7 +62,7 @@ export default function Orders() {
       <TopBar title="Commandes" />
       <div className="p-3 sm:p-6 space-y-4">
         <div className="flex gap-1.5 sm:gap-2 flex-wrap">
-          {['all', 'pending', 'in_progress', 'ready', 'served', 'paid', 'cancelled'].map((s) => (
+          {['all', 'pending', 'in_progress', 'ready', 'served', 'paid'].map((s) => (
             <Button key={s} variant={filter === s ? 'default' : 'outline'} size="sm" onClick={() => setFilter(s)}>
               {s === 'all' ? 'Toutes' : getStatusLabel(s)}
               <Badge variant="secondary" className="ml-2">
@@ -161,9 +161,6 @@ export default function Orders() {
                       <CheckCircle className="w-4 h-4 mr-2" /> Servi
                     </Button>
                   )}
-                  <Button variant="destructive" onClick={() => updateStatus(selectedOrder._id, 'cancelled')}>
-                    <XCircle className="w-4 h-4 mr-2" /> Annuler
-                  </Button>
                 </div>
               )}
             </div>

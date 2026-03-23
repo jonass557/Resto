@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { productsAPI, categoriesAPI, ordersAPI, ticketsAPI } from '@/services/api';
+import { productsAPI, categoriesAPI, ordersAPI, ticketsAPI, invalidateCache } from '@/services/api';
 import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
 import PaymentDialog from '@/components/PaymentDialog';
@@ -149,7 +149,10 @@ export default function NewOrder() {
     setPaymentDialog(false);
     setCurrentInvoice(null);
     setSessionOrders([]);
-    navigate('/agent/orders');
+    setCart([]);
+    setDeliveryInfo({ clientName: '', phone: '', address: '', notes: '' });
+    invalidateCache('/orders');
+    toast.success('Paiement confirmé — vous pouvez passer une nouvelle commande', { duration: 3000 });
   };
 
   const sessionTotal = sessionOrders.reduce((sum, o) => sum + o.total, 0);

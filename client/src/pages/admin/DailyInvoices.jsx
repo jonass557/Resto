@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { statsAPI } from '@/services/api';
+import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,6 +12,7 @@ import { Loader2, Printer, FileText, Banknote, Smartphone, CreditCard, CalendarD
 import toast from 'react-hot-toast';
 
 export default function DailyInvoices() {
+  const { socket } = useSocket();
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -28,6 +30,13 @@ export default function DailyInvoices() {
   }, [date]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // Auto-refresh when a new payment arrives
+  useEffect(() => {
+    if (!socket) return;
+    socket.on('payment:created', loadData);
+    return () => socket.off('payment:created', loadData);
+  }, [socket, loadData]);
 
   const printConsolidated = () => {
     if (!data) return;
