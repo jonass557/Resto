@@ -311,6 +311,11 @@ export default function TableDetail() {
               {submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
               Envoyer la commande
             </Button>
+            {table.currentOrders?.length > 0 && (
+              <Button className="w-full" size="lg" variant="secondary" onClick={generateInvoice}>
+                <Receipt className="w-4 h-4 mr-2" /> Facturer ({table.currentOrders.length} commande{table.currentOrders.length > 1 ? 's' : ''})
+              </Button>
+            )}
           </div>
         </div>
       </div>
