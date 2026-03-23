@@ -1,34 +1,44 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, Suspense, lazy } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import MainLayout from './components/layout/MainLayout';
 import { Loader2 } from 'lucide-react';
 
-// Direct imports for instant navigation (no lazy loading)
+// Critical pages — always bundled for instant render
 import Login from './pages/Login';
 import AgentDashboard from './pages/agent/AgentDashboard';
 import Tables from './pages/agent/Tables';
 import TableDetail from './pages/agent/TableDetail';
+import NewOrder from './pages/agent/NewOrder';
 import Orders from './pages/agent/Orders';
 import Tickets from './pages/agent/Tickets';
 import CashRegister from './pages/agent/CashRegister';
-import Clients from './pages/agent/Clients';
-import AgentSettings from './pages/agent/AgentSettings';
-import NewOrder from './pages/agent/NewOrder';
-import TransactionHistory from './pages/agent/TransactionHistory';
-import AdminDashboard from './pages/admin/AdminDashboard';
-import Supervision from './pages/admin/Supervision';
-import AdminOrders from './pages/admin/AdminOrders';
-import AdminTickets from './pages/admin/AdminTickets';
-import UserManagement from './pages/admin/UserManagement';
-import ProductManagement from './pages/admin/ProductManagement';
-import AdminClients from './pages/admin/AdminClients';
-import Sales from './pages/admin/Sales';
-import Accounting from './pages/admin/Accounting';
-import Reports from './pages/admin/Reports';
-import AdminTables from './pages/admin/AdminTables';
-import AdminSettings from './pages/admin/AdminSettings';
-import RevenueHistory from './pages/admin/RevenueHistory';
-import DailyInvoices from './pages/admin/DailyInvoices';
+
+// Lazy-loaded pages — downloaded only when first visited (code splitting)
+const Clients = lazy(() => import('./pages/agent/Clients'));
+const AgentSettings = lazy(() => import('./pages/agent/AgentSettings'));
+const TransactionHistory = lazy(() => import('./pages/agent/TransactionHistory'));
+const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
+const Supervision = lazy(() => import('./pages/admin/Supervision'));
+const AdminOrders = lazy(() => import('./pages/admin/AdminOrders'));
+const AdminTickets = lazy(() => import('./pages/admin/AdminTickets'));
+const UserManagement = lazy(() => import('./pages/admin/UserManagement'));
+const ProductManagement = lazy(() => import('./pages/admin/ProductManagement'));
+const AdminClients = lazy(() => import('./pages/admin/AdminClients'));
+const Sales = lazy(() => import('./pages/admin/Sales'));
+const Accounting = lazy(() => import('./pages/admin/Accounting'));
+const Reports = lazy(() => import('./pages/admin/Reports'));
+const AdminTables = lazy(() => import('./pages/admin/AdminTables'));
+const AdminSettings = lazy(() => import('./pages/admin/AdminSettings'));
+const RevenueHistory = lazy(() => import('./pages/admin/RevenueHistory'));
+const DailyInvoices = lazy(() => import('./pages/admin/DailyInvoices'));
+
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center py-24">
+      <Loader2 className="w-7 h-7 animate-spin text-primary" />
+    </div>
+  );
+}
 
 function ProtectedRoute({ children, requiredRole }) {
   const { isAuthenticated, user, loading } = useAuth();
@@ -64,6 +74,7 @@ export default function App() {
   }
 
   return (
+    <Suspense fallback={<PageLoader />}>
       <Routes>
         <Route path="/login" element={<Login />} />
 
@@ -80,9 +91,9 @@ export default function App() {
           <Route path="orders" element={<Orders />} />
           <Route path="tickets" element={<Tickets />} />
           <Route path="cash-register" element={<CashRegister />} />
-          <Route path="clients" element={<Clients />} />
-          <Route path="settings" element={<AgentSettings />} />
-          <Route path="history" element={<TransactionHistory />} />
+          <Route path="clients" element={<Suspense fallback={<PageLoader />}><Clients /></Suspense>} />
+          <Route path="settings" element={<Suspense fallback={<PageLoader />}><AgentSettings /></Suspense>} />
+          <Route path="history" element={<Suspense fallback={<PageLoader />}><TransactionHistory /></Suspense>} />
         </Route>
 
         {/* Admin Routes */}
@@ -91,20 +102,20 @@ export default function App() {
             <MainLayout />
           </ProtectedRoute>
         }>
-          <Route index element={<AdminDashboard />} />
-          <Route path="supervision" element={<Supervision />} />
-          <Route path="tables" element={<AdminTables />} />
-          <Route path="orders" element={<AdminOrders />} />
-          <Route path="tickets" element={<AdminTickets />} />
-          <Route path="users" element={<UserManagement />} />
-          <Route path="products" element={<ProductManagement />} />
-          <Route path="clients" element={<AdminClients />} />
-          <Route path="sales" element={<Sales />} />
-          <Route path="accounting" element={<Accounting />} />
-          <Route path="reports" element={<Reports />} />
-          <Route path="revenue-history" element={<RevenueHistory />} />
-          <Route path="daily-invoices" element={<DailyInvoices />} />
-          <Route path="settings" element={<AdminSettings />} />
+          <Route index element={<Suspense fallback={<PageLoader />}><AdminDashboard /></Suspense>} />
+          <Route path="supervision" element={<Suspense fallback={<PageLoader />}><Supervision /></Suspense>} />
+          <Route path="tables" element={<Suspense fallback={<PageLoader />}><AdminTables /></Suspense>} />
+          <Route path="orders" element={<Suspense fallback={<PageLoader />}><AdminOrders /></Suspense>} />
+          <Route path="tickets" element={<Suspense fallback={<PageLoader />}><AdminTickets /></Suspense>} />
+          <Route path="users" element={<Suspense fallback={<PageLoader />}><UserManagement /></Suspense>} />
+          <Route path="products" element={<Suspense fallback={<PageLoader />}><ProductManagement /></Suspense>} />
+          <Route path="clients" element={<Suspense fallback={<PageLoader />}><AdminClients /></Suspense>} />
+          <Route path="sales" element={<Suspense fallback={<PageLoader />}><Sales /></Suspense>} />
+          <Route path="accounting" element={<Suspense fallback={<PageLoader />}><Accounting /></Suspense>} />
+          <Route path="reports" element={<Suspense fallback={<PageLoader />}><Reports /></Suspense>} />
+          <Route path="revenue-history" element={<Suspense fallback={<PageLoader />}><RevenueHistory /></Suspense>} />
+          <Route path="daily-invoices" element={<Suspense fallback={<PageLoader />}><DailyInvoices /></Suspense>} />
+          <Route path="settings" element={<Suspense fallback={<PageLoader />}><AdminSettings /></Suspense>} />
         </Route>
 
         {/* Default — always show login */}
@@ -113,5 +124,6 @@ export default function App() {
         {/* 404 */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+    </Suspense>
   );
 }

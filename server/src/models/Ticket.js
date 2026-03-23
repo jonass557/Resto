@@ -40,5 +40,8 @@ const ticketSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 ticketSchema.index({ table: 1, type: 1 });
+ticketSchema.index({ agent: 1, createdAt: -1 });
+ticketSchema.index({ createdAt: -1 });
+ticketSchema.index({ type: 1, isPaid: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Ticket', ticketSchema);

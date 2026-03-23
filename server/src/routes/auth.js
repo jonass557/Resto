@@ -28,30 +28,31 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ success: false, message: 'Identifiants invalides' });
     }
 
-    user.lastLogin = new Date();
-    await user.save();
+    // Use updateOne to bypass bcrypt pre-save hook (avoids ~800ms re-hash)
+    const loginTime = new Date();
+    User.updateOne({ _id: user._id }, { $set: { lastLogin: loginTime } }).catch(() => {});
 
     const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, {
       expiresIn: process.env.JWT_EXPIRES_IN || '7d'
     });
 
-    // Notify admin when an agent logs in
+    // Send response immediately, then notify admin asynchronously
+    const userData = user.toJSON();
+    userData.lastLogin = loginTime;
+    res.json({ success: true, data: { user: userData, token } });
+
+    // Fire-and-forget notification (does not block response)
     if (user.role === 'agent') {
-      const notif = await Notification.create({
+      Notification.create({
         type: 'agent_login',
         title: 'Connexion agent',
         message: `${user.firstName} ${user.lastName} s'est connecté(e)`,
         agent: user._id,
-        data: { loginTime: new Date() }
-      });
-      const io = req.app.get('io');
-      io.emit('notification:new', notif);
+        data: { loginTime }
+      }).then(notif => {
+        req.app.get('io').emit('notification:new', notif);
+      }).catch(() => {});
     }
-
-    res.json({
-      success: true,
-      data: { user: user.toJSON(), token }
-    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

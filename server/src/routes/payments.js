@@ -8,6 +8,7 @@ const CashRegister = require('../models/CashRegister');
 const Notification = require('../models/Notification');
 const { auth } = require('../middleware/auth');
 const { generatePaymentNumber } = require('../utils/helpers');
+const { invalidateStats } = require('../utils/statsCache');
 
 const router = express.Router();
 
@@ -140,6 +141,8 @@ router.post('/', auth, async (req, res) => {
         $inc: { totalSpent: ticket.total, visitCount: 1, loyaltyPoints: Math.floor(ticket.total / 100) }
       });
     }
+
+    invalidateStats(); // stats cache invalidated — next request will re-aggregate
 
     const io = req.app.get('io');
     io.emit('payment:created', payment);

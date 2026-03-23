@@ -7,59 +7,71 @@ const Product = require('../models/Product');
 const Client = require('../models/Client');
 const { auth, adminOnly } = require('../middleware/auth');
 const { getDateRange } = require('../utils/helpers');
+const { statsCache } = require('../utils/statsCache');
 
 const router = express.Router();
+const SC = statsCache(30000); // 30s server-side cache for all stats GET routes
 
 // GET /api/stats/dashboard - Global dashboard stats
-router.get('/dashboard', auth, async (req, res) => {
+router.get('/dashboard', auth, SC, async (req, res) => {
   try {
     const { period = 'today' } = req.query;
     const { start, end } = getDateRange(period);
 
-    const [orders, payments, tickets] = await Promise.all([
-      Order.find({ createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' } }),
-      Payment.find({ createdAt: { $gte: start, $lt: end }, status: 'completed' }),
-      Ticket.find({ createdAt: { $gte: start, $lt: end } })
+    // All stats via aggregation — no full document loads
+    const [paymentAgg, orderAgg, ticketCount, productAgg, hourlyAgg] = await Promise.all([
+      Payment.aggregate([
+        { $match: { createdAt: { $gte: start, $lt: end }, status: 'completed' } },
+        { $group: {
+          _id: null,
+          totalRevenue: { $sum: '$amount' },
+          count: { $sum: 1 },
+          cash: { $sum: { $cond: [{ $eq: ['$method', 'cash'] }, '$amount', 0] } },
+          card: { $sum: { $cond: [{ $eq: ['$method', 'card'] }, '$amount', 0] } },
+          mobile_money: { $sum: { $cond: [{ $eq: ['$method', 'mobile_money'] }, '$amount', 0] } },
+          gift_card: { $sum: { $cond: [{ $eq: ['$method', 'gift_card'] }, '$amount', 0] } }
+        }}
+      ]),
+      Order.aggregate([
+        { $match: { createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' } } },
+        { $group: { _id: null, count: { $sum: 1 }, total: { $sum: '$total' } } }
+      ]),
+      Ticket.countDocuments({ createdAt: { $gte: start, $lt: end } }),
+      Order.aggregate([
+        { $match: { createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' } } },
+        { $unwind: '$items' },
+        { $group: { _id: '$items.name', quantity: { $sum: '$items.quantity' }, revenue: { $sum: '$items.totalPrice' } } },
+        { $sort: { revenue: -1 } },
+        { $limit: 10 },
+        { $project: { name: '$_id', quantity: 1, revenue: 1, _id: 0 } }
+      ]),
+      Order.aggregate([
+        { $match: { createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' } } },
+        { $group: { _id: { $hour: '$createdAt' }, orders: { $sum: 1 }, revenue: { $sum: '$total' } } }
+      ])
     ]);
 
-    const totalRevenue = payments.reduce((sum, p) => sum + p.amount, 0);
-    const totalOrders = orders.length;
-    const totalTickets = tickets.length;
-    const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+    const p = paymentAgg[0] || { totalRevenue: 0, count: 0, cash: 0, card: 0, mobile_money: 0, gift_card: 0 };
+    const o = orderAgg[0] || { count: 0, total: 0 };
+    const totalRevenue = p.totalRevenue;
+    const totalOrders = o.count;
+    const revenueByMethod = { cash: p.cash, card: p.card, mobile_money: p.mobile_money, gift_card: p.gift_card };
 
-    // Revenue by payment method
-    const revenueByMethod = {
-      cash: payments.filter(p => p.method === 'cash').reduce((s, p) => s + p.amount, 0),
-      card: payments.filter(p => p.method === 'card').reduce((s, p) => s + p.amount, 0),
-      mobile_money: payments.filter(p => p.method === 'mobile_money').reduce((s, p) => s + p.amount, 0),
-      gift_card: payments.filter(p => p.method === 'gift_card').reduce((s, p) => s + p.amount, 0)
-    };
-
-    // Top products
-    const productCounts = {};
-    for (const order of orders) {
-      for (const item of order.items) {
-        const key = item.name;
-        if (!productCounts[key]) productCounts[key] = { name: key, quantity: 0, revenue: 0 };
-        productCounts[key].quantity += item.quantity;
-        productCounts[key].revenue += item.totalPrice;
-      }
-    }
-    const topProducts = Object.values(productCounts).sort((a, b) => b.revenue - a.revenue).slice(0, 10);
-
-    // Hourly distribution
-    const hourlyData = Array.from({ length: 24 }, (_, i) => ({ hour: i, orders: 0, revenue: 0 }));
-    for (const order of orders) {
-      const hour = new Date(order.createdAt).getHours();
-      hourlyData[hour].orders++;
-      hourlyData[hour].revenue += order.total;
-    }
+    const hourlyMap = Object.fromEntries(hourlyAgg.map(h => [h._id, { orders: h.orders, revenue: h.revenue }]));
+    const hourlyData = Array.from({ length: 24 }, (_, i) => ({
+      hour: i, orders: hourlyMap[i]?.orders || 0, revenue: hourlyMap[i]?.revenue || 0
+    }));
 
     res.json({
       success: true,
       data: {
-        totalRevenue, totalOrders, totalTickets, avgOrderValue,
-        revenueByMethod, topProducts, hourlyData
+        totalRevenue,
+        totalOrders,
+        totalTickets: ticketCount,
+        avgOrderValue: totalOrders > 0 ? totalRevenue / totalOrders : 0,
+        revenueByMethod,
+        topProducts: productAgg,
+        hourlyData
       }
     });
   } catch (error) {
@@ -68,33 +80,38 @@ router.get('/dashboard', auth, async (req, res) => {
 });
 
 // GET /api/stats/agents - Agent performance stats (admin)
-router.get('/agents', auth, adminOnly, async (req, res) => {
+router.get('/agents', auth, adminOnly, SC, async (req, res) => {
   try {
     const { period = 'today' } = req.query;
     const { start, end } = getDateRange(period);
 
-    const agents = await User.find({ role: 'agent', isActive: true }).select('-password');
-    const agentStats = [];
+    // Single aggregation per collection instead of N+1 per-agent queries
+    const [agents, orderAggs, paymentAggs] = await Promise.all([
+      User.find({ role: 'agent', isActive: true }).select('firstName lastName email lastLogin').lean(),
+      Order.aggregate([
+        { $match: { createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' } } },
+        { $group: { _id: '$agent', orders: { $sum: 1 } } }
+      ]),
+      Payment.aggregate([
+        { $match: { createdAt: { $gte: start, $lt: end }, status: 'completed' } },
+        { $group: { _id: '$agent', revenue: { $sum: '$amount' }, transactions: { $sum: 1 } } }
+      ])
+    ]);
 
-    for (const agent of agents) {
-      const orders = await Order.countDocuments({
-        agent: agent._id, createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' }
-      });
+    const orderMap = Object.fromEntries(orderAggs.map(a => [a._id.toString(), a.orders]));
+    const payMap = Object.fromEntries(paymentAggs.map(a => [a._id.toString(), { revenue: a.revenue, transactions: a.transactions }]));
 
-      const payments = await Payment.find({
-        agent: agent._id, createdAt: { $gte: start, $lt: end }, status: 'completed'
-      });
-
-      const revenue = payments.reduce((sum, p) => sum + p.amount, 0);
-
-      agentStats.push({
+    const agentStats = agents.map(agent => {
+      const id = agent._id.toString();
+      const pay = payMap[id] || { revenue: 0, transactions: 0 };
+      return {
         agent: { _id: agent._id, firstName: agent.firstName, lastName: agent.lastName, email: agent.email },
-        orders,
-        revenue,
-        transactions: payments.length,
+        orders: orderMap[id] || 0,
+        revenue: pay.revenue,
+        transactions: pay.transactions,
         lastLogin: agent.lastLogin
-      });
-    }
+      };
+    });
 
     agentStats.sort((a, b) => b.revenue - a.revenue);
     res.json({ success: true, data: agentStats });
@@ -104,27 +121,34 @@ router.get('/agents', auth, adminOnly, async (req, res) => {
 });
 
 // GET /api/stats/agent/:id - Single agent detailed stats
-router.get('/agent/:id', auth, async (req, res) => {
+router.get('/agent/:id', auth, SC, async (req, res) => {
   try {
     const { period = 'today' } = req.query;
     const { start, end } = getDateRange(period);
     const agentId = req.params.id;
 
-    const [orders, payments, tickets] = await Promise.all([
-      Order.find({ agent: agentId, createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' } }),
-      Payment.find({ agent: agentId, createdAt: { $gte: start, $lt: end }, status: 'completed' }),
-      Ticket.find({ agent: agentId, createdAt: { $gte: start, $lt: end } })
+    const [orderAgg, paymentAgg, ticketCount] = await Promise.all([
+      Order.aggregate([
+        { $match: { agent: new (require('mongoose').Types.ObjectId)(agentId), createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' } } },
+        { $group: { _id: null, count: { $sum: 1 } } }
+      ]),
+      Payment.aggregate([
+        { $match: { agent: new (require('mongoose').Types.ObjectId)(agentId), createdAt: { $gte: start, $lt: end }, status: 'completed' } },
+        { $group: { _id: null, revenue: { $sum: '$amount' }, count: { $sum: 1 } } }
+      ]),
+      Ticket.countDocuments({ agent: agentId, createdAt: { $gte: start, $lt: end } })
     ]);
 
-    const revenue = payments.reduce((sum, p) => sum + p.amount, 0);
+    const totalOrders = orderAgg[0]?.count || 0;
+    const totalRevenue = paymentAgg[0]?.revenue || 0;
 
     res.json({
       success: true,
       data: {
-        totalOrders: orders.length,
-        totalRevenue: revenue,
-        totalTickets: tickets.length,
-        avgOrderValue: orders.length > 0 ? revenue / orders.length : 0
+        totalOrders,
+        totalRevenue,
+        totalTickets: ticketCount,
+        avgOrderValue: totalOrders > 0 ? totalRevenue / totalOrders : 0
       }
     });
   } catch (error) {
@@ -133,7 +157,7 @@ router.get('/agent/:id', auth, async (req, res) => {
 });
 
 // GET /api/stats/sales - Sales journal
-router.get('/sales', auth, async (req, res) => {
+router.get('/sales', auth, SC, async (req, res) => {
   try {
     const { startDate, endDate, groupBy = 'day' } = req.query;
     const start = startDate ? new Date(startDate) : new Date(new Date().setDate(new Date().getDate() - 30));
@@ -171,7 +195,7 @@ router.get('/sales', auth, async (req, res) => {
 });
 
 // GET /api/stats/products - Product performance
-router.get('/products', auth, async (req, res) => {
+router.get('/products', auth, SC, async (req, res) => {
   try {
     const { period = 'month' } = req.query;
     const { start, end } = getDateRange(period);
@@ -201,7 +225,7 @@ router.get('/products', auth, async (req, res) => {
 });
 
 // GET /api/stats/agent-history/:id - Agent's full transaction history
-router.get('/agent-history/:id', auth, async (req, res) => {
+router.get('/agent-history/:id', auth, SC, async (req, res) => {
   try {
     const agentId = req.params.id;
     const { startDate, endDate, page = 1, limit = 50 } = req.query;
@@ -217,28 +241,36 @@ router.get('/agent-history/:id', auth, async (req, res) => {
       createdAt: { $gte: start, $lte: end }
     };
 
-    const total = await Payment.countDocuments(filter);
-    const payments = await Payment.find(filter)
-      .populate('ticket', 'ticketNumber type total table')
-      .populate({ path: 'ticket', populate: { path: 'table', select: 'number name' } })
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * parseInt(limit))
-      .limit(parseInt(limit));
+    // Parallel: paginated list + summary aggregation (no double-fetch)
+    const [total, payments, summaryAgg] = await Promise.all([
+      Payment.countDocuments(filter),
+      Payment.find(filter)
+        .populate('ticket', 'ticketNumber type total table')
+        .populate({ path: 'ticket', populate: { path: 'table', select: 'number name' } })
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * parseInt(limit))
+        .limit(parseInt(limit))
+        .lean(),
+      Payment.aggregate([
+        { $match: { agent: new (require('mongoose').Types.ObjectId)(agentId), status: 'completed', createdAt: { $gte: start, $lte: end } } },
+        { $group: {
+          _id: null,
+          totalRevenue: { $sum: '$amount' },
+          cash: { $sum: { $cond: [{ $eq: ['$method', 'cash'] }, '$amount', 0] } },
+          card: { $sum: { $cond: [{ $eq: ['$method', 'card'] }, '$amount', 0] } },
+          mobile_money: { $sum: { $cond: [{ $eq: ['$method', 'mobile_money'] }, '$amount', 0] } },
+          gift_card: { $sum: { $cond: [{ $eq: ['$method', 'gift_card'] }, '$amount', 0] } }
+        }}
+      ])
+    ]);
 
-    // Summary by day
-    const allPayments = await Payment.find(filter);
-    const totalRevenue = allPayments.reduce((s, p) => s + p.amount, 0);
-    const byMethod = {
-      cash: allPayments.filter(p => p.method === 'cash').reduce((s, p) => s + p.amount, 0),
-      card: allPayments.filter(p => p.method === 'card').reduce((s, p) => s + p.amount, 0),
-      mobile_money: allPayments.filter(p => p.method === 'mobile_money').reduce((s, p) => s + p.amount, 0),
-      gift_card: allPayments.filter(p => p.method === 'gift_card').reduce((s, p) => s + p.amount, 0),
-    };
+    const s = summaryAgg[0] || { totalRevenue: 0, cash: 0, card: 0, mobile_money: 0, gift_card: 0 };
+    const byMethod = { cash: s.cash, card: s.card, mobile_money: s.mobile_money, gift_card: s.gift_card };
 
     res.json({
       success: true,
       data: payments,
-      summary: { totalRevenue, totalTransactions: total, byMethod },
+      summary: { totalRevenue: s.totalRevenue, totalTransactions: total, byMethod },
       pagination: { total, page: parseInt(page), limit: parseInt(limit), pages: Math.ceil(total / parseInt(limit)) }
     });
   } catch (error) {
@@ -247,7 +279,7 @@ router.get('/agent-history/:id', auth, async (req, res) => {
 });
 
 // GET /api/stats/revenue-chart - Revenue data for charts (daily/weekly/monthly/semester/yearly)
-router.get('/revenue-chart', auth, async (req, res) => {
+router.get('/revenue-chart', auth, SC, async (req, res) => {
   try {
     const { period = 'month' } = req.query;
     const { start, end } = getDateRange(period);
@@ -278,7 +310,7 @@ router.get('/revenue-chart', auth, async (req, res) => {
 });
 
 // GET /api/stats/product-analytics - Detailed product analytics with daily breakdown
-router.get('/product-analytics', auth, async (req, res) => {
+router.get('/product-analytics', auth, SC, async (req, res) => {
   try {
     const { period = 'month' } = req.query;
     const { start, end } = getDateRange(period);
@@ -327,46 +359,64 @@ router.get('/product-analytics', auth, async (req, res) => {
 });
 
 // GET /api/stats/agent-performance - Agent performance with percentages
-router.get('/agent-performance', auth, adminOnly, async (req, res) => {
+router.get('/agent-performance', auth, adminOnly, SC, async (req, res) => {
   try {
     const { period = 'today' } = req.query;
     const { start, end } = getDateRange(period);
 
-    const agents = await User.find({ role: 'agent', isActive: true }).select('-password');
+    // All aggregations in one parallel round-trip
+    const [agents, orderAggs, paymentAggs, ticketAggs, totalAgg] = await Promise.all([
+      User.find({ role: 'agent', isActive: true }).select('firstName lastName email lastLogin').lean(),
+      Order.aggregate([
+        { $match: { createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' } } },
+        { $group: { _id: '$agent', orders: { $sum: 1 } } }
+      ]),
+      Payment.aggregate([
+        { $match: { createdAt: { $gte: start, $lt: end }, status: 'completed' } },
+        { $group: { _id: '$agent', revenue: { $sum: '$amount' }, transactions: { $sum: 1 } } }
+      ]),
+      Ticket.aggregate([
+        { $match: { createdAt: { $gte: start, $lt: end } } },
+        { $group: { _id: '$agent', tickets: { $sum: 1 } } }
+      ]),
+      Payment.aggregate([
+        { $match: { createdAt: { $gte: start, $lt: end }, status: 'completed' } },
+        { $group: { _id: null, totalRevenue: { $sum: '$amount' }, totalOrders: { $sum: 1 } } }
+      ])
+    ]);
 
-    // Totals across all agents for the period
-    const allOrders = await Order.countDocuments({ createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' } });
-    const allPayments = await Payment.find({ createdAt: { $gte: start, $lt: end }, status: 'completed' });
-    const totalRevenueAll = allPayments.reduce((s, p) => s + p.amount, 0);
+    const allOrderCount = orderAggs.reduce((s, a) => s + a.orders, 0);
+    const totalRevenueAll = totalAgg[0]?.totalRevenue || 0;
 
-    const agentPerf = [];
-    for (const agent of agents) {
-      const agOrders = await Order.countDocuments({ agent: agent._id, createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' } });
-      const agPayments = await Payment.find({ agent: agent._id, createdAt: { $gte: start, $lt: end }, status: 'completed' });
-      const agRevenue = agPayments.reduce((s, p) => s + p.amount, 0);
-      const agTickets = await Ticket.countDocuments({ agent: agent._id, createdAt: { $gte: start, $lt: end } });
+    const orderMap = Object.fromEntries(orderAggs.map(a => [a._id.toString(), a.orders]));
+    const payMap = Object.fromEntries(paymentAggs.map(a => [a._id.toString(), { revenue: a.revenue, transactions: a.transactions }]));
+    const ticketMap = Object.fromEntries(ticketAggs.map(a => [a._id.toString(), a.tickets]));
 
-      agentPerf.push({
+    const agentPerf = agents.map(agent => {
+      const id = agent._id.toString();
+      const pay = payMap[id] || { revenue: 0, transactions: 0 };
+      const agOrders = orderMap[id] || 0;
+      return {
         agent: { _id: agent._id, firstName: agent.firstName, lastName: agent.lastName, email: agent.email },
         orders: agOrders,
-        revenue: agRevenue,
-        tickets: agTickets,
-        transactions: agPayments.length,
-        orderPercent: allOrders > 0 ? Math.round((agOrders / allOrders) * 100) : 0,
-        revenuePercent: totalRevenueAll > 0 ? Math.round((agRevenue / totalRevenueAll) * 100) : 0,
+        revenue: pay.revenue,
+        tickets: ticketMap[id] || 0,
+        transactions: pay.transactions,
+        orderPercent: allOrderCount > 0 ? Math.round((agOrders / allOrderCount) * 100) : 0,
+        revenuePercent: totalRevenueAll > 0 ? Math.round((pay.revenue / totalRevenueAll) * 100) : 0,
         lastLogin: agent.lastLogin
-      });
-    }
+      };
+    });
 
     agentPerf.sort((a, b) => b.revenue - a.revenue);
-    res.json({ success: true, data: agentPerf, totals: { orders: allOrders, revenue: totalRevenueAll } });
+    res.json({ success: true, data: agentPerf, totals: { orders: allOrderCount, revenue: totalRevenueAll } });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
 // GET /api/stats/revenue-history - Full revenue history (daily + monthly aggregation)
-router.get('/revenue-history', auth, adminOnly, async (req, res) => {
+router.get('/revenue-history', auth, adminOnly, SC, async (req, res) => {
   try {
     const { year, month } = req.query;
     const now = new Date();

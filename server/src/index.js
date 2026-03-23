@@ -5,6 +5,7 @@ const { Server } = require('socket.io');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const morgan = require('morgan');
+const compression = require('compression');
 require('dotenv').config();
 
 const User = require('./models/User');
@@ -38,12 +39,13 @@ const io = new Server(server, {
 });
 
 // Middleware
+app.use(compression()); // gzip all responses
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      callback(null, true); // Allow all in case of deployment mismatch
+      callback(null, true);
     }
   },
   credentials: true
@@ -143,7 +145,12 @@ async function ensureAdminExists() {
   }
 }
 
-mongoose.connect(process.env.MONGODB_URI)
+mongoose.connect(process.env.MONGODB_URI, {
+  maxPoolSize: 10,
+  serverSelectionTimeoutMS: 5000,
+  socketTimeoutMS: 45000,
+  compressors: 'zlib'
+})
   .then(async () => {
     console.log('MongoDB connecté avec succès');
     await ensureAdminExists();

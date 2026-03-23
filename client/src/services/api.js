@@ -10,8 +10,12 @@ const api = axios.create({
 
 // ── In-memory GET cache (stale-while-revalidate) ──
 const _cache = new Map();
-const CACHE_TTL = 8000; // 8s — serve instantly, revalidate in background
-const MAX_CACHE = 80;
+const CACHE_TTL = 30000; // 30s default — serve instantly, revalidate in background
+const CACHE_TTL_SHORT = 15000; // 15s for volatile data (orders, tables, tickets)
+const MAX_CACHE = 100;
+
+// URLs that change frequently and need a shorter TTL
+const SHORT_TTL_PREFIXES = ['/orders', '/tables', '/tickets', '/stats/supervision'];
 
 function cacheKey(url, params) {
   return url + (params ? '?' + new URLSearchParams(params).toString() : '');
@@ -36,9 +40,10 @@ export function cachedGet(url, params) {
   const key = cacheKey(url, params);
   const entry = _cache.get(key);
   const now = Date.now();
+  const ttl = SHORT_TTL_PREFIXES.some(p => url.startsWith(p)) ? CACHE_TTL_SHORT : CACHE_TTL;
 
   // Fresh cache hit — return immediately
-  if (entry && now - entry.ts < CACHE_TTL) {
+  if (entry && now - entry.ts < ttl) {
     return Promise.resolve(entry.data);
   }
 
