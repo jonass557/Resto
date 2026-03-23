@@ -158,13 +158,13 @@ export default function AdminDashboard() {
           ))}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           {/* Revenue Evolution Chart */}
           <Card>
             <CardHeader><CardTitle className="text-base">Évolution des revenus</CardTitle></CardHeader>
             <CardContent>
               {revenueData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={250}>
+                <ResponsiveContainer width="100%" height={200}>
                   <AreaChart data={revenueData}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="date" tickFormatter={(d) => { const p = d.split('-'); return `${p[2]}/${p[1]}`; }} />
@@ -184,18 +184,29 @@ export default function AdminDashboard() {
             <CardHeader><CardTitle className="text-base">Répartition des paiements</CardTitle></CardHeader>
             <CardContent>
               {paymentPieData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={250}>
+                <ResponsiveContainer width="100%" height={220}>
                   <PieChart>
-                    <Pie data={paymentPieData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                    <Pie data={paymentPieData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={5} dataKey="value" label={({ percent }) => `${(percent * 100).toFixed(0)}%`}>
                       {paymentPieData.map((_, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(value) => formatCurrency(value)} />
+                    <Tooltip formatter={(value, name) => [formatCurrency(value), name]} />
                   </PieChart>
                 </ResponsiveContainer>
               ) : (
                 <p className="text-center text-muted-foreground py-12">Aucune donnée</p>
+              )}
+              {paymentPieData.length > 0 && (
+                <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 mt-2">
+                  {paymentPieData.map((entry, i) => (
+                    <div key={i} className="flex items-center gap-1.5 text-xs">
+                      <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                      <span className="text-muted-foreground">{entry.name}</span>
+                      <span className="font-medium">{formatCurrency(entry.value)}</span>
+                    </div>
+                  ))}
+                </div>
               )}
             </CardContent>
           </Card>
@@ -217,7 +228,7 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
           {/* Agent Performance with Percentages */}
           <Card>
             <CardHeader>
@@ -279,7 +290,7 @@ export default function AdminDashboard() {
             </CardHeader>
             <CardContent>
               {notifications.length > 0 ? (
-                <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                <div className="space-y-2 max-h-[300px] sm:max-h-[400px] overflow-y-auto">
                   {notifications.map((notif) => {
                     const config = NOTIF_ICONS[notif.type] || { icon: Bell, color: 'text-gray-600', bg: 'bg-gray-50' };
                     const Icon = config.icon;

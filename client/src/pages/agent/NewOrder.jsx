@@ -26,6 +26,7 @@ export default function NewOrder() {
   const [cart, setCart] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [mobileTab, setMobileTab] = useState('products');
 
   // Delivery info
   const [deliveryInfo, setDeliveryInfo] = useState({ clientName: '', phone: '', address: '', notes: '' });
@@ -171,9 +172,19 @@ export default function NewOrder() {
   return (
     <div>
       <TopBar title="Nouvelle commande" />
-      <div className="p-4 flex gap-4 h-[calc(100vh-4rem)]">
+      <div className="p-2 sm:p-4 flex flex-col lg:flex-row gap-3 lg:gap-4" style={{ height: 'calc(100vh - 4rem)', overflow: 'hidden' }}>
+        {/* Mobile Tab Switcher */}
+        <div className="flex lg:hidden gap-2 shrink-0">
+          <Button variant={mobileTab === 'products' ? 'default' : 'outline'} className="flex-1" onClick={() => setMobileTab('products')}>
+            Produits
+          </Button>
+          <Button variant={mobileTab === 'cart' ? 'default' : 'outline'} className="flex-1" onClick={() => setMobileTab('cart')}>
+            Panier {cart.length > 0 && <Badge className="ml-1.5">{cart.length}</Badge>}
+            {sessionOrders.length > 0 && <Badge variant="outline" className="ml-1">{sessionOrders.length} cmd</Badge>}
+          </Button>
+        </div>
         {/* Left: Products */}
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className={`flex-1 flex flex-col min-w-0 ${mobileTab === 'cart' ? 'hidden lg:flex' : 'flex'}`}>
           <div className="flex items-center gap-2 mb-3">
             <Button variant="ghost" size="sm" onClick={() => navigate('/agent')}>
               <ArrowLeft className="w-4 h-4" />
@@ -211,7 +222,7 @@ export default function NewOrder() {
         </div>
 
         {/* Right: Order Type + Cart + Session Orders */}
-        <div className="w-96 flex flex-col bg-card rounded-lg border overflow-hidden">
+        <div className={`lg:w-96 flex flex-col bg-card rounded-lg border overflow-hidden ${mobileTab === 'products' ? 'hidden lg:flex' : 'flex flex-1'}`}>
           {/* Order Type Selector */}
           <div className="p-3 border-b">
             <Tabs value={orderType} onValueChange={setOrderType}>

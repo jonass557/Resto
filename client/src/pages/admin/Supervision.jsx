@@ -75,9 +75,9 @@ export default function Supervision() {
   return (
     <div>
       <TopBar title="Supervision en temps réel" />
-      <div className="p-6 space-y-6">
+      <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
         {/* Live Status */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
           <Card className="border-blue-200 bg-blue-50/30">
             <CardContent className="pt-6 flex items-center gap-4">
               <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center">
@@ -116,17 +116,17 @@ export default function Supervision() {
         </div>
 
         <Tabs defaultValue={pendingInvoices.length > 0 ? 'pending' : 'orders'}>
-          <TabsList>
-            <TabsTrigger value="pending" className="relative">
+          <TabsList className="flex flex-wrap h-auto gap-0.5 p-1">
+            <TabsTrigger value="pending" className="relative text-xs sm:text-sm">
               Factures en attente
               {pendingInvoices.length > 0 && (
                 <span className="ml-1.5 bg-amber-500 text-white text-xs rounded-full px-1.5 py-0.5 font-bold">{pendingInvoices.length}</span>
               )}
             </TabsTrigger>
-            <TabsTrigger value="orders">Commandes en cours ({activeOrders.length})</TabsTrigger>
-            <TabsTrigger value="all-orders">Toutes les commandes</TabsTrigger>
-            <TabsTrigger value="tickets">Tickets</TabsTrigger>
-            <TabsTrigger value="agents">Agents</TabsTrigger>
+            <TabsTrigger value="orders" className="text-xs sm:text-sm">En cours ({activeOrders.length})</TabsTrigger>
+            <TabsTrigger value="all-orders" className="text-xs sm:text-sm">Toutes</TabsTrigger>
+            <TabsTrigger value="tickets" className="text-xs sm:text-sm">Tickets</TabsTrigger>
+            <TabsTrigger value="agents" className="text-xs sm:text-sm">Agents</TabsTrigger>
           </TabsList>
 
           <TabsContent value="pending" className="space-y-3 mt-4">
@@ -163,19 +163,21 @@ export default function Supervision() {
               <p className="text-center text-muted-foreground py-8">Aucune commande active</p>
             ) : activeOrders.map(order => (
               <Card key={order._id}>
-                <CardContent className="p-4 flex items-center justify-between">
-                  <div>
-                    <p className="font-bold">{order.orderNumber}</p>
-                    <p className="text-sm text-muted-foreground">
-                      Table {order.table?.number} | {order.agent?.firstName} {order.agent?.lastName} | {formatDateTime(order.createdAt)}
-                    </p>
-                    <div className="flex gap-1 mt-1">{order.items?.map((item, i) => (
-                      <Badge key={i} variant="outline" className="text-xs">{item.quantity}x {item.name}</Badge>
-                    ))}</div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Badge className={getStatusColor(order.status)}>{getStatusLabel(order.status)}</Badge>
-                    <p className="font-bold text-primary">{formatCurrency(order.total)}</p>
+                <CardContent className="p-3 sm:p-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-bold">{order.orderNumber}</p>
+                        <Badge className={getStatusColor(order.status)}>{getStatusLabel(order.status)}</Badge>
+                        <p className="font-bold text-primary">{formatCurrency(order.total)}</p>
+                      </div>
+                      <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+                        Table {order.table?.number} | {order.agent?.firstName} {order.agent?.lastName} | {formatDateTime(order.createdAt)}
+                      </p>
+                      <div className="flex gap-1 mt-1 flex-wrap">{order.items?.map((item, i) => (
+                        <Badge key={i} variant="outline" className="text-xs">{item.quantity}x {item.name}</Badge>
+                      ))}</div>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -185,14 +187,16 @@ export default function Supervision() {
           <TabsContent value="all-orders" className="space-y-3 mt-4">
             {orders.map(order => (
               <Card key={order._id}>
-                <CardContent className="p-4 flex items-center justify-between">
-                  <div>
-                    <p className="font-bold">{order.orderNumber}</p>
-                    <p className="text-sm text-muted-foreground">Table {order.table?.number} | {order.agent?.firstName} | {formatDateTime(order.createdAt)}</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Badge className={getStatusColor(order.status)}>{getStatusLabel(order.status)}</Badge>
-                    <p className="font-bold">{formatCurrency(order.total)}</p>
+                <CardContent className="p-3 sm:p-4">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="min-w-0">
+                      <p className="font-bold text-sm">{order.orderNumber}</p>
+                      <p className="text-xs text-muted-foreground">Table {order.table?.number} | {order.agent?.firstName} | {formatDateTime(order.createdAt)}</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge className={getStatusColor(order.status)}>{getStatusLabel(order.status)}</Badge>
+                      <p className="font-bold text-sm">{formatCurrency(order.total)}</p>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -202,15 +206,17 @@ export default function Supervision() {
           <TabsContent value="tickets" className="space-y-3 mt-4">
             {tickets.map(ticket => (
               <Card key={ticket._id}>
-                <CardContent className="p-4 flex items-center justify-between">
-                  <div>
-                    <p className="font-bold">{ticket.ticketNumber}</p>
-                    <p className="text-sm text-muted-foreground">Table {ticket.table?.number} | {ticket.agent?.firstName} | {formatDateTime(ticket.createdAt)}</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Badge variant={ticket.type === 'invoice' ? 'default' : 'secondary'}>{ticket.type === 'invoice' ? 'Facture' : 'Ticket'}</Badge>
-                    <Badge variant={ticket.isPaid ? 'default' : 'destructive'}>{ticket.isPaid ? 'Payé' : 'Impayé'}</Badge>
-                    <p className="font-bold">{formatCurrency(ticket.total)}</p>
+                <CardContent className="p-3 sm:p-4">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="min-w-0">
+                      <p className="font-bold text-sm">{ticket.ticketNumber}</p>
+                      <p className="text-xs text-muted-foreground">Table {ticket.table?.number} | {ticket.agent?.firstName} | {formatDateTime(ticket.createdAt)}</p>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <Badge variant={ticket.type === 'invoice' ? 'default' : 'secondary'} className="text-xs">{ticket.type === 'invoice' ? 'Facture' : 'Ticket'}</Badge>
+                      <Badge variant={ticket.isPaid ? 'default' : 'destructive'} className="text-xs">{ticket.isPaid ? 'Payé' : 'Impayé'}</Badge>
+                      <p className="font-bold text-sm">{formatCurrency(ticket.total)}</p>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -220,20 +226,22 @@ export default function Supervision() {
           <TabsContent value="agents" className="space-y-3 mt-4">
             {agentStats.map((stat, i) => (
               <Card key={i}>
-                <CardContent className="p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <span className="font-bold text-primary text-sm">{stat.agent.firstName[0]}{stat.agent.lastName[0]}</span>
+                <CardContent className="p-3 sm:p-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                        <span className="font-bold text-primary text-sm">{stat.agent.firstName[0]}{stat.agent.lastName[0]}</span>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-bold text-sm">{stat.agent.firstName} {stat.agent.lastName}</p>
+                        <p className="text-xs text-muted-foreground truncate">{stat.agent.email}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-bold">{stat.agent.firstName} {stat.agent.lastName}</p>
-                      <p className="text-sm text-muted-foreground">{stat.agent.email}</p>
+                    <div className="flex items-center gap-3 sm:gap-6">
+                      <div className="text-center"><p className="font-bold text-sm">{stat.orders}</p><p className="text-xs text-muted-foreground">Cmd</p></div>
+                      <div className="text-center"><p className="font-bold text-sm">{stat.transactions}</p><p className="text-xs text-muted-foreground">Trans.</p></div>
+                      <div className="text-center"><p className="font-bold text-sm text-primary">{formatCurrency(stat.revenue)}</p><p className="text-xs text-muted-foreground">CA</p></div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-6">
-                    <div className="text-center"><p className="font-bold">{stat.orders}</p><p className="text-xs text-muted-foreground">Commandes</p></div>
-                    <div className="text-center"><p className="font-bold">{stat.transactions}</p><p className="text-xs text-muted-foreground">Transactions</p></div>
-                    <div className="text-center"><p className="font-bold text-primary">{formatCurrency(stat.revenue)}</p><p className="text-xs text-muted-foreground">CA</p></div>
                   </div>
                 </CardContent>
               </Card>

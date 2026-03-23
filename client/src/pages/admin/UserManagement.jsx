@@ -94,14 +94,14 @@ export default function UserManagement() {
   return (
     <div>
       <TopBar title="Gestion des utilisateurs" />
-      <div className="p-6 space-y-4">
+      <div className="p-3 sm:p-6 space-y-4">
         <div className="flex gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input placeholder="Rechercher..." className="pl-9" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
           </div>
-          <Button onClick={openCreate}>
-            <Plus className="w-4 h-4 mr-2" /> Nouvel utilisateur
+          <Button onClick={openCreate} className="shrink-0">
+            <Plus className="w-4 h-4 mr-2" /><span className="hidden sm:inline">Nouvel utilisateur</span><span className="sm:hidden">Ajouter</span>
           </Button>
         </div>
 
@@ -111,28 +111,26 @@ export default function UserManagement() {
           <div className="grid gap-3">
             {users.map(user => (
               <Card key={user._id}>
-                <CardContent className="p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center ${user.role === 'admin' ? 'bg-purple-100' : 'bg-blue-100'}`}>
-                      {user.role === 'admin' ? <Shield className="w-6 h-6 text-purple-600" /> : <UserCircle className="w-6 h-6 text-blue-600" />}
-                    </div>
-                    <div>
-                      <p className="font-bold">{user.firstName} {user.lastName}</p>
-                      <p className="text-sm text-muted-foreground">{user.email}</p>
-                      <div className="flex gap-2 mt-1">
-                        <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>{user.role === 'admin' ? 'Administrateur' : 'Agent'}</Badge>
-                        <Badge variant={user.isActive ? 'outline' : 'destructive'}>{user.isActive ? 'Actif' : 'Inactif'}</Badge>
+                <CardContent className="p-3 sm:p-4">
+                  <div className="flex items-start sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${user.role === 'admin' ? 'bg-purple-100' : 'bg-blue-100'}`}>
+                        {user.role === 'admin' ? <Shield className="w-5 h-5 text-purple-600" /> : <UserCircle className="w-5 h-5 text-blue-600" />}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-bold text-sm sm:text-base">{user.firstName} {user.lastName}</p>
+                        <p className="text-xs sm:text-sm text-muted-foreground truncate">{user.email}</p>
+                        <div className="flex gap-1.5 mt-1 flex-wrap">
+                          <Badge variant={user.role === 'admin' ? 'default' : 'secondary'} className="text-xs">{user.role === 'admin' ? 'Admin' : 'Agent'}</Badge>
+                          <Badge variant={user.isActive ? 'outline' : 'destructive'} className="text-xs">{user.isActive ? 'Actif' : 'Inactif'}</Badge>
+                          {user.lastLogin && <span className="text-xs text-muted-foreground hidden md:inline">Connexion: {formatDateTime(user.lastLogin)}</span>}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-right text-sm text-muted-foreground">
-                      {user.lastLogin && <p>Dernière connexion: {formatDateTime(user.lastLogin)}</p>}
-                    </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 shrink-0">
                       <Switch checked={user.isActive} onCheckedChange={() => toggleActive(user)} />
-                      <Button size="icon" variant="ghost" onClick={() => openEdit(user)}><Edit className="w-4 h-4" /></Button>
-                      <Button size="icon" variant="ghost" className="text-destructive" onClick={() => deleteUser(user)}><Trash2 className="w-4 h-4" /></Button>
+                      <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEdit(user)}><Edit className="w-3.5 h-3.5" /></Button>
+                      <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => deleteUser(user)}><Trash2 className="w-3.5 h-3.5" /></Button>
                     </div>
                   </div>
                 </CardContent>

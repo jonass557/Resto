@@ -161,21 +161,22 @@ export default function RevenueHistory() {
       <TopBar title="Historique Chiffre d'Affaires" />
       <div className="p-3 sm:p-6 space-y-4">
         {/* Header controls */}
-        <div className="flex flex-wrap items-center gap-3">
-          {view === 'days' && (
-            <Button variant="outline" size="sm" onClick={backToMonths}>
-              <ArrowLeft className="w-4 h-4 mr-1" /> Retour aux mois
-            </Button>
-          )}
-          <Select value={String(year)} onValueChange={v => { setYear(parseInt(v)); if (view === 'days' && selectedMonth) loadDaily(selectedMonth); }}>
-            <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
-            <SelectContent>{years.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
-          </Select>
-          <div className="flex-1" />
+        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 sm:gap-3">
           <div className="flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-green-600" />
+            {view === 'days' && (
+              <Button variant="outline" size="sm" onClick={backToMonths}>
+                <ArrowLeft className="w-4 h-4 mr-1" /> Retour
+              </Button>
+            )}
+            <Select value={String(year)} onValueChange={v => { setYear(parseInt(v)); if (view === 'days' && selectedMonth) loadDaily(selectedMonth); }}>
+              <SelectTrigger className="w-[110px]"><SelectValue /></SelectTrigger>
+              <SelectContent>{years.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-2 sm:ml-auto">
+            <TrendingUp className="w-4 h-4 text-green-600 shrink-0" />
             <span className="text-sm font-medium">Total : <strong className="text-green-600">{formatCurrency(totalRevenue)}</strong></span>
-            <span className="text-xs text-muted-foreground">({totalTransactions} transactions)</span>
+            <span className="text-xs text-muted-foreground hidden sm:inline">({totalTransactions} trans.)</span>
           </div>
         </div>
 
@@ -205,29 +206,29 @@ export default function RevenueHistory() {
                 </CardContent>
               </Card>
 
-              <div className="grid gap-3">
+              <div className="grid gap-2 sm:gap-3">
                 {monthlyData.map((m, i) => (
                   <Card key={m.month} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => openMonth(i + 1)}>
-                    <CardContent className="p-4 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                          <Calendar className="w-5 h-5 text-primary" />
+                    <CardContent className="p-3 sm:p-4 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                          <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
                         </div>
-                        <div>
-                          <p className="font-bold capitalize">{m.monthName} {year}</p>
-                          <p className="text-xs text-muted-foreground">{m.transactions} transactions</p>
+                        <div className="min-w-0">
+                          <p className="font-bold capitalize text-sm sm:text-base truncate">{m.monthName} {year}</p>
+                          <p className="text-xs text-muted-foreground">{m.transactions} trans.</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                         <div className="text-right">
-                          <p className="font-bold text-primary text-lg">{formatCurrency(m.revenue)}</p>
-                          <div className="flex gap-2 text-[10px] text-muted-foreground">
+                          <p className="font-bold text-primary text-sm sm:text-base">{formatCurrency(m.revenue)}</p>
+                          <div className="hidden sm:flex gap-2 text-[10px] text-muted-foreground">
                             {m.cash > 0 && <span>Esp: {formatCurrency(m.cash)}</span>}
                             {m.card > 0 && <span>CB: {formatCurrency(m.card)}</span>}
                             {m.mobile_money > 0 && <span>MM: {formatCurrency(m.mobile_money)}</span>}
                           </div>
                         </div>
-                        <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
                       </div>
                     </CardContent>
                   </Card>
@@ -259,31 +260,31 @@ export default function RevenueHistory() {
                   const isToday = day.date === new Date().toISOString().split('T')[0];
                   return (
                     <Card key={day.date} className={`transition-shadow ${day.revenue > 0 ? 'hover:shadow-md' : 'opacity-60'}`}>
-                      <CardContent className="p-3 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold ${day.revenue > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'}`}>
+                      <CardContent className="p-2.5 sm:p-3 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold shrink-0 ${day.revenue > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'}`}>
                             {dayNum}
                           </div>
-                          <div>
-                            <p className="font-medium text-sm capitalize">
+                          <div className="min-w-0">
+                            <p className="font-medium text-xs sm:text-sm capitalize truncate">
                               {dayName}
-                              {isToday && <Badge variant="outline" className="ml-2 text-[10px] py-0">Aujourd'hui</Badge>}
+                              {isToday && <Badge variant="outline" className="ml-1 text-[10px] py-0">Auj.</Badge>}
                             </p>
-                            <p className="text-xs text-muted-foreground">{day.transactions} transaction{day.transactions !== 1 ? 's' : ''}</p>
+                            <p className="text-xs text-muted-foreground">{day.transactions} trans.</p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
                           <div className="text-right">
-                            <p className={`font-bold ${day.revenue > 0 ? 'text-green-600' : 'text-gray-400'}`}>{formatCurrency(day.revenue)}</p>
-                            <div className="flex gap-2 text-[10px] text-muted-foreground">
+                            <p className={`font-bold text-sm ${day.revenue > 0 ? 'text-green-600' : 'text-gray-400'}`}>{formatCurrency(day.revenue)}</p>
+                            <div className="hidden sm:flex gap-2 text-[10px] text-muted-foreground">
                               {day.cash > 0 && <span className="flex items-center gap-0.5"><Banknote className="w-3 h-3" />{formatCurrency(day.cash)}</span>}
                               {day.card > 0 && <span className="flex items-center gap-0.5"><CreditCard className="w-3 h-3" />{formatCurrency(day.card)}</span>}
                               {day.mobile_money > 0 && <span className="flex items-center gap-0.5"><Smartphone className="w-3 h-3" />{formatCurrency(day.mobile_money)}</span>}
                             </div>
                           </div>
                           {day.revenue > 0 && (
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => loadDailyReport(day.date)} title="Voir le rapport">
-                              <Eye className="w-4 h-4" />
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => loadDailyReport(day.date)} title="Voir le rapport">
+                              <Eye className="w-3.5 h-3.5" />
                             </Button>
                           )}
                         </div>

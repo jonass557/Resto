@@ -186,12 +186,17 @@ export default function DailyInvoices() {
             {data.agents.map((agent, idx) => (
               <Card key={idx}>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Users className="w-4 h-4" /> {agent.agentName}
-                    <Badge variant="outline" className="ml-auto">{agent.invoices.length} facture(s)</Badge>
-                    <Badge className="bg-primary">{formatCurrency(agent.total)}</Badge>
-                  </CardTitle>
-                  <div className="flex gap-3 text-xs text-muted-foreground mt-1">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                    <div className="flex items-center gap-2">
+                      <Users className="w-4 h-4" />
+                      <span className="font-semibold text-base">{agent.agentName}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 sm:ml-auto flex-wrap">
+                      <Badge variant="outline">{agent.invoices.length} facture(s)</Badge>
+                      <Badge className="bg-primary">{formatCurrency(agent.total)}</Badge>
+                    </div>
+                  </div>
+                  <div className="flex gap-3 text-xs text-muted-foreground mt-1 flex-wrap">
                     <span className="flex items-center gap-1"><Banknote className="w-3 h-3 text-green-600" /> {formatCurrency(agent.cash)}</span>
                     <span className="flex items-center gap-1"><Smartphone className="w-3 h-3 text-blue-600" /> {formatCurrency(agent.mobileMoney)}</span>
                     <span className="flex items-center gap-1"><CreditCard className="w-3 h-3 text-purple-600" /> {formatCurrency(agent.card)}</span>
@@ -200,35 +205,27 @@ export default function DailyInvoices() {
                 <CardContent className="pt-0">
                   <div className="space-y-2">
                     {agent.invoices.map(inv => (
-                      <div key={inv._id} className="flex items-center justify-between p-2 rounded-lg bg-muted text-sm">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <FileText className="w-3.5 h-3.5 text-green-600 shrink-0" />
-                            <span className="font-medium">{inv.ticketNumber}</span>
-                            <span className="text-xs text-muted-foreground">{inv.table}</span>
-                          </div>
-                          <div className="text-xs text-muted-foreground mt-0.5 truncate">
-                            {inv.items.map(it => `${it.quantity}x ${it.name}`).join(', ')}
-                          </div>
+                      <div key={inv._id} className="flex flex-col sm:flex-row sm:items-center gap-1 p-2 rounded-lg bg-muted text-sm">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <FileText className="w-3.5 h-3.5 text-green-600 shrink-0" />
+                          <span className="font-medium">{inv.ticketNumber}</span>
+                          <span className="text-xs text-muted-foreground">{inv.table}</span>
+                          <span className="text-xs text-muted-foreground">{new Date(inv.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0 ml-2">
+                        <div className="text-xs text-muted-foreground truncate sm:hidden">
+                          {inv.items.map(it => `${it.quantity}x ${it.name}`).join(', ')}
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           {inv.paymentMethod === 'mixed' && inv.mixedPayments?.length > 0 ? (
-                            <div className="flex gap-1">
-                              {inv.mixedPayments.map((mp, i) => (
-                                <Badge key={i} variant="outline" className="text-[10px] py-0">
-                                  {methodLabel(mp.method)}: {formatCurrency(mp.amount)}
-                                </Badge>
-                              ))}
-                            </div>
+                            inv.mixedPayments.map((mp, i) => (
+                              <Badge key={i} variant="outline" className="text-[10px] py-0">
+                                {methodLabel(mp.method)}: {formatCurrency(mp.amount)}
+                              </Badge>
+                            ))
                           ) : (
-                            <Badge variant="outline" className="text-[10px] py-0">
-                              {methodLabel(inv.paymentMethod)}
-                            </Badge>
+                            <Badge variant="outline" className="text-[10px] py-0">{methodLabel(inv.paymentMethod)}</Badge>
                           )}
-                          <span className="font-bold">{formatCurrency(inv.total)}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {new Date(inv.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                          </span>
+                          <span className="font-bold ml-auto sm:ml-0">{formatCurrency(inv.total)}</span>
                         </div>
                       </div>
                     ))}
