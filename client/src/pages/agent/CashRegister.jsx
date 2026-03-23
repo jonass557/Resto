@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 import { cashRegisterAPI, ticketsAPI } from '@/services/api';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,6 +13,7 @@ import { Wallet, DoorOpen, DoorClosed, Loader2, Banknote, CreditCard, Smartphone
 import toast from 'react-hot-toast';
 
 export default function CashRegister() {
+  const { user } = useAuth();
   const [currentSession, setCurrentSession] = useState(null);
   const [history, setHistory] = useState([]);
   const [unpaidTickets, setUnpaidTickets] = useState([]);
@@ -26,17 +28,17 @@ export default function CashRegister() {
     try {
       const [currentRes, historyRes, ticketsRes] = await Promise.all([
         cashRegisterAPI.getCurrent(),
-        cashRegisterAPI.getAll({ limit: 20 }),
-        ticketsAPI.getAll({ limit: 200 })
+        cashRegisterAPI.getAll({ agent: user?._id, limit: 50 }),
+        ticketsAPI.getAll({ agent: user?._id, isPaid: false, type: 'invoice', limit: 200 })
       ]);
       setCurrentSession(currentRes.data.data);
       setHistory(historyRes.data.data);
-      // Filtrer les tickets impayés de l'agent depuis l'ouverture de la caisse
+      // Filtrer les tickets impayés de cet agent depuis l'ouverture de la caisse
       const session = currentRes.data.data;
       if (session) {
         const openedAt = new Date(session.openedAt);
         const unpaid = (ticketsRes.data.data || []).filter(t =>
-          !t.isPaid && new Date(t.createdAt) >= openedAt
+          new Date(t.createdAt) >= openedAt
         );
         setUnpaidTickets(unpaid);
       } else {
@@ -47,7 +49,7 @@ export default function CashRegister() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user?._id]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
