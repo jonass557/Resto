@@ -197,26 +197,67 @@ export default function CashRegister() {
 
         {/* History */}
         <Card>
-          <CardHeader><CardTitle className="text-lg">Historique des sessions</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-lg">Historique des sections</CardTitle></CardHeader>
           <CardContent>
             {history.filter(s => s.status === 'closed').length === 0 ? (
               <p className="text-center text-muted-foreground py-4">Aucun historique</p>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {history.filter(s => s.status === 'closed').map(session => (
-                  <div key={session._id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg bg-muted">
-                    <div>
-                      <p className="font-medium text-sm">{session.sessionNumber}</p>
-                      <p className="text-xs text-muted-foreground">{formatDateTime(session.openedAt)} - {formatDateTime(session.closedAt)}</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="text-right">
-                        <p className="font-bold text-sm">{formatCurrency(session.totalSales)}</p>
-                        <p className="text-xs text-muted-foreground">{session.transactionCount} trans.</p>
+                  <div key={session._id} className="rounded-lg border bg-card p-3 sm:p-4 space-y-3">
+                    {/* Session header */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                      <div>
+                        <p className="font-semibold text-sm">{session.sessionNumber}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatDateTime(session.openedAt)} → {formatDateTime(session.closedAt)}
+                        </p>
                       </div>
-                      <Badge className={session.difference >= 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
-                        {formatCurrency(session.difference)}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">{session.transactionCount} trans.</span>
+                        <Badge className={session.difference >= 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                          Écart: {formatCurrency(session.difference)}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    {/* Payment breakdown */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <div className="flex items-center gap-2 p-2 rounded-lg bg-blue-50">
+                        <Banknote className="w-4 h-4 text-blue-600 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-xs text-blue-600 font-medium truncate">Espèces</p>
+                          <p className="text-sm font-bold truncate">{formatCurrency(session.totalCash)}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 p-2 rounded-lg bg-purple-50">
+                        <CreditCard className="w-4 h-4 text-purple-600 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-xs text-purple-600 font-medium truncate">Carte</p>
+                          <p className="text-sm font-bold truncate">{formatCurrency(session.totalCard)}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 p-2 rounded-lg bg-orange-50">
+                        <Smartphone className="w-4 h-4 text-orange-600 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-xs text-orange-600 font-medium truncate">Mobile Money</p>
+                          <p className="text-sm font-bold truncate">{formatCurrency(session.totalMobileMoney)}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 p-2 rounded-lg bg-green-50">
+                        <TrendingUp className="w-4 h-4 text-green-600 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-xs text-green-600 font-medium truncate">Total ventes</p>
+                          <p className="text-sm font-bold truncate">{formatCurrency(session.totalSales)}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Opening / closing amounts */}
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground border-t pt-2">
+                      <span>Fond d'ouverture: <span className="font-medium text-foreground">{formatCurrency(session.openingAmount)}</span></span>
+                      <span>Clôture réelle: <span className="font-medium text-foreground">{formatCurrency(session.closingAmount)}</span></span>
+                      <span>Attendu: <span className="font-medium text-foreground">{formatCurrency(session.expectedAmount)}</span></span>
                     </div>
                   </div>
                 ))}
