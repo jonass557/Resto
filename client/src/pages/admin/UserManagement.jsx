@@ -27,7 +27,7 @@ export default function UserManagement() {
       const { data } = await usersAPI.getAll({ search: searchQuery });
       setUsers(data.data);
     } catch (error) {
-      toast.error('Erreur chargement utilisateurs');
+      toast.error(error.response?.data?.message || 'Erreur chargement utilisateurs');
     } finally {
       setLoading(false);
     }

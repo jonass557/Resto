@@ -106,11 +106,11 @@ export const authAPI = {
 
 // Users
 export const usersAPI = {
-  getAll: (params) => api.get('/users', { params }),
+  getAll: (params) => cachedGet('/users', params),
   getById: (id) => api.get(`/users/${id}`),
-  create: (data) => api.post('/users', data),
-  update: (id, data) => api.put(`/users/${id}`, data),
-  delete: (id) => api.delete(`/users/${id}`),
+  create: (data) => api.post('/users', data).then(r => { invalidateCache('/users'); return r; }),
+  update: (id, data) => api.put(`/users/${id}`, data).then(r => { invalidateCache('/users'); return r; }),
+  delete: (id) => api.delete(`/users/${id}`).then(r => { invalidateCache('/users'); return r; }),
 };
 
 // Products
@@ -190,18 +190,18 @@ export const clientsAPI = {
 
 // Stats
 export const statsAPI = {
-  getDashboard: (params) => api.get('/stats/dashboard', { params }),
-  getAgents: (params) => api.get('/stats/agents', { params }),
-  getAgent: (id, params) => api.get(`/stats/agent/${id}`, { params }),
-  getAgentHistory: (id, params) => api.get(`/stats/agent-history/${id}`, { params }),
-  getRevenueChart: (params) => api.get('/stats/revenue-chart', { params }),
-  getSales: (params) => api.get('/stats/sales', { params }),
-  getProducts: (params) => api.get('/stats/products', { params }),
-  getProductAnalytics: (params) => api.get('/stats/product-analytics', { params }),
-  getAgentPerformance: (params) => api.get('/stats/agent-performance', { params }),
-  getRevenueHistory: (params) => api.get('/stats/revenue-history', { params }),
-  getDailyReport: (date) => api.get(`/stats/daily-report/${date}`),
-  getDailyInvoices: (params) => api.get('/stats/daily-invoices', { params }),
+  getDashboard: (params) => cachedGet('/stats/dashboard', params),
+  getAgents: (params) => cachedGet('/stats/agents', params),
+  getAgent: (id, params) => cachedGet(`/stats/agent/${id}`, params),
+  getAgentHistory: (id, params) => cachedGet(`/stats/agent-history/${id}`, params),
+  getRevenueChart: (params) => cachedGet('/stats/revenue-chart', params),
+  getSales: (params) => cachedGet('/stats/sales', params),
+  getProducts: (params) => cachedGet('/stats/products', params),
+  getProductAnalytics: (params) => cachedGet('/stats/product-analytics', params),
+  getAgentPerformance: (params) => cachedGet('/stats/agent-performance', params),
+  getRevenueHistory: (params) => cachedGet('/stats/revenue-history', params),
+  getDailyReport: (date) => cachedGet(`/stats/daily-report/${date}`),
+  getDailyInvoices: (params) => cachedGet('/stats/daily-invoices', params),
 };
 
 // Accounting

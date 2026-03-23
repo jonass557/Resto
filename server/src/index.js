@@ -7,6 +7,7 @@ const cors = require('cors');
 const morgan = require('morgan');
 require('dotenv').config();
 
+const User = require('./models/User');
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const productRoutes = require('./routes/products');
@@ -114,9 +115,38 @@ app.use((req, res) => {
 // Connect to MongoDB and start server
 const PORT = process.env.PORT || 5000;
 
+async function ensureAdminExists() {
+  try {
+    const adminCount = await User.countDocuments({ role: 'admin', isActive: true });
+    if (adminCount === 0) {
+      const email = process.env.ADMIN_EMAIL || 'admin@restaurant.com';
+      const password = process.env.ADMIN_PASSWORD || 'Admin@1234';
+      const existing = await User.findOne({ email: email.toLowerCase() });
+      if (existing) {
+        existing.role = 'admin';
+        await existing.save();
+        console.log(`✅ Utilisateur ${email} promu administrateur automatiquement`);
+      } else {
+        await User.create({
+          firstName: process.env.ADMIN_FIRST_NAME || 'Admin',
+          lastName: process.env.ADMIN_LAST_NAME || 'Principal',
+          email,
+          password,
+          role: 'admin'
+        });
+        console.log(`✅ Compte admin créé automatiquement : ${email} / ${password}`);
+        console.log('⚠️  Changez ce mot de passe dès la première connexion !');
+      }
+    }
+  } catch (err) {
+    console.error('Erreur init admin:', err.message);
+  }
+}
+
 mongoose.connect(process.env.MONGODB_URI)
-  .then(() => {
+  .then(async () => {
     console.log('MongoDB connecté avec succès');
+    await ensureAdminExists();
     server.listen(PORT, () => {
       console.log(`Serveur démarré sur le port ${PORT}`);
     });

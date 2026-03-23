@@ -42,7 +42,7 @@ export default function RevenueHistory() {
       setMonthlyData(data.data || []);
       setTotalRevenue(data.totalRevenue || 0);
       setTotalTransactions(data.totalTransactions || 0);
-    } catch { toast.error('Erreur chargement'); }
+    } catch (e) { toast.error(e.response?.data?.message || 'Erreur chargement'); }
     finally { setLoading(false); }
   }, [year]);
 
@@ -53,7 +53,7 @@ export default function RevenueHistory() {
       setDailyData(data.data || []);
       setTotalRevenue(data.totalRevenue || 0);
       setTotalTransactions(data.totalTransactions || 0);
-    } catch { toast.error('Erreur chargement'); }
+    } catch (e) { toast.error(e.response?.data?.message || 'Erreur chargement'); }
     finally { setLoading(false); }
   }, [year]);
 
@@ -79,7 +79,7 @@ export default function RevenueHistory() {
     try {
       const { data } = await statsAPI.getDailyReport(dateStr);
       setDailyReport(data.data);
-    } catch { toast.error('Erreur chargement rapport'); }
+    } catch (e) { toast.error(e.response?.data?.message || 'Erreur chargement rapport'); }
     finally { setReportLoading(false); }
   };
 

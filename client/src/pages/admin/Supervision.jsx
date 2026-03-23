@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatCurrency, formatDateTime, getStatusColor, getStatusLabel } from '@/lib/utils';
 import { Loader2, Activity, ShoppingCart, Receipt, Users } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export default function Supervision() {
   const [orders, setOrders] = useState([]);
@@ -26,7 +27,7 @@ export default function Supervision() {
       setTickets(ticketsRes.data.data);
       setAgentStats(agentsRes.data.data);
     } catch (error) {
-      console.error(error);
+      toast.error(error.response?.data?.message || 'Erreur chargement supervision');
     } finally {
       setLoading(false);
     }

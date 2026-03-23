@@ -20,8 +20,8 @@ export default function DailyInvoices() {
     try {
       const res = await statsAPI.getDailyInvoices({ date });
       setData(res.data.data);
-    } catch {
-      toast.error('Erreur chargement des factures');
+    } catch (e) {
+      toast.error(e.response?.data?.message || 'Erreur chargement des factures');
     } finally {
       setLoading(false);
     }

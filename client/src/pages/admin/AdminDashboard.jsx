@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { statsAPI, notificationsAPI } from '@/services/api';
+import toast from 'react-hot-toast';
 import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -56,7 +57,7 @@ export default function AdminDashboard() {
       setAgentPerf(perfRes.data.data || []);
       setProductAnalytics(prodRes.data.data?.slice(0, 15) || []);
     } catch (error) {
-      console.error('Erreur chargement stats:', error);
+      toast.error(error.response?.data?.message || 'Erreur chargement des statistiques');
     } finally {
       setLoading(false);
     }
