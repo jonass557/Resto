@@ -4,11 +4,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useSocket } from '@/contexts/SocketContext';
 import { usePrinter } from '@/contexts/PrinterContext';
 import TopBar from '@/components/layout/TopBar';
+import PaymentDialog from '@/components/PaymentDialog';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
-import { Loader2, Printer, FileText, Receipt, Hash } from 'lucide-react';
+import { Loader2, Printer, FileText, Receipt, Hash, CreditCard } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import toast from 'react-hot-toast';
 
@@ -18,6 +19,8 @@ export default function Tickets() {
   const [filter, setFilter] = useState('all');
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [printing, setPrinting] = useState(false);
+  const [payDialog, setPayDialog] = useState(false);
+  const [invoiceToPay, setInvoiceToPay] = useState(null);
   const { user } = useAuth();
   const { socket } = useSocket();
   const { printTicketById } = usePrinter();
@@ -170,7 +173,15 @@ export default function Tickets() {
                 </div>
               </div>
 
-              <Button className="w-full" onClick={() => printTicket(selectedTicket)} disabled={printing}>
+              {selectedTicket.type === 'invoice' && !selectedTicket.isPaid && (
+                <Button className="w-full" variant="default" onClick={() => {
+                  setInvoiceToPay(selectedTicket);
+                  setPayDialog(true);
+                }}>
+                  <CreditCard className="w-4 h-4 mr-2" /> Confirmer le paiement
+                </Button>
+              )}
+              <Button className="w-full" variant="outline" onClick={() => printTicket(selectedTicket)} disabled={printing}>
                 {printing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Printer className="w-4 h-4 mr-2" />}
                 Imprimer & envoyer au client
               </Button>
@@ -178,6 +189,18 @@ export default function Tickets() {
           )}
         </DialogContent>
       </Dialog>
+
+      <PaymentDialog
+        open={payDialog}
+        onOpenChange={setPayDialog}
+        invoice={invoiceToPay}
+        onSuccess={() => {
+          setPayDialog(false);
+          setInvoiceToPay(null);
+          setSelectedTicket(null);
+          loadTickets();
+        }}
+      />
     </div>
   );
 }

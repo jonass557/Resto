@@ -3,7 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { tablesAPI, productsAPI, categoriesAPI, ordersAPI, ticketsAPI, invalidateCache } from '@/services/api';
 import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
-import PaymentDialog from '@/components/PaymentDialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -26,8 +25,6 @@ export default function TableDetail() {
   const [cart, setCart] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [paymentDialog, setPaymentDialog] = useState(false);
-  const [selectedInvoice, setSelectedInvoice] = useState(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -119,6 +116,7 @@ export default function TableDetail() {
       toast.success(`Commande ${data.data.order.orderNumber} créée!`);
       toast(`🖨️ Ticket ${data.data.ticket.ticketNumber} envoyé à l'impression`, { icon: '🧾', duration: 4000 });
       setCart([]);
+      invalidateCache('/tables');
       loadData();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Erreur création commande');
@@ -130,22 +128,12 @@ export default function TableDetail() {
   const generateInvoice = async () => {
     try {
       const { data } = await ticketsAPI.createInvoice(id);
-      setSelectedInvoice(data.data);
-      setPaymentDialog(true);
-      toast.success('Facture globale générée');
-      toast(`🖨️ Facture ${data.data.ticketNumber} envoyée à l'impression`, { icon: '🧾', duration: 4000 });
+      toast.success(`Facture ${data.data.ticketNumber} créée`);
+      toast('Facture en attente de paiement — vous pouvez continuer à travailler', { icon: '⏳', duration: 4000 });
+      navigate('/agent/tables');
     } catch (error) {
       toast.error(error.response?.data?.message || 'Erreur génération facture');
     }
-  };
-
-  const onPaymentSuccess = () => {
-    setPaymentDialog(false);
-    setSelectedInvoice(null);
-    invalidateCache('/tables');
-    invalidateCache('/orders');
-    loadData();
-    toast.success('Paiement confirmé — vous pouvez passer une nouvelle commande', { duration: 3000 });
   };
 
   if (loading) {
@@ -323,13 +311,6 @@ export default function TableDetail() {
         </div>
       </div>
 
-      {/* Split Payment Dialog */}
-      <PaymentDialog
-        open={paymentDialog}
-        onOpenChange={setPaymentDialog}
-        invoice={selectedInvoice}
-        onSuccess={onPaymentSuccess}
-      />
     </div>
   );
 }
