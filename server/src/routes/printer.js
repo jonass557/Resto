@@ -258,8 +258,13 @@ router.post('/print-ticket', auth, async (req, res) => {
     if (config.type === 'network' && config.address) {
       try {
         const socket = await connectNetworkPrinter(config.address, config.port || 9100);
-        socket.write(receiptBuffer);
-        socket.end();
+        await new Promise((resolve, reject) => {
+          socket.on('error', reject); // prevent unhandled error event crash
+          socket.write(receiptBuffer, (err) => {
+            if (err) return reject(err);
+            socket.end(resolve);
+          });
+        });
         return res.json({ success: true, message: 'Ticket imprimé avec succès', data: { printed: true } });
       } catch (err) {
         return res.status(500).json({ success: false, message: `Erreur impression réseau: ${err.message}`, data: { printed: false } });

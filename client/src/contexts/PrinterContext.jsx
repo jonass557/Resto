@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import { settingsAPI, printerAPI, ticketsAPI } from '@/services/api';
 import toast from 'react-hot-toast';
@@ -104,7 +104,6 @@ export function PrinterProvider({ children }) {
   const [btConnected, setBtConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [restaurantInfo, setRestaurantInfo] = useState(null);
-  const reconnectAttempted = useRef(false);
 
   // Load restaurant info for receipts (only when authenticated)
   useEffect(() => {
@@ -157,15 +156,12 @@ export function PrinterProvider({ children }) {
     }
     setConnecting(true);
     try {
+      // Use acceptAllDevices so all BT printers appear (most ESC/POS printers
+      // don't advertise the specific service UUIDs in their advertisement data).
+      // optionalServices grants access once connected.
       const dev = await navigator.bluetooth.requestDevice({
-        filters: [{ services: BT_SERVICES.map(s => s) }],
+        acceptAllDevices: true,
         optionalServices: BT_SERVICES,
-      }).catch(() => {
-        // If filters fail, try acceptAllDevices
-        return navigator.bluetooth.requestDevice({
-          acceptAllDevices: true,
-          optionalServices: BT_SERVICES,
-        });
       });
 
       if (!dev) { setConnecting(false); return false; }

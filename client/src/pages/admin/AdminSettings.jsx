@@ -130,11 +130,17 @@ export default function AdminSettings() {
 
   const testPrinter = async () => {
     try {
-      const { data } = await printerAPI.test(settings.printerConfig);
+      const { data } = await printerAPI.test(settings.printerConfig || { type: 'none' });
       setPrinterStatus(data.data);
-      toast.success('Test imprimante réussi');
+      if (data.data?.connected) {
+        toast.success(data.data.message || 'Imprimante connectée');
+      } else {
+        toast.error(data.data?.message || 'Imprimante non joignable');
+      }
     } catch (error) {
-      toast.error('Erreur test imprimante');
+      const errData = error.response?.data?.data;
+      setPrinterStatus({ ...(errData || {}), connected: false, type: settings.printerConfig?.type || 'network' });
+      toast.error(error.response?.data?.message || 'Impossible de joindre l\'imprimante');
     }
   };
 

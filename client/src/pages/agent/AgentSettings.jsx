@@ -37,9 +37,16 @@ export default function AgentSettings() {
     try {
       const { data } = await printerAPI.test({ type: 'network', address: netConfig.address, port: netConfig.port });
       setNetStatus(data.data);
-      toast.success('Test imprimante réseau réussi');
-    } catch { toast.error('Erreur connexion imprimante réseau'); }
-    finally { setTesting(false); }
+      if (data.data?.connected) {
+        toast.success(data.data.message || `Connectée à ${netConfig.address}:${netConfig.port}`);
+      } else {
+        toast.error(data.data?.message || 'Imprimante réseau non joignable');
+      }
+    } catch (err) {
+      const errData = err.response?.data?.data;
+      setNetStatus({ ...(errData || {}), connected: false, type: 'network' });
+      toast.error(err.response?.data?.message || `Impossible de joindre ${netConfig.address}:${netConfig.port}`);
+    } finally { setTesting(false); }
   };
 
   const testUsbPrinter = async () => {
@@ -47,9 +54,15 @@ export default function AgentSettings() {
     try {
       const { data } = await printerAPI.test({ type: 'usb' });
       setNetStatus(data.data);
-      toast.success('Test imprimante USB réussi');
-    } catch { toast.error('Erreur connexion imprimante USB'); }
-    finally { setTesting(false); }
+      if (data.data?.connected) {
+        toast.success(data.data.message || 'Imprimante USB connectée');
+      } else {
+        toast.error(data.data?.message || 'Aucune imprimante USB détectée');
+      }
+    } catch (err) {
+      setNetStatus({ connected: false, type: 'usb' });
+      toast.error('Erreur détection imprimante USB');
+    } finally { setTesting(false); }
   };
 
   const features = settings?.features || {};
