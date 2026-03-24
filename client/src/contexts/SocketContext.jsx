@@ -12,7 +12,13 @@ export function SocketProvider({ children }) {
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    const newSocket = io(window.location.origin, {
+    // In production (Vercel), connect socket.io directly to the Render backend.
+    // VITE_API_URL = "https://restaurant-api.onrender.com/api" → strip "/api"
+    const socketUrl = import.meta.env.VITE_API_URL
+      ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '')
+      : window.location.origin;
+
+    const newSocket = io(socketUrl, {
       transports: ['websocket', 'polling']
     });
 
