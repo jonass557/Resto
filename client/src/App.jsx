@@ -1,4 +1,5 @@
-import { Routes, Route, Navigate, Suspense, lazy } from 'react-router-dom';
+import { Suspense, lazy } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import MainLayout from './components/layout/MainLayout';
 import { Loader2 } from 'lucide-react';
