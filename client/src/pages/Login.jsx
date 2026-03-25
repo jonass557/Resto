@@ -50,6 +50,9 @@ export default function Login() {
     // Clear any previous session so login page is always fresh
     logout();
     const t = setTimeout(() => setMounted(true), 100);
+    // Pre-warm the Render backend so it is awake by the time the user clicks login
+    const apiBase = import.meta.env.VITE_API_URL || '/api';
+    fetch(`${apiBase}/health`).catch(() => {});
     return () => clearTimeout(t);
   }, []);
 
@@ -65,7 +68,12 @@ export default function Login() {
       toast.success(`Bienvenue, ${user.firstName}!`);
       navigate(user.role === 'admin' ? '/admin' : '/agent');
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Erreur de connexion');
+      const isNetworkError = !error.response;
+      if (isNetworkError) {
+        toast.error('Serveur en démarrage — réessayez dans 30 secondes', { duration: 6000 });
+      } else {
+        toast.error(error.response?.data?.message || 'Erreur de connexion');
+      }
     } finally {
       setLoading(false);
     }
