@@ -6,6 +6,11 @@ const net = require('net');
 
 const router = express.Router();
 
+// Helper: sanitize IP address (replace dashes/spaces with dots)
+function sanitizeIP(ip) {
+  return (ip || '').trim().replace(/[-\s]+/g, '.');
+}
+
 // Helper: get a network printer connection (ESC/POS over TCP)
 function connectNetworkPrinter(address, port, timeout = 5000) {
   return new Promise((resolve, reject) => {
@@ -148,21 +153,26 @@ router.post('/test', auth, async (req, res) => {
     const { type, address, port } = req.body;
 
     if (type === 'network') {
-      if (!address) {
+      const cleanAddress = sanitizeIP(address);
+      if (!cleanAddress) {
         return res.status(400).json({ success: false, message: 'Adresse IP requise' });
       }
+      const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
+      if (!ipRegex.test(cleanAddress)) {
+        return res.status(400).json({ success: false, message: `Adresse IP invalide: "${cleanAddress}". Format attendu: 192.168.1.100` });
+      }
       try {
-        const socket = await connectNetworkPrinter(address, port || 9100);
+        const socket = await connectNetworkPrinter(cleanAddress, port || 9100);
         socket.destroy();
         return res.json({
           success: true,
           message: 'Imprimante réseau connectée',
-          data: { type, address, port: port || 9100, connected: true, message: `Connectée à ${address}:${port || 9100}` }
+          data: { type, address: cleanAddress, port: port || 9100, connected: true, message: `Connectée à ${cleanAddress}:${port || 9100}` }
         });
       } catch (err) {
         return res.status(400).json({
           success: false,
-          message: `Impossible de se connecter à ${address}:${port || 9100} — ${err.message}`,
+          message: `Impossible de se connecter à ${cleanAddress}:${port || 9100} — ${err.message}`,
           data: { connected: false, type, message: err.message }
         });
       }
@@ -256,8 +266,9 @@ router.post('/print-ticket', auth, async (req, res) => {
     const receiptBuffer = buildEscPosReceipt(ticketData, config.paperWidth || 80);
 
     if (config.type === 'network' && config.address) {
+      const cleanAddr = sanitizeIP(config.address);
       try {
-        const socket = await connectNetworkPrinter(config.address, config.port || 9100);
+        const socket = await connectNetworkPrinter(cleanAddr, config.port || 9100);
         await new Promise((resolve, reject) => {
           socket.on('error', reject); // prevent unhandled error event crash
           socket.write(receiptBuffer, (err) => {
@@ -349,17 +360,18 @@ router.get('/status', auth, async (req, res) => {
     const config = settings?.printerConfig || { type: 'none' };
 
     if (config.type === 'network' && config.address) {
+      const cleanAddr = sanitizeIP(config.address);
       try {
-        const socket = await connectNetworkPrinter(config.address, config.port || 9100, 3000);
+        const socket = await connectNetworkPrinter(cleanAddr, config.port || 9100, 3000);
         socket.destroy();
         return res.json({
           success: true,
-          data: { connected: true, type: 'network', message: `Connectée à ${config.address}:${config.port || 9100}` }
+          data: { connected: true, type: 'network', message: `Connectée à ${cleanAddr}:${config.port || 9100}` }
         });
       } catch {
         return res.json({
           success: true,
-          data: { connected: false, type: 'network', message: `Impossible de joindre ${config.address}:${config.port || 9100}` }
+          data: { connected: false, type: 'network', message: `Impossible de joindre ${cleanAddr}:${config.port || 9100}` }
         });
       }
     }

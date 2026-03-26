@@ -32,10 +32,14 @@ export default function AgentSettings() {
     printerAPI.getStatus().then(res => setNetStatus(res.data.data)).catch(() => {});
   }, []);
 
+  const sanitizeIP = (ip) => (ip || '').trim().replace(/[-\s]+/g, '.');
+
   const testNetworkPrinter = async () => {
+    const cleanAddress = sanitizeIP(netConfig.address);
+    if (cleanAddress !== netConfig.address) setNetConfig(prev => ({ ...prev, address: cleanAddress }));
     setTestingNetwork(true);
     try {
-      const { data } = await printerAPI.test({ type: 'network', address: netConfig.address, port: netConfig.port });
+      const { data } = await printerAPI.test({ type: 'network', address: cleanAddress, port: netConfig.port });
       setNetStatus(data.data);
       if (data.data?.connected) {
         toast.success(data.data.message || `Connectée à ${netConfig.address}:${netConfig.port}`);
@@ -170,7 +174,7 @@ export default function AgentSettings() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label className="text-xs">Adresse IP</Label>
-                  <Input placeholder="192.168.1.100" value={netConfig.address} onChange={e => setNetConfig({ ...netConfig, address: e.target.value })} />
+                  <Input placeholder="192.168.1.100" value={netConfig.address} onChange={e => setNetConfig({ ...netConfig, address: e.target.value.replace(/[-\s]+/g, '.') })} />
                 </div>
                 <div>
                   <Label className="text-xs">Port</Label>

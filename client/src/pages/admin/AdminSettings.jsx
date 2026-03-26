@@ -128,9 +128,13 @@ export default function AdminSettings() {
     }));
   };
 
+  const sanitizeIP = (ip) => (ip || '').trim().replace(/[-\s]+/g, '.');
+
   const testPrinter = async () => {
     try {
-      const { data } = await printerAPI.test(settings.printerConfig || { type: 'none' });
+      const config = { ...(settings.printerConfig || { type: 'none' }) };
+      if (config.address) config.address = sanitizeIP(config.address);
+      const { data } = await printerAPI.test(config);
       setPrinterStatus(data.data);
       if (data.data?.connected) {
         toast.success(data.data.message || 'Imprimante connectée');
@@ -291,7 +295,7 @@ export default function AdminSettings() {
             </div>
             {settings.printerConfig?.type === 'network' && (
               <div className="grid grid-cols-2 gap-3">
-                <div><Label>Adresse IP</Label><Input value={settings.printerConfig?.address || ''} onChange={e => setSettings({...settings, printerConfig: { ...settings.printerConfig, address: e.target.value }})} /></div>
+                <div><Label>Adresse IP</Label><Input value={settings.printerConfig?.address || ''} onChange={e => setSettings({...settings, printerConfig: { ...settings.printerConfig, address: e.target.value.replace(/[-\s]+/g, '.') }})} /></div>
                 <div><Label>Port</Label><Input type="number" value={settings.printerConfig?.port || 9100} onChange={e => setSettings({...settings, printerConfig: { ...settings.printerConfig, port: parseInt(e.target.value) }})} /></div>
               </div>
             )}
