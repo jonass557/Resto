@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { User, Printer, Monitor, Unplug, Bluetooth, Wifi, Usb, Loader2, CheckCircle, Info } from 'lucide-react';
+import { User, Printer, Monitor, Unplug, Bluetooth, Wifi, WifiOff, Usb, Loader2, CheckCircle, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function AgentSettings() {
@@ -171,6 +171,12 @@ export default function AgentSettings() {
             {/* === NETWORK (IP) === */}
             <div className="space-y-3">
               <h3 className="text-sm font-semibold flex items-center gap-2"><Wifi className="w-4 h-4 text-purple-500" /> Réseau (IP)</h3>
+              {window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && (
+                <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800 flex items-start gap-2">
+                  <Info className="w-4 h-4 mt-0.5 shrink-0" />
+                  <span>Le serveur est hébergé dans le cloud. L'impression réseau (IP locale) n'est pas disponible. Utilisez le <strong>Bluetooth</strong> (recommandé).</span>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label className="text-xs">Adresse IP</Label>
@@ -185,6 +191,12 @@ export default function AgentSettings() {
                 <div className="p-2 rounded-lg bg-green-50 border border-green-200 text-sm text-green-800 flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 shrink-0" />
                   <span>{netStatus.message || 'Imprimante réseau connectée'}</span>
+                </div>
+              )}
+              {netStatus?.cloudError && (
+                <div className="p-2 rounded-lg bg-red-50 border border-red-200 text-sm text-red-800 flex items-center gap-2">
+                  <WifiOff className="w-4 h-4 shrink-0" />
+                  <span>{netStatus.message || 'IP locale inaccessible depuis le cloud'}</span>
                 </div>
               )}
               <Button variant="outline" size="sm" onClick={testNetworkPrinter} disabled={!netConfig.address || testingNetwork}>

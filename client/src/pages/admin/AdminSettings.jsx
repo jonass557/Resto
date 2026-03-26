@@ -294,9 +294,23 @@ export default function AdminSettings() {
               </Select>
             </div>
             {settings.printerConfig?.type === 'network' && (
-              <div className="grid grid-cols-2 gap-3">
-                <div><Label>Adresse IP</Label><Input value={settings.printerConfig?.address || ''} onChange={e => setSettings({...settings, printerConfig: { ...settings.printerConfig, address: e.target.value.replace(/[-\s]+/g, '.') }})} /></div>
-                <div><Label>Port</Label><Input type="number" value={settings.printerConfig?.port || 9100} onChange={e => setSettings({...settings, printerConfig: { ...settings.printerConfig, port: parseInt(e.target.value) }})} /></div>
+              <>
+                {window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && (
+                  <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800 flex items-start gap-2">
+                    <WifiOff className="w-4 h-4 mt-0.5 shrink-0" />
+                    <span>Le serveur est dans le cloud. Les IP locales (192.168.x.x) sont inaccessibles. Utilisez le <strong>Bluetooth</strong> ou hébergez le serveur localement.</span>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label>Adresse IP</Label><Input value={settings.printerConfig?.address || ''} onChange={e => setSettings({...settings, printerConfig: { ...settings.printerConfig, address: e.target.value.replace(/[-\s]+/g, '.') }})} /></div>
+                  <div><Label>Port</Label><Input type="number" value={settings.printerConfig?.port || 9100} onChange={e => setSettings({...settings, printerConfig: { ...settings.printerConfig, port: parseInt(e.target.value) }})} /></div>
+                </div>
+              </>
+            )}
+            {printerStatus?.cloudError && (
+              <div className="p-2 rounded-lg bg-red-50 border border-red-200 text-sm text-red-800 flex items-center gap-2">
+                <WifiOff className="w-4 h-4 shrink-0" />
+                <span>{printerStatus.message || 'IP locale inaccessible depuis le cloud'}</span>
               </div>
             )}
             <div className="flex items-center gap-2">

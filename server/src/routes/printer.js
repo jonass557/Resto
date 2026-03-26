@@ -11,8 +11,18 @@ function sanitizeIP(ip) {
   return (ip || '').trim().replace(/[-\s]+/g, '.');
 }
 
+// Helper: detect private/local IP addresses (unreachable from cloud)
+function isPrivateIP(ip) {
+  return /^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|localhost)/i.test(ip);
+}
+
+// Helper: detect if server is running on cloud (Render, Heroku, etc.)
+function isCloudHosted() {
+  return !!(process.env.RENDER || process.env.RENDER_EXTERNAL_URL || process.env.HEROKU || process.env.DYNO || process.env.RAILWAY_ENVIRONMENT || process.env.FLY_APP_NAME);
+}
+
 // Helper: get a network printer connection (ESC/POS over TCP)
-function connectNetworkPrinter(address, port, timeout = 5000) {
+function connectNetworkPrinter(address, port, timeout = 3000) {
   return new Promise((resolve, reject) => {
     const socket = new net.Socket();
     const timer = setTimeout(() => {
@@ -161,6 +171,13 @@ router.post('/test', auth, async (req, res) => {
       if (!ipRegex.test(cleanAddress)) {
         return res.status(400).json({ success: false, message: `Adresse IP invalide: "${cleanAddress}". Format attendu: 192.168.1.100` });
       }
+      if (isCloudHosted() && isPrivateIP(cleanAddress)) {
+        return res.status(400).json({
+          success: false,
+          message: `Impossible: l'adresse ${cleanAddress} est une IP locale (réseau privé). Le serveur est hébergé dans le cloud et ne peut pas atteindre votre réseau local. Utilisez le Bluetooth ou installez le serveur sur votre réseau local.`,
+          data: { connected: false, type, message: 'IP locale inaccessible depuis le cloud', cloudError: true }
+        });
+      }
       try {
         const socket = await connectNetworkPrinter(cleanAddress, port || 9100);
         socket.destroy();
@@ -267,6 +284,9 @@ router.post('/print-ticket', auth, async (req, res) => {
 
     if (config.type === 'network' && config.address) {
       const cleanAddr = sanitizeIP(config.address);
+      if (isCloudHosted() && isPrivateIP(cleanAddr)) {
+        return res.status(400).json({ success: false, message: `Impression impossible: ${cleanAddr} est une IP locale inaccessible depuis le cloud. Utilisez le Bluetooth.`, data: { printed: false, cloudError: true } });
+      }
       try {
         const socket = await connectNetworkPrinter(cleanAddr, config.port || 9100);
         await new Promise((resolve, reject) => {
@@ -361,6 +381,9 @@ router.get('/status', auth, async (req, res) => {
 
     if (config.type === 'network' && config.address) {
       const cleanAddr = sanitizeIP(config.address);
+      if (isCloudHosted() && isPrivateIP(cleanAddr)) {
+        return res.json({ success: true, data: { connected: false, type: 'network', message: `IP locale (${cleanAddr}) inaccessible depuis le cloud. Utilisez le Bluetooth.`, cloudError: true } });
+      }
       try {
         const socket = await connectNetworkPrinter(cleanAddr, config.port || 9100, 3000);
         socket.destroy();
