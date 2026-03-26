@@ -221,11 +221,58 @@ export const accountingAPI = {
   getLedger: (params) => api.get('/accounting/ledger', { params }),
 };
 
-// Printer
+// ── Local Print Server ──
+const LOCAL_PRINT_SERVER_KEY = 'localPrintServerUrl';
+
+export function getLocalPrintServerUrl() {
+  return localStorage.getItem(LOCAL_PRINT_SERVER_KEY) || '';
+}
+
+export function setLocalPrintServerUrl(url) {
+  if (url) {
+    localStorage.setItem(LOCAL_PRINT_SERVER_KEY, url.replace(/\/+$/, ''));
+  } else {
+    localStorage.removeItem(LOCAL_PRINT_SERVER_KEY);
+  }
+}
+
+function getLocalPrinterApi() {
+  const baseUrl = getLocalPrintServerUrl();
+  if (!baseUrl) return null;
+  const instance = axios.create({
+    baseURL: baseUrl + '/api',
+    headers: { 'Content-Type': 'application/json' },
+    timeout: 10000,
+  });
+  const token = localStorage.getItem('token');
+  if (token) instance.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  return instance;
+}
+
+export async function pingLocalPrintServer(url) {
+  try {
+    const cleanUrl = (url || '').replace(/\/+$/, '');
+    const { data } = await axios.get(`${cleanUrl}/api/print-server/ping`, { timeout: 3000 });
+    return data?.printServer ? data : null;
+  } catch {
+    return null;
+  }
+}
+
+// Printer — routes through local print server when configured, falls back to cloud
 export const printerAPI = {
-  test: (data) => api.post('/printer/test', data),
-  printTicket: (data) => api.post('/printer/print-ticket', data),
-  getStatus: () => api.get('/printer/status'),
+  test: (data) => {
+    const local = getLocalPrinterApi();
+    return local ? local.post('/printer/test', data) : api.post('/printer/test', data);
+  },
+  printTicket: (data) => {
+    const local = getLocalPrinterApi();
+    return local ? local.post('/printer/print-ticket', data) : api.post('/printer/print-ticket', data);
+  },
+  getStatus: () => {
+    const local = getLocalPrinterApi();
+    return local ? local.get('/printer/status') : api.get('/printer/status');
+  },
 };
 
 // Settings

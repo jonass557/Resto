@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { settingsAPI, usersAPI, authAPI, printerAPI } from '@/services/api';
+import { settingsAPI, usersAPI, authAPI, printerAPI, getLocalPrintServerUrl, setLocalPrintServerUrl, pingLocalPrintServer } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Loader2, Store, Printer, Smartphone, Globe, Save, Lock, ToggleRight, Unplug, Wifi, WifiOff, CheckCircle, Shield } from 'lucide-react';
+import { Loader2, Store, Printer, Smartphone, Globe, Save, Lock, ToggleRight, Unplug, Wifi, WifiOff, CheckCircle, Shield, Server, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const featureLabels = [
@@ -42,6 +42,12 @@ export default function AdminSettings() {
 
   // Printer
   const [printerStatus, setPrinterStatus] = useState(null);
+
+  // Local print server
+  const [localServerUrl, setLocalServerUrl] = useState(getLocalPrintServerUrl());
+  const [localServerStatus, setLocalServerStatus] = useState(null);
+  const [testingLocal, setTestingLocal] = useState(false);
+  const isCloud = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
 
   useEffect(() => {
     loadAll();
@@ -129,6 +135,33 @@ export default function AdminSettings() {
   };
 
   const sanitizeIP = (ip) => (ip || '').trim().replace(/[-\s]+/g, '.');
+
+  const testLocalServer = async () => {
+    if (!localServerUrl) { toast.error('Entrez l\'URL du serveur local'); return; }
+    setTestingLocal(true);
+    try {
+      const result = await pingLocalPrintServer(localServerUrl);
+      if (result) {
+        setLocalPrintServerUrl(localServerUrl);
+        setLocalServerStatus(result);
+        toast.success(`Serveur local connecté: ${result.hostname} (${result.localIPs?.join(', ')})`);
+        printerAPI.getStatus().then(res => setPrinterStatus(res.data.data)).catch(() => {});
+      } else {
+        setLocalServerStatus(null);
+        toast.error('Serveur local non joignable');
+      }
+    } catch {
+      setLocalServerStatus(null);
+      toast.error('Impossible de contacter le serveur local');
+    } finally { setTestingLocal(false); }
+  };
+
+  const disconnectLocalServer = () => {
+    setLocalPrintServerUrl('');
+    setLocalServerUrl('');
+    setLocalServerStatus(null);
+    toast.success('Serveur local déconnecté');
+  };
 
   const testPrinter = async () => {
     try {
@@ -260,6 +293,51 @@ export default function AdminSettings() {
           </CardContent>
         </Card>
 
+        {/* Local Print Server (cloud only) */}
+        {isCloud && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><Server className="w-5 h-5" /> Serveur local d'impression</CardTitle>
+              <CardDescription>Requis pour imprimer via réseau WiFi quand le serveur principal est dans le cloud.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="p-3 rounded-lg bg-indigo-50 border border-indigo-200 text-sm text-indigo-800 space-y-1">
+                <p className="font-medium">Comment ça marche :</p>
+                <p>1. Lancez le serveur sur un PC connecté au même WiFi que l'imprimante</p>
+                <p>2. Entrez l'URL ci-dessous (ex: <code className="bg-indigo-100 px-1 rounded">http://192.168.1.50:5000</code>)</p>
+                <p>3. Les requêtes d'impression passeront par ce serveur local</p>
+              </div>
+              <div>
+                <Label>URL du serveur local</Label>
+                <Input placeholder="http://192.168.1.50:5000" value={localServerUrl} onChange={e => setLocalServerUrl(e.target.value)} />
+              </div>
+              {localServerStatus && (
+                <div className="p-2 rounded-lg bg-green-50 border border-green-200 text-sm text-green-800 flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 shrink-0" />
+                  <span>Connecté à <strong>{localServerStatus.hostname}</strong> ({localServerStatus.localIPs?.join(', ')})</span>
+                </div>
+              )}
+              {getLocalPrintServerUrl() && !localServerStatus && (
+                <div className="p-2 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800 flex items-center gap-2">
+                  <Info className="w-4 h-4 shrink-0" />
+                  <span>Configuré: {getLocalPrintServerUrl()}</span>
+                </div>
+              )}
+              <div className="flex gap-2">
+                <Button size="sm" onClick={testLocalServer} disabled={testingLocal || !localServerUrl}>
+                  {testingLocal ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Server className="w-4 h-4 mr-2" />}
+                  {testingLocal ? 'Connexion...' : 'Connecter'}
+                </Button>
+                {getLocalPrintServerUrl() && (
+                  <Button variant="destructive" size="sm" onClick={disconnectLocalServer}>
+                    <Unplug className="w-4 h-4 mr-2" /> Déconnecter
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Printer & Peripherals */}
         <Card>
           <CardHeader><CardTitle className="flex items-center gap-2"><Printer className="w-5 h-5" /> Impression & Périphériques</CardTitle></CardHeader>
@@ -295,10 +373,10 @@ export default function AdminSettings() {
             </div>
             {settings.printerConfig?.type === 'network' && (
               <>
-                {window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && (
+                {isCloud && !getLocalPrintServerUrl() && (
                   <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800 flex items-start gap-2">
-                    <WifiOff className="w-4 h-4 mt-0.5 shrink-0" />
-                    <span>Le serveur est dans le cloud. Les IP locales (192.168.x.x) sont inaccessibles. Utilisez le <strong>Bluetooth</strong> ou hébergez le serveur localement.</span>
+                    <Info className="w-4 h-4 mt-0.5 shrink-0" />
+                    <span>Configurez d'abord un <strong>serveur local d'impression</strong> ci-dessus pour que l'impression réseau fonctionne.</span>
                   </div>
                 )}
                 <div className="grid grid-cols-2 gap-3">

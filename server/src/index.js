@@ -81,6 +81,26 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Print-server discovery — allows clients to detect a local print server
+app.get('/api/print-server/ping', (req, res) => {
+  const os = require('os');
+  const ifaces = os.networkInterfaces();
+  const localIPs = [];
+  for (const name of Object.keys(ifaces)) {
+    for (const iface of ifaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) localIPs.push(iface.address);
+    }
+  }
+  res.json({
+    success: true,
+    printServer: true,
+    hostname: os.hostname(),
+    localIPs,
+    port: PORT,
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Socket.io
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id);
@@ -154,8 +174,20 @@ mongoose.connect(process.env.MONGODB_URI, {
   .then(async () => {
     console.log('MongoDB connecté avec succès');
     await ensureAdminExists();
-    server.listen(PORT, () => {
+    server.listen(PORT, '0.0.0.0', () => {
+      const os = require('os');
+      const ifaces = os.networkInterfaces();
+      const localIPs = [];
+      for (const name of Object.keys(ifaces)) {
+        for (const iface of ifaces[name]) {
+          if (iface.family === 'IPv4' && !iface.internal) localIPs.push(iface.address);
+        }
+      }
       console.log(`Serveur démarré sur le port ${PORT}`);
+      if (localIPs.length) {
+        console.log(`📡 Serveur d'impression local accessible sur:`);
+        localIPs.forEach(ip => console.log(`   http://${ip}:${PORT}`));
+      }
     });
   })
   .catch((err) => {
