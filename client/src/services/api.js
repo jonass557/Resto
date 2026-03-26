@@ -224,8 +224,20 @@ export const accountingAPI = {
 // ── Local Print Server ──
 const LOCAL_PRINT_SERVER_KEY = 'localPrintServerUrl';
 
+// Auto-detect: if the app is served from a private IP, we're on the local server
+function isServedLocally() {
+  const h = window.location.hostname;
+  return h === 'localhost' || h === '127.0.0.1' || /^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.)/.test(h);
+}
+
+// When served locally, use the current origin as the local print server
+function getAutoLocalUrl() {
+  if (isServedLocally()) return window.location.origin;
+  return '';
+}
+
 export function getLocalPrintServerUrl() {
-  return localStorage.getItem(LOCAL_PRINT_SERVER_KEY) || '';
+  return localStorage.getItem(LOCAL_PRINT_SERVER_KEY) || getAutoLocalUrl();
 }
 
 export function setLocalPrintServerUrl(url) {
@@ -236,9 +248,15 @@ export function setLocalPrintServerUrl(url) {
   }
 }
 
+export function isLocalPrintServerConfigured() {
+  return !!(localStorage.getItem(LOCAL_PRINT_SERVER_KEY) || isServedLocally());
+}
+
 function getLocalPrinterApi() {
   const baseUrl = getLocalPrintServerUrl();
   if (!baseUrl) return null;
+  // If served locally and base URL is same origin, just use the main api instance
+  if (isServedLocally() && baseUrl === window.location.origin) return api;
   const instance = axios.create({
     baseURL: baseUrl + '/api',
     headers: { 'Content-Type': 'application/json' },
@@ -259,7 +277,7 @@ export async function pingLocalPrintServer(url) {
   }
 }
 
-// Printer — routes through local print server when configured, falls back to cloud
+// Printer — routes through local print server when configured or auto-detected, falls back to cloud
 export const printerAPI = {
   test: (data) => {
     const local = getLocalPrinterApi();

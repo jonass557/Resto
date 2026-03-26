@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePrinter } from '@/contexts/PrinterContext';
-import { settingsAPI, printerAPI, getLocalPrintServerUrl, setLocalPrintServerUrl, pingLocalPrintServer } from '@/services/api';
+import { settingsAPI, printerAPI, getLocalPrintServerUrl, setLocalPrintServerUrl, pingLocalPrintServer, isLocalPrintServerConfigured } from '@/services/api';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -200,54 +200,62 @@ export default function AgentSettings() {
 
             <div className="border-t" />
 
-            {/* === LOCAL PRINT SERVER (required for cloud → local printer) === */}
-            {isCloud && (
-              <div className="space-y-3">
-                <h3 className="text-sm font-semibold flex items-center gap-2"><Server className="w-4 h-4 text-indigo-500" /> Serveur local d'impression</h3>
-                <div className="p-3 rounded-lg bg-indigo-50 border border-indigo-200 text-sm text-indigo-800 space-y-1">
-                  <p className="font-medium">Pour imprimer via réseau WiFi depuis le cloud :</p>
-                  <p>1. Lancez le serveur localement sur un PC du même réseau WiFi que l'imprimante</p>
-                  <p>2. Entrez l'URL ci-dessous (ex: <code className="bg-indigo-100 px-1 rounded">http://192.168.1.50:5000</code>)</p>
-                  <p>3. Cliquez "Connecter" pour vérifier la liaison</p>
+            {/* === LOCAL PRINT SERVER === */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold flex items-center gap-2"><Server className="w-4 h-4 text-indigo-500" /> Serveur local d'impression</h3>
+              {!isCloud ? (
+                <div className="p-2 rounded-lg bg-green-50 border border-green-200 text-sm text-green-800 flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 shrink-0" />
+                  <span>Mode local actif — l'impression réseau passe directement par ce serveur.</span>
                 </div>
-                <div>
-                  <Label className="text-xs">URL du serveur local</Label>
-                  <Input placeholder="http://192.168.1.50:5000" value={localServerUrl} onChange={e => setLocalServerUrl(e.target.value.replace(/[-\s]+/g, '.'))} />
-                </div>
-                {localServerStatus && (
-                  <div className="p-2 rounded-lg bg-green-50 border border-green-200 text-sm text-green-800 flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 shrink-0" />
-                    <span>Connecté à <strong>{localServerStatus.hostname}</strong> ({localServerStatus.localIPs?.join(', ')})</span>
+              ) : (
+                <>
+                  <div className="p-3 rounded-lg bg-indigo-50 border border-indigo-200 text-sm text-indigo-800 space-y-1">
+                    <p className="font-medium">Pour imprimer via réseau WiFi :</p>
+                    <p>1. Ouvrez l'application depuis le serveur local : <code className="bg-indigo-100 px-1 rounded">http://192.168.x.x:5000</code></p>
+                    <p>2. L'impression réseau fonctionnera automatiquement</p>
+                    <p className="text-xs mt-1 opacity-70">Alternative : entrez l'URL du serveur local ci-dessous pour l'utiliser depuis le site en ligne.</p>
                   </div>
-                )}
-                {getLocalPrintServerUrl() && !localServerStatus && (
-                  <div className="p-2 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800 flex items-center gap-2">
-                    <Info className="w-4 h-4 shrink-0" />
-                    <span>Serveur local configuré: {getLocalPrintServerUrl()} — cliquez Connecter pour vérifier</span>
+                  <div>
+                    <Label className="text-xs">URL du serveur local (optionnel depuis le site en ligne)</Label>
+                    <Input placeholder="http://192.168.1.50:5000" value={localServerUrl} onChange={e => setLocalServerUrl(e.target.value)} />
                   </div>
-                )}
-                <div className="flex gap-2">
-                  <Button size="sm" onClick={testLocalServer} disabled={testingLocal || !localServerUrl}>
-                    {testingLocal ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Server className="w-4 h-4 mr-2" />}
-                    {testingLocal ? 'Connexion...' : 'Connecter'}
-                  </Button>
-                  {getLocalPrintServerUrl() && (
-                    <Button variant="destructive" size="sm" onClick={disconnectLocalServer}>
-                      <Unplug className="w-4 h-4 mr-2" /> Déconnecter
-                    </Button>
+                  {localServerStatus && (
+                    <div className="p-2 rounded-lg bg-green-50 border border-green-200 text-sm text-green-800 flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 shrink-0" />
+                      <span>Connecté à <strong>{localServerStatus.hostname}</strong> ({localServerStatus.localIPs?.join(', ')})</span>
+                    </div>
                   )}
-                </div>
-              </div>
-            )}
-            {isCloud && <div className="border-t" />}
+                  {getLocalPrintServerUrl() && !localServerStatus && (
+                    <div className="p-2 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800 flex items-center gap-2">
+                      <Info className="w-4 h-4 shrink-0" />
+                      <span>Configuré: {getLocalPrintServerUrl()} — cliquez Connecter pour vérifier</span>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={testLocalServer} disabled={testingLocal || !localServerUrl}>
+                      {testingLocal ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Server className="w-4 h-4 mr-2" />}
+                      {testingLocal ? 'Connexion...' : 'Connecter'}
+                    </Button>
+                    {getLocalPrintServerUrl() && !isLocalPrintServerConfigured() && (
+                      <Button variant="destructive" size="sm" onClick={disconnectLocalServer}>
+                        <Unplug className="w-4 h-4 mr-2" /> Déconnecter
+                      </Button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="border-t" />
 
             {/* === NETWORK (IP) === */}
             <div className="space-y-3">
               <h3 className="text-sm font-semibold flex items-center gap-2"><Wifi className="w-4 h-4 text-purple-500" /> Réseau (IP)</h3>
-              {isCloud && !getLocalPrintServerUrl() && (
+              {isCloud && !isLocalPrintServerConfigured() && (
                 <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800 flex items-start gap-2">
                   <Info className="w-4 h-4 mt-0.5 shrink-0" />
-                  <span>Configurez d'abord un <strong>serveur local</strong> ci-dessus pour utiliser l'impression réseau depuis le cloud.</span>
+                  <span>Ouvrez l'application depuis le <strong>serveur local</strong> (<code className="bg-amber-100 px-1 rounded">http://192.168.x.x:5000</code>) pour l'impression réseau.</span>
                 </div>
               )}
               <div className="grid grid-cols-2 gap-3">

@@ -50,6 +50,13 @@ app.use(cors({
   },
   credentials: true
 }));
+// Support Private Network Access (Chrome 104+) — allows HTTPS sites to reach this local server
+app.use((req, res, next) => {
+  if (req.headers['access-control-request-private-network']) {
+    res.setHeader('Access-Control-Allow-Private-Network', 'true');
+  }
+  next();
+});
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 if (process.env.NODE_ENV !== 'production') {
@@ -129,10 +136,22 @@ app.use((err, req, res, next) => {
   });
 });
 
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({ success: false, message: 'Route non trouvée' });
-});
+// Serve built client (for local print-server mode)
+const clientBuildPath = path.join(__dirname, '../../client/dist');
+const fs = require('fs');
+if (fs.existsSync(clientBuildPath)) {
+  app.use(express.static(clientBuildPath));
+  // SPA fallback — serve index.html for all non-API routes
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(clientBuildPath, 'index.html'));
+  });
+  console.log('📂 Serving client build from', clientBuildPath);
+} else {
+  // 404 handler (no client build available)
+  app.use((req, res) => {
+    res.status(404).json({ success: false, message: 'Route non trouvée' });
+  });
+}
 
 // Connect to MongoDB and start server
 const PORT = process.env.PORT || 5000;
