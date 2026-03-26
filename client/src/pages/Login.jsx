@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -41,42 +41,72 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [serverWaking, setServerWaking] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [mounted, setMounted] = useState(false);
   const { login, logout } = useAuth();
   const navigate = useNavigate();
+  const pollRef = useRef(null);
+  const apiBase = import.meta.env.VITE_API_URL || '/api';
+
+  const stopPoll = () => {
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+  };
+
+  const doLogin = useCallback(async (emailVal, passVal) => {
+    try {
+      const user = await login(emailVal, passVal);
+      stopPoll();
+      toast.success(`Bienvenue, ${user.firstName}!`);
+      navigate(user.role === 'admin' ? '/admin' : '/agent');
+      return 'ok';
+    } catch (err) {
+      if (!err.response) return 'network'; // still waking
+      stopPoll();
+      setLoading(false);
+      setServerWaking(false);
+      toast.error(err.response?.data?.message || 'Erreur de connexion');
+      return 'auth';
+    }
+  }, [login, navigate]);
+
+  const startWakePolling = useCallback((emailVal, passVal) => {
+    setServerWaking(true);
+    let elapsed = 0;
+    pollRef.current = setInterval(async () => {
+      elapsed += 8;
+      if (elapsed > 90) {
+        stopPoll();
+        setLoading(false);
+        setServerWaking(false);
+        toast.error('Le serveur ne répond pas. Veuillez réessayer plus tard.');
+        return;
+      }
+      try {
+        const res = await fetch(`${apiBase}/health`);
+        if (res.ok) {
+          stopPoll();
+          const result = await doLogin(emailVal, passVal);
+          if (result !== 'ok') { setLoading(false); setServerWaking(false); }
+        }
+      } catch (_) { /* still starting */ }
+    }, 8000);
+  }, [apiBase, doLogin]);
 
   useEffect(() => {
-    // Clear any previous session so login page is always fresh
     logout();
     const t = setTimeout(() => setMounted(true), 100);
-    // Pre-warm the Render backend so it is awake by the time the user clicks login
-    const apiBase = import.meta.env.VITE_API_URL || '/api';
     fetch(`${apiBase}/health`).catch(() => {});
-    return () => clearTimeout(t);
+    return () => { clearTimeout(t); stopPoll(); };
   }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!email || !password) {
-      toast.error('Veuillez remplir tous les champs');
-      return;
-    }
+    if (!email || !password) { toast.error('Veuillez remplir tous les champs'); return; }
     setLoading(true);
-    try {
-      const user = await login(email, password);
-      toast.success(`Bienvenue, ${user.firstName}!`);
-      navigate(user.role === 'admin' ? '/admin' : '/agent');
-    } catch (error) {
-      const isNetworkError = !error.response;
-      if (isNetworkError) {
-        toast.error('Serveur en démarrage — réessayez dans 30 secondes', { duration: 6000 });
-      } else {
-        toast.error(error.response?.data?.message || 'Erreur de connexion');
-      }
-    } finally {
-      setLoading(false);
-    }
+    const result = await doLogin(email, password);
+    if (result === 'network') startWakePolling(email, password);
+    else if (result === 'ok') setLoading(false);
   };
 
   return (
@@ -205,7 +235,7 @@ export default function Login() {
                 {loading ? (
                   <>
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Connexion en cours...
+                    {serverWaking ? 'Démarrage serveur...' : 'Connexion en cours...'}
                   </>
                 ) : (
                   'Se connecter'

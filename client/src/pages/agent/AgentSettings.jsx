@@ -8,8 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { User, Printer, Monitor, Unplug, Bluetooth, Wifi, WifiOff, Usb, Loader2, CheckCircle, Info } from 'lucide-react';
+import { User, Printer, Monitor, Unplug, Bluetooth, Wifi, Usb, Loader2, CheckCircle, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function AgentSettings() {
@@ -19,7 +18,8 @@ export default function AgentSettings() {
   const [loading, setLoading] = useState(true);
   const [netConfig, setNetConfig] = useState({ address: '', port: 9100 });
   const [netStatus, setNetStatus] = useState(null);
-  const [testing, setTesting] = useState(false);
+  const [testingNetwork, setTestingNetwork] = useState(false);
+  const [testingUsb, setTestingUsb] = useState(false);
 
   useEffect(() => {
     settingsAPI.get().then(res => {
@@ -33,7 +33,7 @@ export default function AgentSettings() {
   }, []);
 
   const testNetworkPrinter = async () => {
-    setTesting(true);
+    setTestingNetwork(true);
     try {
       const { data } = await printerAPI.test({ type: 'network', address: netConfig.address, port: netConfig.port });
       setNetStatus(data.data);
@@ -46,11 +46,11 @@ export default function AgentSettings() {
       const errData = err.response?.data?.data;
       setNetStatus({ ...(errData || {}), connected: false, type: 'network' });
       toast.error(err.response?.data?.message || `Impossible de joindre ${netConfig.address}:${netConfig.port}`);
-    } finally { setTesting(false); }
+    } finally { setTestingNetwork(false); }
   };
 
   const testUsbPrinter = async () => {
-    setTesting(true);
+    setTestingUsb(true);
     try {
       const { data } = await printerAPI.test({ type: 'usb' });
       setNetStatus(data.data);
@@ -62,7 +62,7 @@ export default function AgentSettings() {
     } catch (err) {
       setNetStatus({ connected: false, type: 'usb' });
       toast.error('Erreur détection imprimante USB');
-    } finally { setTesting(false); }
+    } finally { setTestingUsb(false); }
   };
 
   const features = settings?.features || {};
@@ -183,8 +183,8 @@ export default function AgentSettings() {
                   <span>{netStatus.message || 'Imprimante réseau connectée'}</span>
                 </div>
               )}
-              <Button variant="outline" size="sm" onClick={testNetworkPrinter} disabled={!netConfig.address || testing}>
-                {testing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-2" />}
+              <Button variant="outline" size="sm" onClick={testNetworkPrinter} disabled={!netConfig.address || testingNetwork}>
+                {testingNetwork ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-2" />}
                 Tester la connexion réseau
               </Button>
             </div>
@@ -203,8 +203,8 @@ export default function AgentSettings() {
                   <span>{netStatus.message || 'Imprimante USB connectée'}</span>
                 </div>
               )}
-              <Button variant="outline" size="sm" onClick={testUsbPrinter} disabled={testing}>
-                {testing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-2" />}
+              <Button variant="outline" size="sm" onClick={testUsbPrinter} disabled={testingUsb}>
+                {testingUsb ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-2" />}
                 Tester la connexion USB
               </Button>
             </div>

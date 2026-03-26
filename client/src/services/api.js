@@ -96,16 +96,6 @@ api.interceptors.response.use(
       }
     }
 
-    // Retry on network errors (ERR_CONNECTION_RESET = Render cold start)
-    // Only retry if online and no server response received
-    const cfg = error.config;
-    if (!error.response && navigator.onLine && cfg && !cfg._retried) {
-      cfg._retried = true;
-      // Wait 30s for Render to wake up, then retry once
-      await new Promise(r => setTimeout(r, 30000));
-      return api(cfg);
-    }
-
     return Promise.reject(error);
   }
 );
