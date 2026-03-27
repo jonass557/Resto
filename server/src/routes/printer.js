@@ -285,7 +285,24 @@ router.post('/print-ticket', auth, async (req, res) => {
     if (config.type === 'network' && config.address) {
       const cleanAddr = sanitizeIP(config.address);
       if (isCloudHosted() && isPrivateIP(cleanAddr)) {
-        return res.status(400).json({ success: false, message: `Impression impossible: ${cleanAddr} est une IP locale inaccessible depuis le cloud. Utilisez le Bluetooth.`, data: { printed: false, cloudError: true } });
+        // Cloud + IP privée → émettre via Socket.IO pour agent local
+        const io = req.app.get('io');
+        const printJob = {
+          id: `print-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          timestamp: new Date().toISOString(),
+          type: 'network',
+          address: cleanAddr,
+          port: config.port || 9100,
+          ticketData,
+          receiptBuffer: receiptBuffer.toString('base64'), // envoyer en base64 via WebSocket
+        };
+        io.emit('print-job', printJob);
+        console.log(`📤 Job d'impression émis via Socket.IO: ${printJob.id}`);
+        return res.json({ 
+          success: true, 
+          message: 'Job d\'impression envoyé à l\'agent local. Assurez-vous qu\'un agent d\'impression est actif sur le réseau WiFi.', 
+          data: { printed: false, queued: true, jobId: printJob.id } 
+        });
       }
       try {
         const socket = await connectNetworkPrinter(cleanAddr, config.port || 9100);

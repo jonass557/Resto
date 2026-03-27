@@ -6,6 +6,7 @@ import { AuthProvider } from './contexts/AuthContext'
 import { SocketProvider } from './contexts/SocketContext'
 import { OfflineProvider } from './contexts/OfflineContext'
 import { PrinterProvider } from './contexts/PrinterContext'
+import { PrintAgentProvider } from './contexts/PrintAgentContext'
 import { Toaster } from 'react-hot-toast'
 import './index.css'
 
@@ -16,7 +17,9 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <SocketProvider>
           <OfflineProvider>
             <PrinterProvider>
-            <App />
+              <PrintAgentProvider>
+                <App />
+              </PrintAgentProvider>
             </PrinterProvider>
             <Toaster
               position="top-right"

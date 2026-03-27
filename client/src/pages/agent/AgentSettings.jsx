@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePrinter } from '@/contexts/PrinterContext';
+import { usePrintAgent } from '@/contexts/PrintAgentContext';
 import { settingsAPI, printerAPI, getLocalPrintServerUrl, setLocalPrintServerUrl, pingLocalPrintServer, isLocalPrintServerConfigured } from '@/services/api';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -14,6 +15,7 @@ import toast from 'react-hot-toast';
 export default function AgentSettings() {
   const { user } = useAuth();
   const { btConnected, connecting, connectBluetooth, disconnectBluetooth, printerName } = usePrinter();
+  const { isAgentActive, activateAgent, deactivateAgent, jobsProcessed, lastJobTime, isConnected } = usePrintAgent();
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [netConfig, setNetConfig] = useState({ address: '', port: 9100 });
@@ -199,6 +201,66 @@ export default function AgentSettings() {
             </div>
 
             <div className="border-t" />
+
+            {/* === AGENT D'IMPRESSION AUTOMATIQUE === */}
+            {isCloud && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold flex items-center gap-2">
+                  <Monitor className="w-4 h-4 text-emerald-500" /> Agent d'impression automatique
+                </h3>
+                <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-800 space-y-1">
+                  <p className="font-medium">💡 Solution pour imprimer depuis le cloud vers WiFi local :</p>
+                  <p>1. Laissez cette page ouverte sur un appareil du même WiFi que l'imprimante</p>
+                  <p>2. Activez l'agent ci-dessous</p>
+                  <p>3. Les commandes passées depuis n'importe où seront imprimées automatiquement ici</p>
+                </div>
+                
+                <div className="flex items-center justify-between p-3 rounded-lg border bg-white">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isAgentActive && isConnected ? 'bg-emerald-100' : 'bg-gray-100'}`}>
+                      <Monitor className={`w-5 h-5 ${isAgentActive && isConnected ? 'text-emerald-600' : 'text-gray-400'}`} />
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm">Agent d'impression</p>
+                      <p className="text-xs text-muted-foreground">
+                        {isAgentActive && isConnected ? `Actif — ${jobsProcessed} tickets imprimés` : 'Inactif'}
+                      </p>
+                    </div>
+                  </div>
+                  <Badge variant={isAgentActive && isConnected ? 'default' : 'secondary'} className={isAgentActive && isConnected ? 'bg-emerald-600' : ''}>
+                    {isAgentActive && isConnected ? 'Connecté' : 'Déconnecté'}
+                  </Badge>
+                </div>
+
+                {isAgentActive && isConnected && (
+                  <div className="p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-800 flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 shrink-0" />
+                    <span>Agent actif — les commandes en ligne seront imprimées automatiquement sur cette machine</span>
+                  </div>
+                )}
+
+                {lastJobTime && (
+                  <div className="text-xs text-muted-foreground">
+                    Dernière impression : {new Date(lastJobTime).toLocaleTimeString('fr-FR')}
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  {!isAgentActive ? (
+                    <Button size="sm" onClick={activateAgent} className="bg-emerald-600 hover:bg-emerald-700">
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Activer l'agent
+                    </Button>
+                  ) : (
+                    <Button variant="destructive" size="sm" onClick={deactivateAgent}>
+                      <Unplug className="w-4 h-4 mr-2" />
+                      Désactiver l'agent
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+            {isCloud && <div className="border-t" />}
 
             {/* === LOCAL PRINT SERVER === */}
             <div className="space-y-3">
