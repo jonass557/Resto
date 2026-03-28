@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { io } from 'socket.io-client';
 import { printerAPI } from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
 
 const PrintAgentContext = createContext();
@@ -12,6 +13,7 @@ export function usePrintAgent() {
 }
 
 export function PrintAgentProvider({ children }) {
+  const { isAuthenticated } = useAuth();
   const [isAgentActive, setIsAgentActive] = useState(() => {
     return localStorage.getItem('printAgentActive') === 'true';
   });
@@ -20,8 +22,9 @@ export function PrintAgentProvider({ children }) {
   const [lastJobTime, setLastJobTime] = useState(null);
   const [printerConfig, setPrinterConfig] = useState(null);
 
-  // Charger la config imprimante au démarrage
+  // Charger la config imprimante seulement si authentifié
   useEffect(() => {
+    if (!isAuthenticated) return;
     const loadConfig = async () => {
       try {
         const { data } = await printerAPI.getStatus();
@@ -31,7 +34,7 @@ export function PrintAgentProvider({ children }) {
       }
     };
     loadConfig();
-  }, []);
+  }, [isAuthenticated]);
 
   // Connecter Socket.IO quand l'agent est activé
   useEffect(() => {

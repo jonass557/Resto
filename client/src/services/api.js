@@ -79,7 +79,9 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      window.location.href = '/login';
+      if (!window.location.pathname.includes('/login')) {
+        window.location.replace('/login');
+      }
     }
 
     // If offline and it's a write request, queue for later sync
