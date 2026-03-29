@@ -74,24 +74,27 @@ export default function Login() {
     setServerWaking(true);
     let elapsed = 0;
     pollRef.current = setInterval(async () => {
-      elapsed += 15;
-      if (elapsed > 120) {
+      elapsed += 12;
+      if (elapsed > 180) {
         stopPoll();
         setLoading(false);
         setServerWaking(false);
-        toast.error('Le serveur ne répond pas. Veuillez réessayer plus tard.');
+        toast.error('Le serveur met trop de temps à démarrer. Réessayez dans quelques secondes.');
         return;
       }
-      try {
-        const res = await fetch(`${apiBase}/health`);
-        if (res.ok) {
-          stopPoll();
-          const result = await doLogin(emailVal, passVal);
-          if (result !== 'ok') { setLoading(false); setServerWaking(false); }
-        }
-      } catch (_) { /* still starting */ }
-    }, 15000);
-  }, [apiBase, doLogin]);
+      // Tenter directement le login (plus fiable que /health seul)
+      const result = await doLogin(emailVal, passVal);
+      if (result === 'ok') {
+        stopPoll();
+      } else if (result !== 'network') {
+        // Erreur d'auth (mauvais mdp), pas une erreur réseau
+        stopPoll();
+        setLoading(false);
+        setServerWaking(false);
+      }
+      // Si 'network' → serveur encore en démarrage, on continue
+    }, 12000);
+  }, [doLogin]);
 
   useEffect(() => {
     logout();
