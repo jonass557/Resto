@@ -202,9 +202,14 @@ router.post('/', auth, async (req, res) => {
     const io = req.app.get('io');
     io.emit('order:created', order);
     if (table) io.emit('table:updated', table);
-    // Signal ticket for immediate printing
     io.emit('ticket:created', ticket);
-    io.emit('ticket:auto-print', { ticket, orderType });
+
+    // Auto-print : envoyer uniquement au premier agent d'impression enregistré
+    const agentSockets = await io.in('print-agents').fetchSockets();
+    if (agentSockets.length > 0) {
+      agentSockets[0].emit('ticket:auto-print', { ticket });
+      console.log(`🖨️  Auto-print → agent ${agentSockets[0].id} pour ticket ${ticket.ticketNumber}`);
+    }
 
     res.status(201).json({ success: true, data: { order, ticket } });
   } catch (error) {

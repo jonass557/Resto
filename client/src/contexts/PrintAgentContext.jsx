@@ -99,17 +99,44 @@ export function PrintAgentProvider({ children }) {
     });
 
     newSocket.on('print-job', async (job) => {
-      // Déduplication : ignorer si job déjà traité
       if (processedJobIds.has(job.id)) {
         console.log('🔁 Job déjà traité, ignoré:', job.id);
         return;
       }
       processedJobIds.add(job.id);
-      // Nettoyage automatique après 5 min
       setTimeout(() => processedJobIds.delete(job.id), 300000);
-
       console.log('📥 Job d\'impression reçu:', job.id);
       await handlePrintJob(job);
+    });
+
+    // Impression automatique déclenchée par le serveur lors de la création d'une commande
+    newSocket.on('ticket:auto-print', async ({ ticket }) => {
+      if (!ticket?._id) return;
+      const jobId = `auto-${ticket._id}`;
+      if (processedJobIds.has(jobId)) return;
+      processedJobIds.add(jobId);
+      setTimeout(() => processedJobIds.delete(jobId), 300000);
+
+      console.log('�️ Auto-print ticket:', ticket.ticketNumber);
+      const token = localStorage.getItem('token');
+      const localApi = axios.create({
+        baseURL: `${LOCAL_SERVER_URL}/api`,
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        timeout: 10000,
+      });
+      try {
+        await localApi.post('/printer/print-ticket', { ticketId: ticket._id });
+        setJobsProcessed(prev => prev + 1);
+        setLastJobTime(new Date().toISOString());
+        toast.success(`✅ Ticket ${ticket.ticketNumber} imprimé`);
+      } catch (error) {
+        console.error('❌ Auto-print error:', error);
+        const isNetwork = !error.response || error.code === 'ERR_NETWORK' || error.message === 'Network Error';
+        if (isNetwork) {
+          setLocalServerAvailable(false);
+          toast.error('❌ Serveur local introuvable — impression annulée', { duration: 5000 });
+        }
+      }
     });
 
     setSocket(newSocket);

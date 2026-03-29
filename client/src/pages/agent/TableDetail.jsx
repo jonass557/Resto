@@ -115,7 +115,9 @@ export default function TableDetail() {
         }))
       });
       toast.success(`Commande ${data.data.order.orderNumber} créée!`);
-      toast(`🖨️ Ticket ${data.data.ticket.ticketNumber} envoyé à l'impression`, { icon: '🧾', duration: 4000 });
+      if (data.data.ticket?.ticketNumber) {
+        toast(`🖨️ Ticket ${data.data.ticket.ticketNumber} envoyé à l'impression`, { icon: '🧾', duration: 3000 });
+      }
       setCart([]);
       invalidateCache('/tables');
       loadData();
