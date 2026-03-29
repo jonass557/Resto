@@ -294,13 +294,23 @@ router.post('/print-ticket', auth, async (req, res) => {
           address: cleanAddr,
           port: config.port || 9100,
           ticketData,
-          receiptBuffer: receiptBuffer.toString('base64'), // envoyer en base64 via WebSocket
+          receiptBuffer: receiptBuffer.toString('base64'),
         };
-        io.emit('print-job', printJob);
-        console.log(`📤 Job d'impression émis via Socket.IO: ${printJob.id}`);
+
+        // N'envoyer qu'au 1er agent enregistré pour éviter les impressions multiples
+        const agentSockets = await io.in('print-agents').fetchSockets();
+        if (agentSockets.length > 0) {
+          agentSockets[0].emit('print-job', printJob);
+          console.log(`📤 Job ${printJob.id} envoyé à l'agent: ${agentSockets[0].id}`);
+        } else {
+          // Aucun agent enregistré — diffuser en fallback
+          io.emit('print-job', printJob);
+          console.log(`📤 Job ${printJob.id} diffusé (aucun agent enregistré)`);
+        }
+
         return res.json({ 
           success: true, 
-          message: 'Job d\'impression envoyé à l\'agent local. Assurez-vous qu\'un agent d\'impression est actif sur le réseau WiFi.', 
+          message: 'Job envoyé à l\'agent d\'impression local.', 
           data: { printed: false, queued: true, jobId: printJob.id } 
         });
       }

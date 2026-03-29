@@ -110,20 +110,26 @@ app.get('/api/print-server/ping', (req, res) => {
 
 // Socket.io
 io.on('connection', (socket) => {
-  console.log('Client connected:', socket.id);
-
   socket.on('join-room', (room) => {
     socket.join(room);
-    console.log(`Socket ${socket.id} joined room: ${room}`);
   });
 
   socket.on('leave-room', (room) => {
     socket.leave(room);
   });
 
-  socket.on('disconnect', () => {
-    console.log('Client disconnected:', socket.id);
+  // Agent d'impression : s'enregistre seulement si le serveur local est disponible sur cet appareil
+  socket.on('register-print-agent', () => {
+    socket.join('print-agents');
+    console.log(`🖨️  Agent d'impression enregistré: ${socket.id}`);
   });
+
+  socket.on('unregister-print-agent', () => {
+    socket.leave('print-agents');
+    console.log(`🔌 Agent d'impression désenregistré: ${socket.id}`);
+  });
+
+  socket.on('disconnect', () => {});
 });
 
 // Error handling middleware

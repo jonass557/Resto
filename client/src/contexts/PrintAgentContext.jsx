@@ -57,6 +57,7 @@ export function PrintAgentProvider({ children }) {
   useEffect(() => {
     if (!isAgentActive) {
       if (socket) {
+        socket.emit('unregister-print-agent');
         socket.disconnect();
         setSocket(null);
       }
@@ -71,23 +72,50 @@ export function PrintAgentProvider({ children }) {
       reconnectionAttempts: Infinity,
     });
 
-    newSocket.on('connect', () => {
-      console.log('🔗 Agent d\'impression connecté au serveur');
-      toast.success('Agent d\'impression activé');
+    // Ensemble de déduplication : éviter d'imprimer le même job 2 fois
+    const processedJobIds = new Set();
+
+    newSocket.on('connect', async () => {
+      // S'enregistrer comme agent SEULEMENT si le serveur local est disponible sur cet appareil
+      const available = await checkLocalServer();
+      if (available) {
+        newSocket.emit('register-print-agent');
+        toast.success('🖨️ Agent d\'impression actif');
+      } else {
+        toast('Agent connecté — serveur local introuvable sur cet appareil', {
+          icon: '⚠️',
+          duration: 5000,
+        });
+      }
+    });
+
+    newSocket.on('reconnect', async () => {
+      const available = await checkLocalServer();
+      if (available) newSocket.emit('register-print-agent');
     });
 
     newSocket.on('disconnect', () => {
-      console.log('🔌 Agent d\'impression déconnecté');
+      processedJobIds.clear();
     });
 
     newSocket.on('print-job', async (job) => {
-      console.log('📥 Job d\'impression reçu:', job);
+      // Déduplication : ignorer si job déjà traité
+      if (processedJobIds.has(job.id)) {
+        console.log('🔁 Job déjà traité, ignoré:', job.id);
+        return;
+      }
+      processedJobIds.add(job.id);
+      // Nettoyage automatique après 5 min
+      setTimeout(() => processedJobIds.delete(job.id), 300000);
+
+      console.log('📥 Job d\'impression reçu:', job.id);
       await handlePrintJob(job);
     });
 
     setSocket(newSocket);
 
     return () => {
+      newSocket.emit('unregister-print-agent');
       newSocket.disconnect();
     };
   }, [isAgentActive]);

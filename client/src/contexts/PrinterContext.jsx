@@ -241,6 +241,10 @@ export function PrinterProvider({ children }) {
         toast.success('Ticket imprimé');
         return true;
       }
+      if (data.data?.queued) {
+        toast.success('🖨️ Ticket envoyé à l\'impression');
+        return true;
+      }
       // Backend returned fallback data - use browser print
     } catch { /* backend printer failed */ }
 
@@ -279,9 +283,9 @@ export function PrinterProvider({ children }) {
     try {
       const { data } = await printerAPI.printTicket({ ticketId });
       if (data.data?.printed) { toast.success('Ticket imprimé'); return true; }
+      if (data.data?.queued) { toast.success('🖨️ Ticket envoyé à l\'impression'); return true; }
     } catch { /* fall through */ }
 
-    toast.error('Imprimante non disponible');
     return false;
   }, [btConnected, characteristic, printViaBluetooth]);
 
