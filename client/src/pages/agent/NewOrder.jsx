@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { productsAPI, categoriesAPI, ordersAPI, ticketsAPI, invalidateCache } from '@/services/api';
 import { useSocket } from '@/contexts/SocketContext';
+import { usePrinter } from '@/contexts/PrinterContext';
 import TopBar from '@/components/layout/TopBar';
 import PaymentDialog from '@/components/PaymentDialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,6 +18,7 @@ import toast from 'react-hot-toast';
 export default function NewOrder() {
   const navigate = useNavigate();
   const { socket } = useSocket();
+  const { printTicketById } = usePrinter();
 
   const [orderType, setOrderType] = useState('takeaway');
   const [products, setProducts] = useState([]);
@@ -121,10 +123,15 @@ export default function NewOrder() {
 
       const { data } = await ordersAPI.create(payload);
       toast.success(`Commande ${data.data.order.orderNumber} créée!`);
-      toast(`🖨️ Ticket ${data.data.ticket.ticketNumber} envoyé à l'impression`, { icon: '🧾', duration: 4000 });
 
       setSessionOrders(prev => [...prev, data.data.order]);
       setCart([]);
+
+      // Impression automatique du ticket
+      if (data.data.ticket?._id) {
+        toast(`🖨️ Impression du ticket ${data.data.ticket.ticketNumber}...`, { icon: '🧾', duration: 2000 });
+        printTicketById(data.data.ticket._id);
+      }
     } catch (error) {
       toast.error(error.response?.data?.message || 'Erreur création commande');
     } finally {
