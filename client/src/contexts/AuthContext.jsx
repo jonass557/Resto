@@ -51,9 +51,9 @@ export function AuthProvider({ children }) {
     const { user: userData, token: newToken } = data.data;
     localStorage.setItem('token', newToken);
     localStorage.setItem('user', JSON.stringify(userData));
+    didRefresh.current = true; // Données fraîches reçues du login — skip getMe()
     setToken(newToken);
     setUser(userData);
-    didRefresh.current = false;
     return userData;
   };
 
