@@ -15,7 +15,7 @@ import toast from 'react-hot-toast';
 export default function AgentSettings() {
   const { user } = useAuth();
   const { btConnected, connecting, connectBluetooth, disconnectBluetooth, printerName } = usePrinter();
-  const { isAgentActive, activateAgent, deactivateAgent, jobsProcessed, lastJobTime, isConnected } = usePrintAgent();
+  const { isAgentActive, activateAgent, deactivateAgent, jobsProcessed, lastJobTime, isConnected, localServerAvailable, checkLocalServer } = usePrintAgent();
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [netConfig, setNetConfig] = useState({ address: '', port: 9100 });
@@ -208,13 +208,24 @@ export default function AgentSettings() {
                 <h3 className="text-sm font-semibold flex items-center gap-2">
                   <Monitor className="w-4 h-4 text-emerald-500" /> Agent d'impression automatique
                 </h3>
-                <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-800 space-y-1">
-                  <p className="font-medium">💡 Solution pour imprimer depuis le cloud vers WiFi local :</p>
-                  <p>1. Laissez cette page ouverte sur un appareil du même WiFi que l'imprimante</p>
-                  <p>2. Activez l'agent ci-dessous</p>
-                  <p>3. Les commandes passées depuis n'importe où seront imprimées automatiquement ici</p>
+
+                {/* Prérequis : serveur local */}
+                <div className={`p-3 rounded-lg border text-sm space-y-1 ${localServerAvailable ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+                  {localServerAvailable ? (
+                    <p className="flex items-center gap-2 font-medium"><CheckCircle className="w-4 h-4" /> Serveur local détecté sur cette machine</p>
+                  ) : (
+                    <>
+                      <p className="font-medium flex items-center gap-2"><Info className="w-4 h-4" /> Serveur local requis sur cette machine</p>
+                      <p>Pour que l'agent puisse imprimer, lancez dans un terminal :</p>
+                      <code className="block bg-amber-100 px-2 py-1 rounded text-xs font-mono">npm run local</code>
+                      <p className="text-xs opacity-80">Le serveur local sert de pont entre le cloud et l'imprimante WiFi.</p>
+                    </>
+                  )}
+                  <Button size="sm" variant="outline" className="mt-1 h-7 text-xs" onClick={checkLocalServer}>
+                    Vérifier serveur local
+                  </Button>
                 </div>
-                
+
                 <div className="flex items-center justify-between p-3 rounded-lg border bg-white">
                   <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isAgentActive && isConnected ? 'bg-emerald-100' : 'bg-gray-100'}`}>
@@ -232,10 +243,17 @@ export default function AgentSettings() {
                   </Badge>
                 </div>
 
-                {isAgentActive && isConnected && (
+                {isAgentActive && isConnected && localServerAvailable && (
                   <div className="p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-800 flex items-center gap-2">
                     <CheckCircle className="w-4 h-4 shrink-0" />
-                    <span>Agent actif — les commandes en ligne seront imprimées automatiquement sur cette machine</span>
+                    <span>Prêt — les commandes seront imprimées automatiquement sur cette machine</span>
+                  </div>
+                )}
+
+                {isAgentActive && isConnected && !localServerAvailable && (
+                  <div className="p-2 rounded-lg bg-red-50 border border-red-200 text-sm text-red-800 flex items-center gap-2">
+                    <WifiOff className="w-4 h-4 shrink-0" />
+                    <span>Agent connecté mais serveur local introuvable — les tickets ne s'imprimeront pas</span>
                   </div>
                 )}
 
@@ -247,7 +265,7 @@ export default function AgentSettings() {
 
                 <div className="flex gap-2">
                   {!isAgentActive ? (
-                    <Button size="sm" onClick={activateAgent} className="bg-emerald-600 hover:bg-emerald-700">
+                    <Button size="sm" onClick={activateAgent} className="bg-emerald-600 hover:bg-emerald-700" disabled={!localServerAvailable}>
                       <CheckCircle className="w-4 h-4 mr-2" />
                       Activer l'agent
                     </Button>

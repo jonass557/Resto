@@ -1,8 +1,10 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { io } from 'socket.io-client';
-import { printerAPI } from '@/services/api';
+import axios from 'axios';
 import { useAuth } from '@/contexts/AuthContext';
 import toast from 'react-hot-toast';
+
+const LOCAL_SERVER_URL = 'http://localhost:5000';
 
 const PrintAgentContext = createContext();
 
@@ -21,19 +23,34 @@ export function PrintAgentProvider({ children }) {
   const [jobsProcessed, setJobsProcessed] = useState(0);
   const [lastJobTime, setLastJobTime] = useState(null);
   const [printerConfig, setPrinterConfig] = useState(null);
+  const [localServerAvailable, setLocalServerAvailable] = useState(false);
+
+  // Vérifier si le serveur local est disponible
+  const checkLocalServer = async () => {
+    try {
+      await axios.get(`${LOCAL_SERVER_URL}/api/health`, { timeout: 3000 });
+      setLocalServerAvailable(true);
+      return true;
+    } catch {
+      try {
+        // Fallback : tenter n'importe quelle route connue
+        await axios.get(`${LOCAL_SERVER_URL}/api/printer/status`, {
+          timeout: 3000,
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        });
+        setLocalServerAvailable(true);
+        return true;
+      } catch {
+        setLocalServerAvailable(false);
+        return false;
+      }
+    }
+  };
 
   // Charger la config imprimante seulement si authentifié
   useEffect(() => {
     if (!isAuthenticated) return;
-    const loadConfig = async () => {
-      try {
-        const { data } = await printerAPI.getStatus();
-        if (data.data?.config) setPrinterConfig(data.data.config);
-      } catch (err) {
-        console.error('Erreur chargement config imprimante:', err);
-      }
-    };
-    loadConfig();
+    checkLocalServer();
   }, [isAuthenticated]);
 
   // Connecter Socket.IO quand l'agent est activé
@@ -76,10 +93,19 @@ export function PrintAgentProvider({ children }) {
   }, [isAgentActive]);
 
   const handlePrintJob = async (job) => {
+    const token = localStorage.getItem('token');
+    // Créer une instance axios pointant vers le SERVEUR LOCAL (seul capable d'atteindre l'imprimante WiFi)
+    const localApi = axios.create({
+      baseURL: `${LOCAL_SERVER_URL}/api`,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
+      timeout: 10000,
+    });
+
     try {
-      // Utiliser l'API du serveur local pour imprimer
-      // Le serveur local a accès direct au réseau WiFi de l'imprimante
-      const response = await printerAPI.printTicket({
+      const response = await localApi.post('/printer/print-ticket', {
         ticketData: job.ticketData,
         printerConfig: {
           type: 'network',
@@ -88,13 +114,20 @@ export function PrintAgentProvider({ children }) {
         }
       });
 
+      setLocalServerAvailable(true);
       setJobsProcessed(prev => prev + 1);
       setLastJobTime(new Date().toISOString());
       toast.success(`✅ Ticket imprimé: ${job.ticketData?.ticketNumber || 'N/A'}`);
       console.log('✅ Job imprimé:', job.id);
     } catch (error) {
       console.error('❌ Erreur impression job:', error);
-      toast.error(`Échec impression: ${error.message}`);
+      const isNetworkError = !error.response || error.code === 'ERR_NETWORK' || error.message === 'Network Error';
+      if (isNetworkError) {
+        setLocalServerAvailable(false);
+        toast.error('❌ Serveur local introuvable. Lancez "npm run local" sur cette machine puis réessayez.', { duration: 6000 });
+      } else {
+        toast.error(`❌ Échec impression: ${error.response?.data?.message || error.message}`);
+      }
     }
   };
 
@@ -115,6 +148,8 @@ export function PrintAgentProvider({ children }) {
     jobsProcessed,
     lastJobTime,
     isConnected: socket?.connected || false,
+    localServerAvailable,
+    checkLocalServer,
   };
 
   return <PrintAgentContext.Provider value={value}>{children}</PrintAgentContext.Provider>;
