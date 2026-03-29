@@ -74,8 +74,8 @@ export default function Login() {
     setServerWaking(true);
     let elapsed = 0;
     pollRef.current = setInterval(async () => {
-      elapsed += 8;
-      if (elapsed > 90) {
+      elapsed += 15;
+      if (elapsed > 120) {
         stopPoll();
         setLoading(false);
         setServerWaking(false);
@@ -90,13 +90,12 @@ export default function Login() {
           if (result !== 'ok') { setLoading(false); setServerWaking(false); }
         }
       } catch (_) { /* still starting */ }
-    }, 8000);
+    }, 15000);
   }, [apiBase, doLogin]);
 
   useEffect(() => {
     logout();
     const t = setTimeout(() => setMounted(true), 100);
-    fetch(`${apiBase}/health`).catch(() => {});
     return () => { clearTimeout(t); stopPoll(); };
   }, []);
 
