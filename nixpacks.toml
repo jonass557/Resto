@@ -1,0 +1,8 @@
+[phases.install]
+cmds = ["cd server && npm install --omit=dev"]
+
+[phases.build]
+cmds = []
+
+[start]
+cmd = "cd server && npm start"
