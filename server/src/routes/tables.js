@@ -1,5 +1,6 @@
 const express = require('express');
 const Table = require('../models/Table');
+const Order = require('../models/Order');
 const { auth, adminOnly } = require('../middleware/auth');
 
 const router = express.Router();
@@ -15,6 +16,22 @@ router.get('/', auth, async (req, res) => {
     const tables = await Table.find(filter)
       .populate({ path: 'currentOrders', populate: { path: 'items.product', select: 'name' } })
       .sort({ number: 1 });
+
+    // Auto-nettoyage : libérer les tables occupées sans commandes actives
+    const toFree = tables.filter(t => {
+      if (t.status !== 'occupied') return false;
+      const hasActive = t.currentOrders?.some(o => !['cancelled', 'paid'].includes(o.status));
+      return !hasActive;
+    });
+
+    if (toFree.length > 0) {
+      const ids = toFree.map(t => t._id);
+      await Table.updateMany({ _id: { $in: ids } }, { status: 'available', currentOrders: [] });
+      const io = req.app.get('io');
+      ids.forEach(id => io.emit('table:updated', { tableId: id.toString(), status: 'available' }));
+      toFree.forEach(t => { t.status = 'available'; t.currentOrders = []; });
+    }
+
     res.json({ success: true, data: tables });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
