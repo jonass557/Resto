@@ -3,18 +3,21 @@ title Serveur Local - Restaurant
 cd /d "%~dp0"
 
 echo ========================================
-echo  Demarrage du serveur d'impression...
+echo  Demarrage du systeme restaurant...
 echo ========================================
 
-:: Attendre 10 secondes que le WiFi soit connecte
-timeout /t 10 /nobreak >nul
+:: Attendre 15 secondes que le WiFi soit connecte
+echo Attente connexion WiFi...
+timeout /t 15 /nobreak >nul
 
-:: Lancer le serveur Node.js
+:: Lancer la surveillance WiFi en arriere-plan (processus separe)
+echo Activation surveillance WiFi...
+start "" powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File "%~dp0reconnexion-wifi.ps1"
+
+:: Lancer le serveur Node.js avec redemarrage automatique
+:restart
+echo Demarrage serveur impression...
 node src/index.js
-
-:: Si le serveur s'arrete, attendre avant de relancer
-echo Serveur arrete. Relancement dans 5 secondes...
+echo Serveur arrete. Redemarrage dans 5 secondes...
 timeout /t 5 /nobreak >nul
-node src/index.js
-
-pause
+goto restart
