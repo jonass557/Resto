@@ -11,7 +11,7 @@ import { formatCurrency, formatDateTime } from '@/lib/utils';
 import {
   DollarSign, ShoppingCart, Receipt, TrendingUp, Users, Loader2,
   Bell, BellRing, CheckCheck, Wallet, LogIn, CreditCard, Banknote,
-  Smartphone, ArrowUpRight, Package, BarChart2
+  Smartphone, ArrowUpRight, Package, BarChart2, Trash2
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -97,6 +97,30 @@ export default function AdminDashboard() {
       setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
     } catch (error) {
       console.error(error);
+    }
+  };
+
+  const deleteNotification = async (id) => {
+    try {
+      await notificationsAPI.delete(id);
+      setNotifications(prev => prev.filter(n => n._id !== id));
+      setUnreadCount(prev => {
+        const wasUnread = notifications.find(n => n._id === id && !n.isRead);
+        return wasUnread ? Math.max(0, prev - 1) : prev;
+      });
+    } catch (error) {
+      toast.error('Erreur suppression activité');
+    }
+  };
+
+  const deleteAllNotifications = async () => {
+    try {
+      await notificationsAPI.deleteAll();
+      setNotifications([]);
+      setUnreadCount(0);
+      toast.success('Toutes les activités supprimées');
+    } catch (error) {
+      toast.error('Erreur suppression des activités');
     }
   };
 
@@ -281,11 +305,18 @@ export default function AdminDashboard() {
                   Activité
                   {unreadCount > 0 && <Badge variant="destructive" className="ml-1 text-xs">{unreadCount}</Badge>}
                 </CardTitle>
-                {unreadCount > 0 && (
-                  <Button variant="ghost" size="sm" onClick={markAllRead}>
-                    <CheckCheck className="w-4 h-4 mr-1" /> Tout lire
-                  </Button>
-                )}
+                <div className="flex items-center gap-1">
+                  {unreadCount > 0 && (
+                    <Button variant="ghost" size="sm" onClick={markAllRead}>
+                      <CheckCheck className="w-4 h-4 mr-1" /> Tout lire
+                    </Button>
+                  )}
+                  {notifications.length > 0 && (
+                    <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-600" onClick={deleteAllNotifications}>
+                      <Trash2 className="w-4 h-4 mr-1" /> Tout effacer
+                    </Button>
+                  )}
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -295,7 +326,7 @@ export default function AdminDashboard() {
                     const config = NOTIF_ICONS[notif.type] || { icon: Bell, color: 'text-gray-600', bg: 'bg-gray-50' };
                     const Icon = config.icon;
                     return (
-                      <div key={notif._id} className={`flex items-start gap-3 p-3 rounded-lg transition-colors ${notif.isRead ? 'bg-muted/50' : 'bg-blue-50/50 border border-blue-100'}`}>
+                      <div key={notif._id} className={`flex items-start gap-3 p-3 rounded-lg transition-colors group ${notif.isRead ? 'bg-muted/50' : 'bg-blue-50/50 border border-blue-100'}`}>
                         <div className={`w-8 h-8 rounded-lg ${config.bg} flex items-center justify-center flex-shrink-0 mt-0.5`}>
                           <Icon className={`w-4 h-4 ${config.color}`} />
                         </div>
@@ -304,6 +335,13 @@ export default function AdminDashboard() {
                           <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{notif.message}</p>
                           <p className="text-xs text-muted-foreground mt-1">{formatDateTime(notif.createdAt)}</p>
                         </div>
+                        <button
+                          onClick={() => deleteNotification(notif._id)}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-100 text-red-400 hover:text-red-600 flex-shrink-0"
+                          title="Supprimer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                         {!notif.isRead && <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0 mt-2" />}
                       </div>
                     );

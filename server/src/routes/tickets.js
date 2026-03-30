@@ -260,6 +260,23 @@ router.delete('/:id', auth, adminOnly, async (req, res) => {
 
     await Ticket.findByIdAndDelete(req.params.id);
 
+    // Si ticket/facture non payé avec une table → libérer la table si plus de commandes actives
+    if (!ticket.isPaid && ticket.table) {
+      const tableId = ticket.table._id || ticket.table;
+      if (ticket.orders && ticket.orders.length > 0) {
+        await Table.findByIdAndUpdate(tableId, {
+          $pull: { currentOrders: { $in: ticket.orders } }
+        });
+      }
+      const updatedTable = await Table.findById(tableId).populate('currentOrders');
+      const hasActive = updatedTable?.currentOrders?.some(o => !['cancelled', 'paid'].includes(o.status));
+      if (!hasActive) {
+        await Table.findByIdAndUpdate(tableId, { status: 'available', currentOrders: [] });
+        const io = req.app.get('io');
+        io.emit('table:updated', { tableId: tableId.toString(), status: 'available' });
+      }
+    }
+
     // Notify
     const notif = await Notification.create({
       type: ticketType === 'invoice' ? 'invoice_deleted' : 'ticket_deleted',

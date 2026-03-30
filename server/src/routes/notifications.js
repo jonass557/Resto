@@ -45,4 +45,25 @@ router.patch('/:id/read', auth, adminOnly, async (req, res) => {
   }
 });
 
+// DELETE /api/notifications/:id - Supprimer une activité individuelle
+router.delete('/:id', auth, adminOnly, async (req, res) => {
+  try {
+    const notif = await Notification.findByIdAndDelete(req.params.id);
+    if (!notif) return res.status(404).json({ success: false, message: 'Notification non trouvée' });
+    res.json({ success: true, message: 'Activité supprimée' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// DELETE /api/notifications - Supprimer toutes les activités
+router.delete('/', auth, adminOnly, async (req, res) => {
+  try {
+    await Notification.deleteMany({});
+    res.json({ success: true, message: 'Toutes les activités supprimées' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 module.exports = router;

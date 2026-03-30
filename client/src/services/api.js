@@ -307,6 +307,8 @@ export const notificationsAPI = {
   getAll: (params) => api.get('/notifications', { params }),
   markAllRead: () => api.patch('/notifications/read-all'),
   markRead: (id) => api.patch(`/notifications/${id}/read`),
+  delete: (id) => api.delete(`/notifications/${id}`),
+  deleteAll: () => api.delete('/notifications'),
 };
 
 export default api;
