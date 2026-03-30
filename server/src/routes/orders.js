@@ -204,11 +204,15 @@ router.post('/', auth, async (req, res) => {
     if (table) io.emit('table:updated', table);
     io.emit('ticket:created', ticket);
 
-    // Auto-print : envoyer uniquement au premier agent d'impression enregistré
+    // Auto-print : cibler le premier agent enregistré, ou broadcast si aucun
     const agentSockets = await io.in('print-agents').fetchSockets();
     if (agentSockets.length > 0) {
       agentSockets[0].emit('ticket:auto-print', { ticket });
       console.log(`🖨️  Auto-print → agent ${agentSockets[0].id} pour ticket ${ticket.ticketNumber}`);
+    } else {
+      // Fallback : broadcast à tous les clients — PrintAgentContext imprime si actif et serveur local dispo
+      io.emit('ticket:auto-print', { ticket });
+      console.log(`📡 Auto-print broadcast (aucun agent enregistré) pour ticket ${ticket.ticketNumber}`);
     }
 
     res.status(201).json({ success: true, data: { order, ticket } });
