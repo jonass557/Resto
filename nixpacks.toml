@@ -1,8 +1,8 @@
 [phases.install]
-cmds = ["cd server && npm install --omit=dev"]
+cmds = ["npm install --prefix server --omit=dev"]
 
 [phases.build]
 cmds = []
 
 [start]
-cmd = "cd server && npm start"
+cmd = "node server/src/index.js"
