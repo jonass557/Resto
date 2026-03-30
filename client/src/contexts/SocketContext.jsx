@@ -14,8 +14,10 @@ export function SocketProvider({ children }) {
 
     // In production (Vercel), connect socket.io directly to the Render backend.
     // VITE_API_URL = "https://restaurant-api.onrender.com/api" → strip "/api"
-    const socketUrl = import.meta.env.VITE_API_URL
-      ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '')
+    const rawUrl = import.meta.env.VITE_API_URL || '';
+    const absoluteUrl = rawUrl.startsWith('http') ? rawUrl : (rawUrl ? `https://${rawUrl}` : '');
+    const socketUrl = absoluteUrl
+      ? absoluteUrl.replace(/\/api\/?$/, '')
       : window.location.origin;
 
     const newSocket = io(socketUrl, {
