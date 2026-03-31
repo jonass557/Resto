@@ -243,6 +243,116 @@ router.patch('/:id/mark-paid', auth, adminOnly, async (req, res) => {
   }
 });
 
+// GET /api/tickets/counts — Compteurs En cours / À Encaisser pour sidebar
+router.get('/counts', auth, async (req, res) => {
+  try {
+    const agentId = req.user._id;
+    const [enCours, aEncaisser] = await Promise.all([
+      Ticket.countDocuments({ agent: agentId, type: 'invoice', isPaid: false, memoStatus: 'en_cours' }),
+      Ticket.countDocuments({ agent: agentId, type: 'invoice', isPaid: false, memoStatus: 'a_encaisser' })
+    ]);
+    res.json({ success: true, data: { enCours, aEncaisser } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// POST /api/tickets/direct-invoice — Créer une facture directement (sans commande préalable)
+router.post('/direct-invoice', auth, async (req, res) => {
+  try {
+    const { tableNumber, items, notes } = req.body;
+    if (!tableNumber || !String(tableNumber).trim()) {
+      return res.status(400).json({ success: false, message: 'Numéro de table requis' });
+    }
+    if (!items || items.length === 0) {
+      return res.status(400).json({ success: false, message: 'Au moins un article requis' });
+    }
+
+    let subtotal = 0;
+    const processedItems = items.map(item => {
+      const tp = item.unitPrice * item.quantity;
+      subtotal += tp;
+      return { name: item.name, quantity: item.quantity, unitPrice: item.unitPrice, totalPrice: tp, options: [] };
+    });
+
+    const invoice = new Ticket({
+      ticketNumber: generateTicketNumber('invoice'),
+      type: 'invoice',
+      orderType: 'dine_in',
+      tableNumber: String(tableNumber).trim(),
+      items: processedItems,
+      subtotal,
+      taxAmount: 0,
+      discount: 0,
+      total: subtotal,
+      agent: req.user._id,
+      memoStatus: 'en_cours',
+      notes: notes || ''
+    });
+
+    await invoice.save();
+    await invoice.populate('agent', 'firstName lastName');
+
+    const io = req.app.get('io');
+    io.emit('invoice:created', invoice);
+
+    res.status(201).json({ success: true, data: invoice });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// PATCH /api/tickets/:id/a-encaisser — Mémoriser la facture dans "À Encaisser"
+router.patch('/:id/a-encaisser', auth, async (req, res) => {
+  try {
+    const ticket = await Ticket.findOneAndUpdate(
+      { _id: req.params.id, agent: req.user._id, isPaid: false },
+      { memoStatus: 'a_encaisser' },
+      { new: true }
+    );
+    if (!ticket) return res.status(404).json({ success: false, message: 'Facture non trouvée' });
+    const io = req.app.get('io');
+    io.emit('invoice:memo', { ticketId: req.params.id });
+    res.json({ success: true, data: ticket });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// PATCH /api/tickets/:id/add-items — Ajouter des articles à une facture "En cours"
+router.patch('/:id/add-items', auth, async (req, res) => {
+  try {
+    const { items } = req.body;
+    if (!items || items.length === 0) {
+      return res.status(400).json({ success: false, message: 'Articles requis' });
+    }
+    const ticket = await Ticket.findOne({ _id: req.params.id, agent: req.user._id, isPaid: false });
+    if (!ticket) return res.status(404).json({ success: false, message: 'Facture non trouvée' });
+
+    for (const item of items) {
+      const existing = ticket.items.find(i => i.name === item.name && i.unitPrice === item.unitPrice);
+      if (existing) {
+        existing.quantity += item.quantity;
+        existing.totalPrice = existing.quantity * existing.unitPrice;
+      } else {
+        ticket.items.push({ name: item.name, quantity: item.quantity, unitPrice: item.unitPrice, totalPrice: item.unitPrice * item.quantity, options: [] });
+      }
+    }
+
+    ticket.subtotal = ticket.items.reduce((s, i) => s + i.totalPrice, 0);
+    ticket.total = ticket.subtotal + ticket.taxAmount - ticket.discount;
+    ticket.memoStatus = 'en_cours';
+
+    await ticket.save();
+    const io = req.app.get('io');
+    io.emit('invoice:updated', ticket);
+
+    res.json({ success: true, data: ticket });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // DELETE /api/tickets/:id — Admin only can delete a ticket or invoice
 router.delete('/:id', auth, adminOnly, async (req, res) => {
   try {

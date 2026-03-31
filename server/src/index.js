@@ -9,6 +9,7 @@ const compression = require('compression');
 require('dotenv').config();
 
 const User = require('./models/User');
+const CashRegister = require('./models/CashRegister');
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const productRoutes = require('./routes/products');
@@ -199,6 +200,15 @@ mongoose.connect(process.env.MONGODB_URI, {
   .then(async () => {
     console.log('MongoDB connecté avec succès');
     await ensureAdminExists();
+
+    // Nettoyage automatique : supprimer les sessions caisse fermées depuis plus de 24h
+    const cleanCashHistory = async () => {
+      const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const result = await CashRegister.deleteMany({ status: 'closed', closedAt: { $lt: cutoff } });
+      if (result.deletedCount > 0) console.log(`🗑️  ${result.deletedCount} session(s) caisse supprimée(s) (>24h)`);
+    };
+    await cleanCashHistory();
+    setInterval(cleanCashHistory, 60 * 60 * 1000); // toutes les heures
     server.listen(PORT, '0.0.0.0', () => {
       const os = require('os');
       const ifaces = os.networkInterfaces();

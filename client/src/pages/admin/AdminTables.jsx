@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { getStatusColor, getStatusLabel } from '@/lib/utils';
-import { Users, Loader2, Plus, Pencil, Trash2, ShoppingCart } from 'lucide-react';
+import { Users, Loader2, Pencil, Trash2, ShoppingCart } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function AdminTables() {
@@ -55,12 +55,6 @@ export default function AdminTables() {
     };
   }, [socket, loadTables]);
 
-  const openAdd = () => {
-    setEditingTable(null);
-    setForm({ number: '', name: '', capacity: 4, zone: 'Salle principale' });
-    setDialogOpen(true);
-  };
-
   const openEdit = (table) => {
     setEditingTable(table);
     setForm({ number: table.number, name: table.name, capacity: table.capacity, zone: table.zone });
@@ -72,13 +66,8 @@ export default function AdminTables() {
     setSaving(true);
     try {
       const payload = { ...form, number: parseInt(form.number), capacity: parseInt(form.capacity) || 4 };
-      if (editingTable) {
-        await tablesAPI.update(editingTable._id, payload);
-        toast.success('Table modifiée');
-      } else {
-        await tablesAPI.create(payload);
-        toast.success('Table ajoutée');
-      }
+      await tablesAPI.update(editingTable._id, payload);
+      toast.success('Table modifiée');
       setDialogOpen(false);
       loadTables();
     } catch (error) {
@@ -133,9 +122,6 @@ export default function AdminTables() {
               </Button>
             ))}
           </div>
-          <Button size="sm" onClick={openAdd}>
-            <Plus className="w-4 h-4 mr-1" /> Ajouter une table
-          </Button>
         </div>
 
         {/* Tables by zone */}
@@ -195,7 +181,7 @@ export default function AdminTables() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{editingTable ? 'Modifier la table' : 'Ajouter une table'}</DialogTitle>
+            <DialogTitle>Modifier la table</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
@@ -209,7 +195,7 @@ export default function AdminTables() {
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Annuler</Button>
             <Button onClick={handleSave} disabled={saving}>
               {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              {editingTable ? 'Enregistrer' : 'Ajouter'}
+              Enregistrer
             </Button>
           </DialogFooter>
         </DialogContent>

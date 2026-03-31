@@ -7,8 +7,10 @@ import { Loader2 } from 'lucide-react';
 // Critical pages — always bundled for instant render
 import Login from './pages/Login';
 import AgentDashboard from './pages/agent/AgentDashboard';
-import Tables from './pages/agent/Tables';
-import TableDetail from './pages/agent/TableDetail';
+import Restaurant from './pages/agent/Restaurant';
+import BillingPage from './pages/agent/BillingPage';
+import InvoicesEnCours from './pages/agent/InvoicesEnCours';
+import InvoicesAEncaisser from './pages/agent/InvoicesAEncaisser';
 import NewOrder from './pages/agent/NewOrder';
 import Orders from './pages/agent/Orders';
 import Tickets from './pages/agent/Tickets';
@@ -86,8 +88,10 @@ export default function App() {
           </ProtectedRoute>
         }>
           <Route index element={<AgentDashboard />} />
-          <Route path="tables" element={<Tables />} />
-          <Route path="tables/:id" element={<TableDetail />} />
+          <Route path="restaurant" element={<Restaurant />} />
+          <Route path="billing/:id" element={<BillingPage />} />
+          <Route path="en-cours" element={<InvoicesEnCours />} />
+          <Route path="a-encaisser" element={<InvoicesAEncaisser />} />
           <Route path="new-order" element={<NewOrder />} />
           <Route path="orders" element={<Orders />} />
           <Route path="tickets" element={<Tickets />} />

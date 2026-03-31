@@ -36,6 +36,8 @@ const ticketSchema = new mongoose.Schema({
   isPaid: { type: Boolean, default: false },
   isPrinted: { type: Boolean, default: false },
   printedAt: { type: Date },
+  tableNumber: { type: String, default: '' },
+  memoStatus: { type: String, enum: ['en_cours', 'a_encaisser'], default: 'en_cours' },
   notes: { type: String, default: '' }
 }, { timestamps: true });
 

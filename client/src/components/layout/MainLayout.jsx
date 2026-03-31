@@ -5,11 +5,16 @@ import { Menu } from 'lucide-react';
 
 export default function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
+  const toggleCollapse = useCallback(() => setCollapsed(c => !c), []);
+
+  const sidebarWidth = collapsed ? 'lg:ml-14' : 'lg:ml-64';
+  const drawerWidth = collapsed ? 'w-14' : 'w-64';
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Mobile top bar — only visible on small screens */}
+      {/* Mobile top bar */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-30 h-14 bg-card border-b flex items-center px-4 gap-3">
         <button
           onClick={() => setSidebarOpen(true)}
@@ -21,21 +26,25 @@ export default function MainLayout() {
         <span className="font-semibold text-sm">Restaurant Manager</span>
       </div>
 
-      {/* Mobile overlay — closes sidebar on tap */}
+      {/* Mobile overlay */}
       <div
         className={`lg:hidden fixed inset-0 z-40 bg-black/50 transition-opacity duration-200 ${sidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onClick={closeSidebar}
       />
 
-      {/* Sidebar drawer on mobile, fixed on desktop */}
+      {/* Sidebar — drawer on mobile, fixed on desktop */}
       <div
-        className={`fixed inset-y-0 left-0 z-50 w-64 transition-transform duration-200 ease-out lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        className={`fixed inset-y-0 left-0 z-50 transition-all duration-200 ease-out lg:translate-x-0 ${drawerWidth} ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
       >
-        <Sidebar onNavigate={closeSidebar} />
+        <Sidebar
+          onNavigate={closeSidebar}
+          collapsed={collapsed}
+          onToggleCollapse={toggleCollapse}
+        />
       </div>
 
-      {/* Main content — offset for desktop sidebar, offset for mobile top bar */}
-      <main className="lg:ml-64 pt-14 lg:pt-0 min-h-screen">
+      {/* Main content */}
+      <main className={`${sidebarWidth} pt-14 lg:pt-0 min-h-screen transition-all duration-200`}>
         <Outlet />
       </main>
     </div>

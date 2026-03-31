@@ -1,35 +1,23 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSocket } from '@/contexts/SocketContext';
-import { useOffline } from '@/contexts/OfflineContext';
-import { cashRegisterAPI } from '@/services/api';
+import { cashRegisterAPI, ticketsAPI } from '@/services/api';
 import { cn } from '@/lib/utils';
 import {
   UtensilsCrossed, LayoutDashboard, ShoppingCart, Receipt, CreditCard,
-  Users, BarChart3, Package, Settings, LogOut, ChefHat, Wallet,
+  Users, BarChart3, Package, Settings, LogOut, Wallet,
   BookOpen, UserCircle, Printer, TrendingUp, FileText, PieChart, Truck,
-  Wifi, WifiOff, RefreshCw, Loader2, AlertTriangle
+  Loader2, AlertTriangle, BookMarked, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import toast from 'react-hot-toast';
-
-const agentNav = [
-  { to: '/agent', icon: LayoutDashboard, label: 'Tableau de bord', end: true },
-  { to: '/agent/tables', icon: UtensilsCrossed, label: 'Tables (sur place)' },
-  { to: '/agent/new-order', icon: Truck, label: 'Emporter / Livraison' },
-  { to: '/agent/orders', icon: ShoppingCart, label: 'Commandes' },
-  { to: '/agent/tickets', icon: Receipt, label: 'Tickets' },
-  { to: '/agent/cash-register', icon: Wallet, label: 'Caisse' },
-  { to: '/agent/clients', icon: UserCircle, label: 'Clients' },
-  { to: '/agent/history', icon: FileText, label: 'Historique' },
-  { to: '/agent/settings', icon: Settings, label: 'Paramètres' },
-];
 
 const adminNav = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true },
@@ -48,31 +36,52 @@ const adminNav = [
   { to: '/admin/settings', icon: Settings, label: 'Paramètres' },
 ];
 
-export default function Sidebar({ onNavigate }) {
+function useSidebarCounts(isAgent, socket) {
+  const [counts, setCounts] = useState({ enCours: 0, aEncaisser: 0 });
+
+  const refresh = useCallback(async () => {
+    if (!isAgent) return;
+    try {
+      const { data } = await ticketsAPI.getCounts();
+      setCounts(data.data);
+    } catch { /* silent */ }
+  }, [isAgent]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  useEffect(() => {
+    if (!socket || !isAgent) return;
+    socket.on('invoice:created', refresh);
+    socket.on('invoice:updated', refresh);
+    socket.on('invoice:memo', refresh);
+    socket.on('ticket:paid', refresh);
+    return () => {
+      socket.off('invoice:created', refresh);
+      socket.off('invoice:updated', refresh);
+      socket.off('invoice:memo', refresh);
+      socket.off('ticket:paid', refresh);
+    };
+  }, [socket, isAgent, refresh]);
+
+  return counts;
+}
+
+export default function Sidebar({ onNavigate, collapsed, onToggleCollapse }) {
   const { user, isAdmin, logout } = useAuth();
-  const { connected } = useSocket();
-  const { isOnline, pendingCount, syncing, syncPendingActions } = useOffline();
+  const { socket } = useSocket();
   const navigate = useNavigate();
-  const navItems = isAdmin ? adminNav : agentNav;
+  const counts = useSidebarCounts(!isAdmin, socket);
 
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [closingAmount, setClosingAmount] = useState('');
   const [closingLoading, setClosingLoading] = useState(false);
 
   const handleLogout = async () => {
-    if (isAdmin) {
-      logout();
-      navigate('/login');
-      return;
-    }
-    // Agent: check if cash register is open
+    if (isAdmin) { logout(); navigate('/login'); return; }
     try {
       const res = await cashRegisterAPI.getCurrent();
-      if (res.data.data) {
-        setShowCloseDialog(true);
-        return;
-      }
-    } catch { /* no open register, proceed */ }
+      if (res.data.data) { setShowCloseDialog(true); return; }
+    } catch { /* no open register */ }
     logout();
     navigate('/login');
   };
@@ -92,69 +101,131 @@ export default function Sidebar({ onNavigate }) {
     }
   };
 
+  const handleNav = () => { onNavigate?.(); };
+
+  const navLinkClass = ({ isActive }) => cn(
+    'relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+    collapsed ? 'justify-center px-0' : '',
+    isActive
+      ? 'bg-primary text-primary-foreground'
+      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+  );
+
+  const agentNav = [
+    { to: '/agent', icon: LayoutDashboard, label: 'Tableau de bord', end: true },
+    { to: '/agent/restaurant', icon: UtensilsCrossed, label: 'Restaurant' },
+    {
+      to: '/agent/en-cours',
+      icon: BookMarked,
+      label: 'En cours',
+      badge: counts.enCours > 0 ? counts.enCours : null,
+      badgeColor: 'bg-orange-500'
+    },
+    {
+      to: '/agent/a-encaisser',
+      icon: Wallet,
+      label: 'À Encaisser',
+      badge: counts.aEncaisser > 0 ? counts.aEncaisser : null,
+      badgeColor: 'bg-blue-500'
+    },
+    { to: '/agent/new-order', icon: Truck, label: 'Emporter / Livraison' },
+    { to: '/agent/tickets', icon: Receipt, label: 'Tickets' },
+    { to: '/agent/cash-register', icon: Wallet, label: 'Caisse' },
+    { to: '/agent/clients', icon: UserCircle, label: 'Clients' },
+    { to: '/agent/settings', icon: Settings, label: 'Paramètres' },
+  ];
+
+  const navItems = isAdmin ? adminNav : agentNav;
+
   return (
-    <aside className="h-screen w-64 bg-card border-r flex flex-col">
-      <div className="p-4 flex items-center gap-3">
-        <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
-          <UtensilsCrossed className="w-5 h-5 text-primary-foreground" />
-        </div>
-        <div>
-          <h2 className="font-bold text-sm">Restaurant Manager</h2>
-          <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
-        </div>
+    <aside className={cn(
+      'h-screen bg-card border-r flex flex-col transition-all duration-200',
+      collapsed ? 'w-14' : 'w-64'
+    )}>
+      {/* Header */}
+      <div className={cn('p-3 flex items-center gap-3', collapsed && 'justify-center')}>
+        {!collapsed && (
+          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
+            <UtensilsCrossed className="w-4 h-4 text-primary-foreground" />
+          </div>
+        )}
+        {!collapsed && (
+          <div className="flex-1 min-w-0">
+            <h2 className="font-bold text-sm truncate">Restaurant Manager</h2>
+            <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
+          </div>
+        )}
+        {/* Collapse toggle — desktop only */}
+        <button
+          onClick={onToggleCollapse}
+          className="hidden lg:flex p-1.5 rounded-lg hover:bg-accent transition-colors shrink-0"
+          title={collapsed ? 'Développer' : 'Réduire'}
+        >
+          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+        </button>
       </div>
 
       <Separator />
 
-      <nav className="flex-1 overflow-y-auto p-3 space-y-1">
+      <nav className="flex-1 overflow-y-auto p-2 space-y-0.5">
         {navItems.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
             end={item.end}
-            onClick={onNavigate}
-            className={({ isActive }) =>
-              cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-                isActive
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-              )
-            }
+            onClick={handleNav}
+            title={collapsed ? item.label : undefined}
+            className={navLinkClass}
           >
-            <item.icon className="w-4 h-4" />
-            {item.label}
+            <item.icon className="w-4 h-4 shrink-0" />
+            {!collapsed && (
+              <>
+                <span className="flex-1 truncate">{item.label}</span>
+                {item.badge != null && (
+                  <span className={cn('text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center shrink-0', item.badgeColor)}>
+                    {item.badge > 9 ? '9+' : item.badge}
+                  </span>
+                )}
+              </>
+            )}
+            {collapsed && item.badge != null && (
+              <span className={cn('absolute top-1 right-1 w-2.5 h-2.5 rounded-full', item.badgeColor)} />
+            )}
           </NavLink>
         ))}
       </nav>
 
       <Separator />
 
-      <div className="p-3">
-        <div className="flex items-center gap-3 px-3 py-2 mb-2">
-          <div className="relative">
-            <Avatar className="h-8 w-8">
-              <AvatarFallback className="text-xs bg-primary/10 text-primary">
-                {user?.firstName?.[0]}{user?.lastName?.[0]}
-              </AvatarFallback>
-            </Avatar>
-            <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-card bg-green-500" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">{user?.firstName} {user?.lastName}</p>
-            <div className="flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+      <div className={cn('p-2 space-y-1', collapsed && 'items-center')}>
+        {!collapsed && (
+          <div className="flex items-center gap-2 px-3 py-2">
+            <div className="relative">
+              <Avatar className="h-7 w-7">
+                <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                  {user?.firstName?.[0]}{user?.lastName?.[0]}
+                </AvatarFallback>
+              </Avatar>
+              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-card bg-green-500" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{user?.firstName} {user?.lastName}</p>
               <p className="text-xs text-muted-foreground">En ligne</p>
             </div>
           </div>
-        </div>
-        <Button variant="ghost" className="w-full justify-start gap-3 text-muted-foreground" onClick={handleLogout}>
-          <LogOut className="w-4 h-4" />
-          Déconnexion
+        )}
+        <Button
+          variant="ghost"
+          className={cn('w-full text-muted-foreground', collapsed ? 'justify-center px-0' : 'justify-start gap-3')}
+          onClick={handleLogout}
+          title={collapsed ? 'Déconnexion' : undefined}
+        >
+          <LogOut className="w-4 h-4 shrink-0" />
+          {!collapsed && 'Déconnexion'}
         </Button>
       </div>
 
-      {/* Cash register close dialog for agents */}
+      {/* Cash register close dialog */}
       <Dialog open={showCloseDialog} onOpenChange={setShowCloseDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -164,7 +235,7 @@ export default function Sidebar({ onNavigate }) {
             </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Vous devez clôturer votre caisse avant de vous déconnecter. L'administrateur sera informé de la fermeture.
+            Vous devez clôturer votre caisse avant de vous déconnecter.
           </p>
           <div className="space-y-3">
             <div>
