@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { statsAPI, notificationsAPI } from '@/services/api';
+import { statsAPI, notificationsAPI, readCache } from '@/services/api';
 import toast from 'react-hot-toast';
 import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
@@ -31,18 +31,22 @@ const NOTIF_ICONS = {
 };
 
 export default function AdminDashboard() {
-  const [stats, setStats] = useState(null);
-  const [agentStats, setAgentStats] = useState([]);
-  const [agentPerf, setAgentPerf] = useState([]);
-  const [productAnalytics, setProductAnalytics] = useState([]);
-  const [revenueData, setRevenueData] = useState([]);
+  const [period, setPeriod] = useState('today');
+  const [stats, setStats] = useState(() => readCache('/stats/dashboard', { period: 'today' })?.data?.data || null);
+  const [agentStats, setAgentStats] = useState(() => readCache('/stats/agents', { period: 'today' })?.data?.data || []);
+  const [agentPerf, setAgentPerf] = useState(() => readCache('/stats/agent-performance', { period: 'today' })?.data?.data || []);
+  const [productAnalytics, setProductAnalytics] = useState(() => readCache('/stats/product-analytics', { period: 'today' })?.data?.data?.slice(0, 15) || []);
+  const [revenueData, setRevenueData] = useState(() => readCache('/stats/revenue-chart', { period: 'today' })?.data?.data || []);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [period, setPeriod] = useState('today');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() =>
+    !readCache('/stats/dashboard', { period: 'today' }) ||
+    !readCache('/stats/agents', { period: 'today' })
+  );
   const { socket } = useSocket();
 
   const loadStats = useCallback(async () => {
+    if (!readCache('/stats/dashboard', { period }) || !readCache('/stats/agents', { period })) setLoading(true);
     try {
       const [dashRes, agentsRes, revenueRes, perfRes, prodRes] = await Promise.all([
         statsAPI.getDashboard({ period }),

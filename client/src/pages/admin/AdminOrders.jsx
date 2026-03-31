@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ordersAPI } from '@/services/api';
+import { ordersAPI, readCache } from '@/services/api';
 import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent } from '@/components/ui/card';
@@ -12,8 +12,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import toast from 'react-hot-toast';
 
 export default function AdminOrders() {
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [orders, setOrders] = useState(() => readCache('/orders', { limit: 200 })?.data?.data || []);
+  const [loading, setLoading] = useState(() => !readCache('/orders', { limit: 200 }));
   const [filter, setFilter] = useState('all');
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ordersAPI, ticketsAPI, statsAPI, invalidateCache } from '@/services/api';
+import { ordersAPI, ticketsAPI, statsAPI, invalidateCache, readCache } from '@/services/api';
 import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,10 +10,12 @@ import { Loader2, Activity, ShoppingCart, Receipt, Users, AlertCircle, Clock } f
 import toast from 'react-hot-toast';
 
 export default function Supervision() {
-  const [orders, setOrders] = useState([]);
-  const [tickets, setTickets] = useState([]);
-  const [agentStats, setAgentStats] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [orders, setOrders] = useState(() => readCache('/orders', { limit: 50 })?.data?.data || []);
+  const [tickets, setTickets] = useState(() => readCache('/tickets', { limit: 50 })?.data?.data || []);
+  const [agentStats, setAgentStats] = useState(() => readCache('/stats/agents', { period: 'today' })?.data?.data || []);
+  const [loading, setLoading] = useState(() =>
+    !readCache('/orders', { limit: 50 }) || !readCache('/tickets', { limit: 50 }) || !readCache('/stats/agents', { period: 'today' })
+  );
   const { socket } = useSocket();
 
   const loadData = useCallback(async () => {

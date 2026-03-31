@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { productsAPI, categoriesAPI } from '@/services/api';
+import { productsAPI, categoriesAPI, readCache } from '@/services/api';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,9 +15,9 @@ import { Plus, Search, Edit, Trash2, Package, Loader2, Tag } from 'lucide-react'
 import toast from 'react-hot-toast';
 
 export default function ProductManagement() {
-  const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [products, setProducts] = useState(() => readCache('/products', { search: '' })?.data?.data || []);
+  const [categories, setCategories] = useState(() => readCache('/categories')?.data?.data || []);
+  const [loading, setLoading] = useState(() => !readCache('/products', { search: '' }) || !readCache('/categories'));
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
 

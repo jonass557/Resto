@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { tablesAPI } from '@/services/api';
+import { tablesAPI, readCache } from '@/services/api';
 import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent } from '@/components/ui/card';
@@ -13,8 +13,8 @@ import { Users, Loader2, Plus, Pencil, Trash2, ShoppingCart } from 'lucide-react
 import toast from 'react-hot-toast';
 
 export default function AdminTables() {
-  const [tables, setTables] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [tables, setTables] = useState(() => readCache('/tables')?.data?.data || []);
+  const [loading, setLoading] = useState(() => !readCache('/tables'));
   const [filter, setFilter] = useState('all');
   const { socket } = useSocket();
 

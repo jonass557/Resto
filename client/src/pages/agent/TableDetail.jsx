@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { tablesAPI, productsAPI, categoriesAPI, ordersAPI, ticketsAPI, invalidateCache } from '@/services/api';
+import { tablesAPI, productsAPI, categoriesAPI, ordersAPI, ticketsAPI, invalidateCache, readCache } from '@/services/api';
 import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,13 +17,18 @@ export default function TableDetail() {
   const navigate = useNavigate();
   const { socket } = useSocket();
 
-  const [table, setTable] = useState(null);
-  const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
+  const [products, setProducts] = useState(() => readCache('/products', { isAvailable: true })?.data?.data || []);
+  const [categories, setCategories] = useState(() => readCache('/categories')?.data?.data || []);
+  const [table, setTable] = useState(() => {
+    const cached = readCache('/tables')?.data?.data;
+    return cached ? cached.find(t => t._id === id) || null : null;
+  });
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [cart, setCart] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() =>
+    !readCache('/tables') || !readCache('/products', { isAvailable: true }) || !readCache('/categories')
+  );
   const [submitting, setSubmitting] = useState(false);
   const [mobileTab, setMobileTab] = useState('products');
 

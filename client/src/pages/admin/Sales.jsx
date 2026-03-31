@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { statsAPI } from '@/services/api';
+import { statsAPI, readCache } from '@/services/api';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,14 +11,22 @@ import { Loader2, TrendingUp, Calendar, Package } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 
 export default function Sales() {
-  const [salesData, setSalesData] = useState(null);
-  const [productStats, setProductStats] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [startDate, setStartDate] = useState(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState(() => new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [salesData, setSalesData] = useState(() => {
+    const sd = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const ed = new Date().toISOString().split('T')[0];
+    return readCache('/stats/sales', { startDate: sd, endDate: ed })?.data?.data || null;
+  });
+  const [productStats, setProductStats] = useState(() => readCache('/stats/products', { period: 'month' })?.data?.data || []);
+  const [loading, setLoading] = useState(() => {
+    const sd = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const ed = new Date().toISOString().split('T')[0];
+    return !readCache('/stats/sales', { startDate: sd, endDate: ed }) || !readCache('/stats/products', { period: 'month' });
+  });
 
   const loadData = async () => {
-    setLoading(true);
+    if (!readCache('/stats/sales', { startDate, endDate })) setLoading(true);
     try {
       const [salesRes, productsRes] = await Promise.all([
         statsAPI.getSales({ startDate, endDate }),

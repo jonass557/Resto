@@ -36,6 +36,12 @@ export function invalidateCache(prefix) {
   }
 }
 
+// Synchronous cache read — returns the cached response or null (used to init component state instantly)
+export function readCache(url, params) {
+  const entry = _cache.get(cacheKey(url, params));
+  return entry ? entry.data : null;
+}
+
 // Cached GET — returns cached data instantly if fresh, else fetches
 export function cachedGet(url, params) {
   const key = cacheKey(url, params);
@@ -150,23 +156,23 @@ export const tablesAPI = {
 
 // Orders
 export const ordersAPI = {
-  getAll: (params) => api.get('/orders', { params }),
+  getAll: (params) => cachedGet('/orders', params),
   getById: (id) => api.get(`/orders/${id}`),
-  create: (data) => api.post('/orders', data),
-  updateStatus: (id, status) => api.patch(`/orders/${id}/status`, { status }),
-  updateItemStatus: (orderId, itemId, status) => api.patch(`/orders/${orderId}/items/${itemId}/status`, { status }),
-  delete: (id) => api.delete(`/orders/${id}`),
+  create: (data) => api.post('/orders', data).then(r => { invalidateCache('/orders'); return r; }),
+  updateStatus: (id, status) => api.patch(`/orders/${id}/status`, { status }).then(r => { invalidateCache('/orders'); return r; }),
+  updateItemStatus: (orderId, itemId, status) => api.patch(`/orders/${orderId}/items/${itemId}/status`, { status }).then(r => { invalidateCache('/orders'); return r; }),
+  delete: (id) => api.delete(`/orders/${id}`).then(r => { invalidateCache('/orders'); return r; }),
 };
 
 // Tickets
 export const ticketsAPI = {
-  getAll: (params) => api.get('/tickets', { params }),
+  getAll: (params) => cachedGet('/tickets', params),
   getById: (id) => api.get(`/tickets/${id}`),
-  createInvoice: (tableId) => api.post(`/tickets/invoice/${tableId}`),
-  createInvoiceFromOrders: (orderIds) => api.post('/tickets/invoice-orders', { orderIds }),
-  markPrinted: (id) => api.patch(`/tickets/${id}/printed`),
-  markPaid: (id) => api.patch(`/tickets/${id}/mark-paid`),
-  delete: (id) => api.delete(`/tickets/${id}`),
+  createInvoice: (tableId) => api.post(`/tickets/invoice/${tableId}`).then(r => { invalidateCache('/tickets'); return r; }),
+  createInvoiceFromOrders: (orderIds) => api.post('/tickets/invoice-orders', { orderIds }).then(r => { invalidateCache('/tickets'); return r; }),
+  markPrinted: (id) => api.patch(`/tickets/${id}/printed`).then(r => { invalidateCache('/tickets'); return r; }),
+  markPaid: (id) => api.patch(`/tickets/${id}/mark-paid`).then(r => { invalidateCache('/tickets'); return r; }),
+  delete: (id) => api.delete(`/tickets/${id}`).then(r => { invalidateCache('/tickets'); return r; }),
 };
 
 // Payments
@@ -178,22 +184,22 @@ export const paymentsAPI = {
 
 // Cash Register
 export const cashRegisterAPI = {
-  getAll: (params) => api.get('/cash-register', { params }),
-  getCurrent: () => api.get('/cash-register/current'),
-  open: (data) => api.post('/cash-register/open', data),
-  close: (data) => api.post('/cash-register/close', data),
+  getAll: (params) => cachedGet('/cash-register', params),
+  getCurrent: () => cachedGet('/cash-register/current'),
+  open: (data) => api.post('/cash-register/open', data).then(r => { invalidateCache('/cash-register'); return r; }),
+  close: (data) => api.post('/cash-register/close', data).then(r => { invalidateCache('/cash-register'); return r; }),
   getById: (id) => api.get(`/cash-register/${id}`),
 };
 
 // Clients
 export const clientsAPI = {
-  getAll: (params) => api.get('/clients', { params }),
+  getAll: (params) => cachedGet('/clients', params),
   getById: (id) => api.get(`/clients/${id}`),
   getHistory: (id) => api.get(`/clients/${id}/history`),
   getBalance: (id) => api.get(`/clients/${id}/balance`),
-  create: (data) => api.post('/clients', data),
-  update: (id, data) => api.put(`/clients/${id}`, data),
-  delete: (id) => api.delete(`/clients/${id}`),
+  create: (data) => api.post('/clients', data).then(r => { invalidateCache('/clients'); return r; }),
+  update: (id, data) => api.put(`/clients/${id}`, data).then(r => { invalidateCache('/clients'); return r; }),
+  delete: (id) => api.delete(`/clients/${id}`).then(r => { invalidateCache('/clients'); return r; }),
 };
 
 // Stats
@@ -214,14 +220,14 @@ export const statsAPI = {
 
 // Accounting
 export const accountingAPI = {
-  getJournal: (params) => api.get('/accounting/journal', { params }),
-  getRevenue: (params) => api.get('/accounting/revenue', { params }),
-  getExpenses: (params) => api.get('/accounting/expenses', { params }),
-  createExpense: (data) => api.post('/accounting/expenses', data),
-  updateExpense: (id, data) => api.put(`/accounting/expenses/${id}`, data),
-  deleteExpense: (id) => api.delete(`/accounting/expenses/${id}`),
-  getBalance: (params) => api.get('/accounting/balance', { params }),
-  getLedger: (params) => api.get('/accounting/ledger', { params }),
+  getJournal: (params) => cachedGet('/accounting/journal', params),
+  getRevenue: (params) => cachedGet('/accounting/revenue', params),
+  getExpenses: (params) => cachedGet('/accounting/expenses', params),
+  createExpense: (data) => api.post('/accounting/expenses', data).then(r => { invalidateCache('/accounting'); return r; }),
+  updateExpense: (id, data) => api.put(`/accounting/expenses/${id}`, data).then(r => { invalidateCache('/accounting'); return r; }),
+  deleteExpense: (id) => api.delete(`/accounting/expenses/${id}`).then(r => { invalidateCache('/accounting'); return r; }),
+  getBalance: (params) => cachedGet('/accounting/balance', params),
+  getLedger: (params) => cachedGet('/accounting/ledger', params),
 };
 
 // ── Local Print Server ──
@@ -298,8 +304,8 @@ export const printerAPI = {
 
 // Settings
 export const settingsAPI = {
-  get: () => api.get('/settings'),
-  update: (data) => api.put('/settings', data),
+  get: () => cachedGet('/settings'),
+  update: (data) => api.put('/settings', data).then(r => { invalidateCache('/settings'); return r; }),
 };
 
 // Notifications

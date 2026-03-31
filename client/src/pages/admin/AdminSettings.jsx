@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { settingsAPI, usersAPI, authAPI, printerAPI, getLocalPrintServerUrl, setLocalPrintServerUrl, pingLocalPrintServer, isLocalPrintServerConfigured } from '@/services/api';
+import { settingsAPI, usersAPI, authAPI, printerAPI, getLocalPrintServerUrl, setLocalPrintServerUrl, pingLocalPrintServer, isLocalPrintServerConfigured, readCache } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -26,8 +26,8 @@ const featureLabels = [
 
 export default function AdminSettings() {
   const { user, updateUser } = useAuth();
-  const [settings, setSettings] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [settings, setSettings] = useState(() => readCache('/settings')?.data?.data || null);
+  const [loading, setLoading] = useState(() => !readCache('/settings'));
   const [saving, setSaving] = useState(false);
 
   // Admin profile

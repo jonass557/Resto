@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { statsAPI } from '@/services/api';
+import { statsAPI, readCache } from '@/services/api';
 import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,11 +23,11 @@ export default function RevenueHistory() {
   const [view, setView] = useState('months');
   const [year, setYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(null);
-  const [monthlyData, setMonthlyData] = useState([]);
+  const [monthlyData, setMonthlyData] = useState(() => readCache('/stats/revenue-history', { year: new Date().getFullYear() })?.data?.data || []);
   const [dailyData, setDailyData] = useState([]);
-  const [totalRevenue, setTotalRevenue] = useState(0);
-  const [totalTransactions, setTotalTransactions] = useState(0);
-  const [loading, setLoading] = useState(true);
+  const [totalRevenue, setTotalRevenue] = useState(() => readCache('/stats/revenue-history', { year: new Date().getFullYear() })?.data?.totalRevenue || 0);
+  const [totalTransactions, setTotalTransactions] = useState(() => readCache('/stats/revenue-history', { year: new Date().getFullYear() })?.data?.totalTransactions || 0);
+  const [loading, setLoading] = useState(() => !readCache('/stats/revenue-history', { year: new Date().getFullYear() }));
   const [dailyReport, setDailyReport] = useState(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
@@ -38,7 +38,7 @@ export default function RevenueHistory() {
   for (let y = currentYear; y >= currentYear - 5; y--) years.push(y);
 
   const loadMonthly = useCallback(async () => {
-    setLoading(true);
+    if (!readCache('/stats/revenue-history', { year })) setLoading(true);
     try {
       const { data } = await statsAPI.getRevenueHistory({ year });
       setMonthlyData(data.data || []);
@@ -49,7 +49,7 @@ export default function RevenueHistory() {
   }, [year]);
 
   const loadDaily = useCallback(async (m) => {
-    setLoading(true);
+    if (!readCache('/stats/revenue-history', { year, month: m })) setLoading(true);
     try {
       const { data } = await statsAPI.getRevenueHistory({ year, month: m });
       setDailyData(data.data || []);

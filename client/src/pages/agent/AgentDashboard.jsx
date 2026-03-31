@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { statsAPI, cashRegisterAPI } from '@/services/api';
+import { statsAPI, cashRegisterAPI, readCache } from '@/services/api';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -18,12 +18,20 @@ const PERIODS = [
 
 export default function AgentDashboard() {
   const { user } = useAuth();
-  const [stats, setStats] = useState(null);
-  const [cashRegister, setCashRegister] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState('today');
+  const [stats, setStats] = useState(() => {
+    const u = user || JSON.parse(localStorage.getItem('user') || 'null');
+    return readCache(`/stats/agent/${u?._id}`, { period: 'today' })?.data?.data || null;
+  });
+  const [cashRegister, setCashRegister] = useState(() =>
+    readCache('/cash-register/current')?.data?.data || null
+  );
+  const [loading, setLoading] = useState(() => {
+    const u = user || JSON.parse(localStorage.getItem('user') || 'null');
+    return !readCache(`/stats/agent/${u?._id}`, { period: 'today' }) || !readCache('/cash-register/current');
+  });
 
-  const firstLoad = useRef(true);
+  const firstLoad = useRef(!stats || !cashRegister);
 
   const loadData = useCallback(async () => {
     if (firstLoad.current) setLoading(true);

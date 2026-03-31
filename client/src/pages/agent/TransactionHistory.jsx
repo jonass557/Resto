@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { statsAPI } from '@/services/api';
+import { statsAPI, readCache } from '@/services/api';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,19 +20,25 @@ const METHOD_LABELS = {
 
 export default function TransactionHistory() {
   const { user } = useAuth();
-  const [payments, setPayments] = useState([]);
-  const [summary, setSummary] = useState(null);
-  const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
-  const [loading, setLoading] = useState(true);
   const [startDate, setStartDate] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 30);
-    return d.toISOString().split('T')[0];
+    const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split('T')[0];
   });
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [payments, setPayments] = useState(() => {
+    const u = JSON.parse(localStorage.getItem('user') || 'null');
+    const sd = new Date(); sd.setDate(sd.getDate() - 30);
+    return readCache(`/stats/agent-history/${u?._id}`, { startDate: sd.toISOString().split('T')[0], endDate: new Date().toISOString().split('T')[0], page: 1, limit: 30 })?.data?.data || [];
+  });
+  const [summary, setSummary] = useState(null);
+  const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
+  const [loading, setLoading] = useState(() => {
+    const u = JSON.parse(localStorage.getItem('user') || 'null');
+    const sd = new Date(); sd.setDate(sd.getDate() - 30);
+    return !readCache(`/stats/agent-history/${u?._id}`, { startDate: sd.toISOString().split('T')[0], endDate: new Date().toISOString().split('T')[0], page: 1, limit: 30 });
+  });
 
   const loadHistory = useCallback(async (page = 1) => {
-    setLoading(true);
+    if (!readCache(`/stats/agent-history/${user._id}`, { startDate, endDate, page, limit: 30 })) setLoading(true);
     try {
       const { data } = await statsAPI.getAgentHistory(user._id, {
         startDate, endDate, page, limit: 30

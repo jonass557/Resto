@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { accountingAPI } from '@/services/api';
+import { accountingAPI, readCache } from '@/services/api';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,19 +14,39 @@ import { Loader2, Plus, TrendingUp, TrendingDown, Wallet, BookOpen, FileText } f
 import toast from 'react-hot-toast';
 
 export default function Accounting() {
-  const [journal, setJournal] = useState(null);
-  const [balance, setBalance] = useState(null);
-  const [expenses, setExpenses] = useState([]);
-  const [ledger, setLedger] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [startDate, setStartDate] = useState(() => new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [journal, setJournal] = useState(() => {
+    const sd = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const ed = new Date().toISOString().split('T')[0];
+    return readCache('/accounting/journal', { startDate: sd, endDate: ed })?.data?.data || null;
+  });
+  const [balance, setBalance] = useState(() => {
+    const sd = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const ed = new Date().toISOString().split('T')[0];
+    return readCache('/accounting/balance', { startDate: sd, endDate: ed })?.data?.data || null;
+  });
+  const [expenses, setExpenses] = useState(() => {
+    const sd = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const ed = new Date().toISOString().split('T')[0];
+    return readCache('/accounting/expenses', { startDate: sd, endDate: ed })?.data?.data || [];
+  });
+  const [ledger, setLedger] = useState(() => {
+    const sd = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const ed = new Date().toISOString().split('T')[0];
+    return readCache('/accounting/ledger', { startDate: sd, endDate: ed })?.data?.data || [];
+  });
+  const [loading, setLoading] = useState(() => {
+    const sd = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const ed = new Date().toISOString().split('T')[0];
+    return !readCache('/accounting/journal', { startDate: sd, endDate: ed }) || !readCache('/accounting/balance', { startDate: sd, endDate: ed });
+  });
   const [expenseDialog, setExpenseDialog] = useState(false);
   const [expenseForm, setExpenseForm] = useState({ description: '', amount: '', category: 'other', paymentMethod: 'cash', date: new Date().toISOString().split('T')[0] });
   const [submitting, setSubmitting] = useState(false);
-  const [startDate, setStartDate] = useState(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
 
   const loadData = async () => {
-    setLoading(true);
+    if (!readCache('/accounting/journal', { startDate, endDate })) setLoading(true);
     try {
       const [journalRes, balanceRes, expensesRes, ledgerRes] = await Promise.all([
         accountingAPI.getJournal({ startDate, endDate }),

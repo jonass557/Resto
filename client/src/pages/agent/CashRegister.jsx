@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { cashRegisterAPI, ticketsAPI } from '@/services/api';
+import { cashRegisterAPI, ticketsAPI, readCache } from '@/services/api';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,10 +14,18 @@ import toast from 'react-hot-toast';
 
 export default function CashRegister() {
   const { user } = useAuth();
-  const [currentSession, setCurrentSession] = useState(null);
-  const [history, setHistory] = useState([]);
+  const [currentSession, setCurrentSession] = useState(() =>
+    readCache('/cash-register/current')?.data?.data || null
+  );
+  const [history, setHistory] = useState(() => {
+    const u = user || JSON.parse(localStorage.getItem('user') || 'null');
+    return readCache('/cash-register', { agent: u?._id, limit: 50 })?.data?.data || [];
+  });
   const [unpaidTickets, setUnpaidTickets] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => {
+    const u = user || JSON.parse(localStorage.getItem('user') || 'null');
+    return !readCache('/cash-register/current') || !readCache('/cash-register', { agent: u?._id, limit: 50 });
+  });
   const [openDialog, setOpenDialog] = useState(false);
   const [closeDialog, setCloseDialog] = useState(false);
   const [openingAmount, setOpeningAmount] = useState('');

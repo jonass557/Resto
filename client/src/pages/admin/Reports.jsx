@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { statsAPI, accountingAPI } from '@/services/api';
+import { statsAPI, accountingAPI, readCache } from '@/services/api';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,15 +13,27 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6', '#F97316', '#06B6D4', '#84CC16'];
 
 export default function Reports() {
-  const [salesData, setSalesData] = useState(null);
-  const [balance, setBalance] = useState(null);
-  const [productStats, setProductStats] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [startDate, setStartDate] = useState(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState(() => new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [salesData, setSalesData] = useState(() => {
+    const sd = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const ed = new Date().toISOString().split('T')[0];
+    return readCache('/stats/sales', { startDate: sd, endDate: ed })?.data?.data || null;
+  });
+  const [balance, setBalance] = useState(() => {
+    const sd = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const ed = new Date().toISOString().split('T')[0];
+    return readCache('/accounting/balance', { startDate: sd, endDate: ed })?.data?.data || null;
+  });
+  const [productStats, setProductStats] = useState(() => readCache('/stats/products', { period: 'month' })?.data?.data || []);
+  const [loading, setLoading] = useState(() => {
+    const sd = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const ed = new Date().toISOString().split('T')[0];
+    return !readCache('/stats/sales', { startDate: sd, endDate: ed }) || !readCache('/accounting/balance', { startDate: sd, endDate: ed });
+  });
 
   const loadData = async () => {
-    setLoading(true);
+    if (!readCache('/stats/sales', { startDate, endDate })) setLoading(true);
     try {
       const [salesRes, balanceRes, productsRes] = await Promise.all([
         statsAPI.getSales({ startDate, endDate }),

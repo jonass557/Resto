@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { clientsAPI } from '@/services/api';
+import { clientsAPI, readCache } from '@/services/api';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,9 +13,9 @@ import { Search, Plus, UserCircle, Loader2, Phone, Mail, MapPin } from 'lucide-r
 import toast from 'react-hot-toast';
 
 export default function Clients() {
-  const [clients, setClients] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [clients, setClients] = useState(() => readCache('/clients', { search: '' })?.data?.data || []);
+  const [loading, setLoading] = useState(() => !readCache('/clients', { search: '' }));
   const [dialog, setDialog] = useState(false);
   const [detailDialog, setDetailDialog] = useState(false);
   const [selectedClient, setSelectedClient] = useState(null);

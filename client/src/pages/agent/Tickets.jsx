@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ticketsAPI } from '@/services/api';
+import { ticketsAPI, readCache } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSocket } from '@/contexts/SocketContext';
 import { usePrinter } from '@/contexts/PrinterContext';
@@ -14,14 +14,20 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import toast from 'react-hot-toast';
 
 export default function Tickets() {
-  const [tickets, setTickets] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const [tickets, setTickets] = useState(() => {
+    const u = user || JSON.parse(localStorage.getItem('user') || 'null');
+    return readCache('/tickets', { agent: u?._id, limit: 100 })?.data?.data || [];
+  });
+  const [loading, setLoading] = useState(() => {
+    const u = user || JSON.parse(localStorage.getItem('user') || 'null');
+    return !readCache('/tickets', { agent: u?._id, limit: 100 });
+  });
   const [filter, setFilter] = useState('all');
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [printing, setPrinting] = useState(false);
   const [payDialog, setPayDialog] = useState(false);
   const [invoiceToPay, setInvoiceToPay] = useState(null);
-  const { user } = useAuth();
   const { socket } = useSocket();
   const { printTicketById } = usePrinter();
 

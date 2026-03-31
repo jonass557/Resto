@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { usersAPI } from '@/services/api';
+import { usersAPI, readCache } from '@/services/api';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,9 +14,9 @@ import { Plus, Search, Edit, Trash2, Users, Loader2, Shield, UserCircle } from '
 import toast from 'react-hot-toast';
 
 export default function UserManagement() {
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [users, setUsers] = useState(() => readCache('/users', { search: '' })?.data?.data || []);
+  const [loading, setLoading] = useState(() => !readCache('/users', { search: '' }));
   const [dialog, setDialog] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [submitting, setSubmitting] = useState(false);

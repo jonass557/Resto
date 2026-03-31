@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ordersAPI } from '@/services/api';
+import { ordersAPI, readCache } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
@@ -12,11 +12,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import toast from 'react-hot-toast';
 
 export default function Orders() {
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const [orders, setOrders] = useState(() => {
+    const u = user || JSON.parse(localStorage.getItem('user') || 'null');
+    return readCache('/orders', { agent: u?._id, limit: 100 })?.data?.data || [];
+  });
+  const [loading, setLoading] = useState(() => {
+    const u = user || JSON.parse(localStorage.getItem('user') || 'null');
+    return !readCache('/orders', { agent: u?._id, limit: 100 });
+  });
   const [filter, setFilter] = useState('all');
   const [selectedOrder, setSelectedOrder] = useState(null);
-  const { user } = useAuth();
   const { socket } = useSocket();
 
   const loadOrders = useCallback(async () => {

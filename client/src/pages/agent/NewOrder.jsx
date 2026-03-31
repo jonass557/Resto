@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { productsAPI, categoriesAPI, ordersAPI, ticketsAPI, invalidateCache } from '@/services/api';
+import { productsAPI, categoriesAPI, ordersAPI, ticketsAPI, invalidateCache, readCache } from '@/services/api';
 import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
 import PaymentDialog from '@/components/PaymentDialog';
@@ -19,12 +19,14 @@ export default function NewOrder() {
   const { socket } = useSocket();
 
   const [orderType, setOrderType] = useState('takeaway');
-  const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]);
+  const [products, setProducts] = useState(() => readCache('/products', { isAvailable: true })?.data?.data || []);
+  const [categories, setCategories] = useState(() => readCache('/categories')?.data?.data || []);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [cart, setCart] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() =>
+    !readCache('/products', { isAvailable: true }) || !readCache('/categories')
+  );
   const [submitting, setSubmitting] = useState(false);
   const [mobileTab, setMobileTab] = useState('products');
 

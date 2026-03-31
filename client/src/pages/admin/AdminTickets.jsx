@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ticketsAPI } from '@/services/api';
+import { ticketsAPI, readCache } from '@/services/api';
 import { useSocket } from '@/contexts/SocketContext';
 import { usePrinter } from '@/contexts/PrinterContext';
 import TopBar from '@/components/layout/TopBar';
@@ -12,8 +12,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import toast from 'react-hot-toast';
 
 export default function AdminTickets() {
-  const [tickets, setTickets] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [tickets, setTickets] = useState(() => readCache('/tickets', { limit: 200 })?.data?.data || []);
+  const [loading, setLoading] = useState(() => !readCache('/tickets', { limit: 200 }));
   const [filter, setFilter] = useState('all');
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);

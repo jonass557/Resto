@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { statsAPI } from '@/services/api';
+import { statsAPI, readCache } from '@/services/api';
 import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,12 +13,12 @@ import toast from 'react-hot-toast';
 
 export default function DailyInvoices() {
   const { socket } = useSocket();
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [data, setData] = useState(() => readCache('/stats/daily-invoices', { date: new Date().toISOString().split('T')[0] })?.data?.data || null);
+  const [loading, setLoading] = useState(() => !readCache('/stats/daily-invoices', { date: new Date().toISOString().split('T')[0] }));
 
   const loadData = useCallback(async () => {
-    setLoading(true);
+    if (!readCache('/stats/daily-invoices', { date })) setLoading(true);
     try {
       const res = await statsAPI.getDailyInvoices({ date });
       setData(res.data.data);
