@@ -4,6 +4,7 @@ const Order = require('../models/Order');
 const Table = require('../models/Table');
 const Payment = require('../models/Payment');
 const Notification = require('../models/Notification');
+const CashRegister = require('../models/CashRegister');
 const { auth, adminOnly } = require('../middleware/auth');
 const { generateTicketNumber } = require('../utils/helpers');
 
@@ -261,6 +262,10 @@ router.patch('/:id/mark-paid', auth, adminOnly, async (req, res) => {
 // POST /api/tickets/direct-invoice — Créer une facture directement (sans commande préalable)
 router.post('/direct-invoice', auth, async (req, res) => {
   try {
+    const openSession = await CashRegister.findOne({ agent: req.user._id, status: 'open' });
+    if (!openSession) {
+      return res.status(403).json({ success: false, message: 'Votre caisse n\'est pas ouverte. Contactez le caissier pour ouvrir votre service.' });
+    }
     const { tableNumber, items, notes } = req.body;
     if (!tableNumber || !String(tableNumber).trim()) {
       return res.status(400).json({ success: false, message: 'Numéro de table requis' });
@@ -323,6 +328,10 @@ router.patch('/:id/a-encaisser', auth, async (req, res) => {
 // PATCH /api/tickets/:id/add-items — Ajouter des articles à une facture "En cours"
 router.patch('/:id/add-items', auth, async (req, res) => {
   try {
+    const openSession = await CashRegister.findOne({ agent: req.user._id, status: 'open' });
+    if (!openSession) {
+      return res.status(403).json({ success: false, message: 'Votre caisse n\'est pas ouverte. Contactez le caissier pour ouvrir votre service.' });
+    }
     const { items } = req.body;
     if (!items || items.length === 0) {
       return res.status(400).json({ success: false, message: 'Articles requis' });

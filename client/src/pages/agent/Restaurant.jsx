@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSocket } from '@/contexts/SocketContext';
 import { usePrinter } from '@/contexts/PrinterContext';
-import { productsAPI, categoriesAPI, ticketsAPI, readCache } from '@/services/api';
+import { productsAPI, categoriesAPI, ticketsAPI, cashRegisterAPI, readCache } from '@/services/api';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,7 +13,7 @@ import { Separator } from '@/components/ui/separator';
 import { formatCurrency } from '@/lib/utils';
 import {
   ArrowLeft, Plus, Minus, Trash2, Search, Receipt, Loader2,
-  UtensilsCrossed, ChevronLeft, ChevronRight, BookMarked, Hash, Printer, Send
+  UtensilsCrossed, ChevronLeft, ChevronRight, BookMarked, Hash, Printer, Send, LockKeyhole
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -53,6 +53,18 @@ export default function Restaurant() {
   const [memoLoading, setMemoLoading] = useState(false);
   const [printLoading, setPrintLoading] = useState(false);
 
+  // Cash register session guard
+  const [cashSession, setCashSession] = useState(null); // null=loading, false=closed, obj=open
+
+  const checkCashSession = useCallback(async () => {
+    try {
+      const { data } = await cashRegisterAPI.getCurrent();
+      setCashSession(data.data || false);
+    } catch {
+      setCashSession(false);
+    }
+  }, []);
+
   const loadData = useCallback(async () => {
     try {
       const promises = [
@@ -78,6 +90,18 @@ export default function Restaurant() {
   }, [existingInvoiceId]);
 
   useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => { checkCashSession(); }, [checkCashSession]);
+
+  // Real-time cash session refresh
+  useEffect(() => {
+    if (!socket) return;
+    socket.on('cashRegister:opened', checkCashSession);
+    socket.on('cashRegister:closed', checkCashSession);
+    return () => {
+      socket.off('cashRegister:opened', checkCashSession);
+      socket.off('cashRegister:closed', checkCashSession);
+    };
+  }, [socket, checkCashSession]);
 
   // Refresh products when admin adds/updates/deletes a product
   useEffect(() => {
@@ -139,6 +163,15 @@ export default function Restaurant() {
     setTableConfirmed(true);
   };
 
+  // ── Garde caisse obligatoire ──
+  const requireCash = () => {
+    if (!cashSession) {
+      toast.error('Votre caisse n\'est pas ouverte — contactez le caissier');
+      return false;
+    }
+    return true;
+  };
+
   // ── Garde table obligatoire: redirige vers la saisie si table absente ──
   const requireTable = () => {
     if (!tableConfirmed || !tableNumber.trim()) {
@@ -151,6 +184,7 @@ export default function Restaurant() {
 
   // ── Envoyer la commande à l'imprimante (cuisine) — pas de sauvegarde BD ──
   const handleSendToKitchen = async () => {
+    if (!requireCash()) return;
     if (!requireTable()) return;
     if (cart.length === 0) { toast.error('Le panier est vide'); return; }
     setPrintLoading(true);
@@ -177,6 +211,7 @@ export default function Restaurant() {
 
   // ── Mémo: enregistre en cours + redirige vers En cours ──
   const handleMemo = async () => {
+    if (!requireCash()) return;
     if (!requireTable()) return;
     setMemoLoading(true);
     try {
@@ -201,6 +236,7 @@ export default function Restaurant() {
 
   // ── Facturer: crée facture → auto-print → billing ──
   const handleFacturer = async () => {
+    if (!requireCash()) return;
     if (!requireTable()) return;
     // Mode ajout avec panier vide → aller directement en facturation sans ajouter d'articles
     if (cart.length === 0) {
@@ -247,12 +283,41 @@ export default function Restaurant() {
     }
   };
 
-  if (loading) {
+  if (loading || cashSession === null) {
     return (
       <div>
         <TopBar title="Restaurant" />
         <div className="flex items-center justify-center h-64">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </div>
+    );
+  }
+
+  // ── Caisse non ouverte : écran de blocage ──
+  if (cashSession === false) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <TopBar title="Restaurant" />
+        <div className="flex-1 flex items-center justify-center p-6">
+          <div className="w-full max-w-sm text-center space-y-5">
+            <div className="w-20 h-20 rounded-2xl bg-red-100 flex items-center justify-center mx-auto">
+              <LockKeyhole className="w-10 h-10 text-red-500" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-red-600">Caisse non ouverte</h2>
+              <p className="text-muted-foreground text-sm mt-2">
+                Votre caisse n'a pas encore été ouverte par le caissier.<br />
+                Contactez le caissier pour démarrer votre service.
+              </p>
+            </div>
+            <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-700">
+              En attente d'ouverture de caisse…
+            </div>
+            <Button variant="ghost" className="w-full" onClick={() => navigate('/agent')}>
+              <ArrowLeft className="w-4 h-4 mr-2" /> Retour
+            </Button>
+          </div>
         </div>
       </div>
     );
