@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSocket } from '@/contexts/SocketContext';
 import { statsAPI, cashRegisterAPI, readCache } from '@/services/api';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatCurrency } from '@/lib/utils';
-import { ShoppingCart, Receipt, DollarSign, TrendingUp, Wallet, Loader2, Calendar } from 'lucide-react';
+import { ShoppingCart, Receipt, DollarSign, TrendingUp, Wallet, Loader2, Calendar, UtensilsCrossed, AlertTriangle } from 'lucide-react';
 
 const PERIODS = [
   { key: 'today', label: "Aujourd'hui" },
@@ -18,20 +19,16 @@ const PERIODS = [
 
 export default function AgentDashboard() {
   const { user } = useAuth();
+  const { socket } = useSocket();
   const [period, setPeriod] = useState('today');
   const [stats, setStats] = useState(() => {
     const u = user || JSON.parse(localStorage.getItem('user') || 'null');
     return readCache(`/stats/agent/${u?._id}`, { period: 'today' })?.data?.data || null;
   });
-  const [cashRegister, setCashRegister] = useState(() =>
-    readCache('/cash-register/current')?.data?.data || null
-  );
-  const [loading, setLoading] = useState(() => {
-    const u = user || JSON.parse(localStorage.getItem('user') || 'null');
-    return !readCache(`/stats/agent/${u?._id}`, { period: 'today' }) || !readCache('/cash-register/current');
-  });
+  const [cashRegister, setCashRegister] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const firstLoad = useRef(!stats || !cashRegister);
+  const firstLoad = useRef(true);
 
   const loadData = useCallback(async () => {
     if (firstLoad.current) setLoading(true);
@@ -52,6 +49,16 @@ export default function AgentDashboard() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  useEffect(() => {
+    if (!socket) return;
+    socket.on('cashRegister:opened', loadData);
+    socket.on('cashRegister:closed', loadData);
+    return () => {
+      socket.off('cashRegister:opened', loadData);
+      socket.off('cashRegister:closed', loadData);
+    };
+  }, [socket, loadData]);
+
   const periodLabel = PERIODS.find(p => p.key === period)?.label || period;
 
   const statCards = [
@@ -63,6 +70,11 @@ export default function AgentDashboard() {
 
   const now = new Date();
   const dateStr = now.toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+  const serviceLabel = cashRegister?.service === 1 ? 'Service 1 (Matin)' : cashRegister?.service === 2 ? 'Service 2 (Soir)' : '';
+  const openedAtStr = cashRegister?.openedAt
+    ? new Date(cashRegister.openedAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : '';
 
   return (
     <div>
@@ -83,27 +95,36 @@ export default function AgentDashboard() {
           </div>
         </div>
 
-        {/* Cash Register Status */}
-        <Card className={cashRegister ? 'border-green-200 bg-green-50/50' : 'border-yellow-200 bg-yellow-50/50'}>
-          <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 py-4">
-            <div className="flex items-center gap-3">
-              <Wallet className={`w-5 h-5 ${cashRegister ? 'text-green-600' : 'text-yellow-600'}`} />
+        {/* Service Status */}
+        {cashRegister ? (
+          <Card className="border-green-200 bg-green-50/50">
+            <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 py-4">
+              <div className="flex items-center gap-3">
+                <Wallet className="w-5 h-5 text-green-600" />
+                <div>
+                  <p className="font-medium text-sm sm:text-base">{serviceLabel}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">
+                    Ouvert le {openedAtStr}
+                    {cashRegister.openedBy && ` par ${cashRegister.openedBy.firstName} ${cashRegister.openedBy.lastName}`}
+                  </p>
+                </div>
+              </div>
+              <Badge variant="default" className="bg-green-600">Caisse active</Badge>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="border-yellow-200 bg-yellow-50/50">
+            <CardContent className="flex items-center gap-3 py-4">
+              <AlertTriangle className="w-5 h-5 text-yellow-600 shrink-0" />
               <div>
-                <p className="font-medium text-sm sm:text-base">
-                  {cashRegister ? 'Caisse ouverte' : 'Caisse fermée'}
-                </p>
+                <p className="font-medium text-sm sm:text-base">Aucun service ouvert</p>
                 <p className="text-xs sm:text-sm text-muted-foreground">
-                  {cashRegister
-                    ? `Session: ${cashRegister.sessionNumber} | Ouverture: ${formatCurrency(cashRegister.openingAmount)}`
-                    : 'Ouvrez votre caisse pour commencer à travailler'}
+                  Le caissier doit ouvrir votre caisse pour que vous puissiez passer des commandes.
                 </p>
               </div>
-            </div>
-            <Badge variant={cashRegister ? 'default' : 'secondary'}>
-              {cashRegister ? 'Active' : 'Inactive'}
-            </Badge>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Stats Cards */}
         {loading ? (
@@ -134,22 +155,18 @@ export default function AgentDashboard() {
             <CardTitle className="text-base sm:text-lg">Actions rapides</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <Link to="/agent/tables" className="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-lg border hover:bg-accent transition-colors">
-                <ShoppingCart className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
-                <span className="text-xs sm:text-sm font-medium text-center">Nouvelle commande</span>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <Link to="/agent/restaurant" className="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-lg border hover:bg-accent transition-colors">
+                <UtensilsCrossed className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
+                <span className="text-xs sm:text-sm font-medium text-center">Restaurant</span>
               </Link>
               <Link to="/agent/tickets" className="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-lg border hover:bg-accent transition-colors">
                 <Receipt className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
                 <span className="text-xs sm:text-sm font-medium text-center">Voir tickets</span>
               </Link>
-              <Link to="/agent/cash-register" className="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-lg border hover:bg-accent transition-colors">
-                <Wallet className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
-                <span className="text-xs sm:text-sm font-medium text-center">Gérer caisse</span>
-              </Link>
-              <Link to="/agent/history" className="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-lg border hover:bg-accent transition-colors">
-                <TrendingUp className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
-                <span className="text-xs sm:text-sm font-medium text-center">Historique</span>
+              <Link to="/agent/new-order" className="flex flex-col items-center gap-2 p-3 sm:p-4 rounded-lg border hover:bg-accent transition-colors">
+                <ShoppingCart className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
+                <span className="text-xs sm:text-sm font-medium text-center">Emporter / Livraison</span>
               </Link>
             </div>
           </CardContent>

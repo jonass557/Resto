@@ -114,14 +114,14 @@ export default function UserManagement() {
                 <CardContent className="p-3 sm:p-4">
                   <div className="flex items-start sm:items-center justify-between gap-2">
                     <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${user.role === 'admin' ? 'bg-purple-100' : 'bg-blue-100'}`}>
-                        {user.role === 'admin' ? <Shield className="w-5 h-5 text-purple-600" /> : <UserCircle className="w-5 h-5 text-blue-600" />}
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${user.role === 'admin' ? 'bg-purple-100' : user.role === 'caissier' ? 'bg-amber-100' : 'bg-blue-100'}`}>
+                        {user.role === 'admin' ? <Shield className="w-5 h-5 text-purple-600" /> : <UserCircle className={`w-5 h-5 ${user.role === 'caissier' ? 'text-amber-600' : 'text-blue-600'}`} />}
                       </div>
                       <div className="min-w-0">
                         <p className="font-bold text-sm sm:text-base">{user.firstName} {user.lastName}</p>
                         <p className="text-xs sm:text-sm text-muted-foreground truncate">{user.email}</p>
                         <div className="flex gap-1.5 mt-1 flex-wrap">
-                          <Badge variant={user.role === 'admin' ? 'default' : 'secondary'} className="text-xs">{user.role === 'admin' ? 'Admin' : 'Agent'}</Badge>
+                          <Badge variant={user.role === 'admin' ? 'default' : 'secondary'} className="text-xs">{user.role === 'admin' ? 'Admin' : user.role === 'caissier' ? 'Caissier' : 'Agent'}</Badge>
                           <Badge variant={user.isActive ? 'outline' : 'destructive'} className="text-xs">{user.isActive ? 'Actif' : 'Inactif'}</Badge>
                           {user.lastLogin && <span className="text-xs text-muted-foreground hidden md:inline">Connexion: {formatDateTime(user.lastLogin)}</span>}
                         </div>
@@ -156,6 +156,7 @@ export default function UserManagement() {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="agent">Agent</SelectItem>
+                  <SelectItem value="caissier">Caissier</SelectItem>
                   <SelectItem value="admin">Administrateur</SelectItem>
                 </SelectContent>
               </Select>

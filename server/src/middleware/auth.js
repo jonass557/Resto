@@ -37,4 +37,18 @@ const agentOrAdmin = (req, res, next) => {
   next();
 };
 
-module.exports = { auth, adminOnly, agentOrAdmin };
+const caissierOnly = (req, res, next) => {
+  if (req.user.role !== 'caissier') {
+    return res.status(403).json({ success: false, message: 'Accès réservé aux caissiers' });
+  }
+  next();
+};
+
+const caissierOrAdmin = (req, res, next) => {
+  if (!['admin', 'caissier'].includes(req.user.role)) {
+    return res.status(403).json({ success: false, message: 'Accès réservé aux caissiers et administrateurs' });
+  }
+  next();
+};
+
+module.exports = { auth, adminOnly, agentOrAdmin, caissierOnly, caissierOrAdmin };

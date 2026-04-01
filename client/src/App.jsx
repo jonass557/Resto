@@ -14,9 +14,9 @@ import InvoicesAEncaisser from './pages/agent/InvoicesAEncaisser';
 import NewOrder from './pages/agent/NewOrder';
 import Orders from './pages/agent/Orders';
 import Tickets from './pages/agent/Tickets';
-import CashRegister from './pages/agent/CashRegister';
-
 // Lazy-loaded pages — downloaded only when first visited (code splitting)
+const CashierDashboard = lazy(() => import('./pages/caissier/CashierDashboard'));
+const GlobalReport = lazy(() => import('./pages/caissier/GlobalReport'));
 const Clients = lazy(() => import('./pages/agent/Clients'));
 const AgentSettings = lazy(() => import('./pages/agent/AgentSettings'));
 const TransactionHistory = lazy(() => import('./pages/agent/TransactionHistory'));
@@ -56,7 +56,8 @@ function ProtectedRoute({ children, requiredRole }) {
 
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (requiredRole && user?.role !== requiredRole) {
-    return <Navigate to={user?.role === 'admin' ? '/admin' : '/agent'} replace />;
+    const home = user?.role === 'admin' ? '/admin' : user?.role === 'caissier' ? '/caissier' : '/agent';
+    return <Navigate to={home} replace />;
   }
 
   return children;
@@ -95,7 +96,6 @@ export default function App() {
           <Route path="new-order" element={<NewOrder />} />
           <Route path="orders" element={<Orders />} />
           <Route path="tickets" element={<Tickets />} />
-          <Route path="cash-register" element={<CashRegister />} />
           <Route path="clients" element={<Suspense fallback={<PageLoader />}><Clients /></Suspense>} />
           <Route path="settings" element={<Suspense fallback={<PageLoader />}><AgentSettings /></Suspense>} />
           <Route path="history" element={<Suspense fallback={<PageLoader />}><TransactionHistory /></Suspense>} />
@@ -121,6 +121,16 @@ export default function App() {
           <Route path="revenue-history" element={<Suspense fallback={<PageLoader />}><RevenueHistory /></Suspense>} />
           <Route path="daily-invoices" element={<Suspense fallback={<PageLoader />}><DailyInvoices /></Suspense>} />
           <Route path="settings" element={<Suspense fallback={<PageLoader />}><AdminSettings /></Suspense>} />
+        </Route>
+
+        {/* Caissier Routes */}
+        <Route path="/caissier" element={
+          <ProtectedRoute requiredRole="caissier">
+            <MainLayout />
+          </ProtectedRoute>
+        }>
+          <Route index element={<Suspense fallback={<PageLoader />}><CashierDashboard /></Suspense>} />
+          <Route path="global-report" element={<Suspense fallback={<PageLoader />}><GlobalReport /></Suspense>} />
         </Route>
 
         {/* Default — always show login */}

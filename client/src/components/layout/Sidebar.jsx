@@ -2,22 +2,18 @@ import { useState, useEffect, useCallback } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSocket } from '@/contexts/SocketContext';
-import { cashRegisterAPI, ticketsAPI } from '@/services/api';
+import { ticketsAPI } from '@/services/api';
 import { cn } from '@/lib/utils';
 import {
   UtensilsCrossed, LayoutDashboard, ShoppingCart, Receipt, CreditCard,
   Users, BarChart3, Package, Settings, LogOut, Wallet,
   BookOpen, UserCircle, Printer, TrendingUp, FileText, PieChart, Truck,
-  Loader2, AlertTriangle, BookMarked, ChevronLeft, ChevronRight
+  BookMarked, ChevronLeft, ChevronRight, ClipboardList
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import toast from 'react-hot-toast';
 
 const adminNav = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true },
@@ -34,6 +30,11 @@ const adminNav = [
   { to: '/admin/revenue-history', icon: PieChart, label: 'Historique CA' },
   { to: '/admin/daily-invoices', icon: Printer, label: 'Facture Globale' },
   { to: '/admin/settings', icon: Settings, label: 'Paramètres' },
+];
+
+const caissierNav = [
+  { to: '/caissier', icon: LayoutDashboard, label: 'Tableau de bord', end: true },
+  { to: '/caissier/global-report', icon: ClipboardList, label: 'Rapport global' },
 ];
 
 function useSidebarCounts(isAgent, socket) {
@@ -70,35 +71,13 @@ export default function Sidebar({ onNavigate, collapsed, onToggleCollapse }) {
   const { user, isAdmin, logout } = useAuth();
   const { socket } = useSocket();
   const navigate = useNavigate();
-  const counts = useSidebarCounts(!isAdmin, socket);
+  const isAgent = user?.role === 'agent';
+  const isCaissier = user?.role === 'caissier';
+  const counts = useSidebarCounts(isAgent, socket);
 
-  const [showCloseDialog, setShowCloseDialog] = useState(false);
-  const [closingAmount, setClosingAmount] = useState('');
-  const [closingLoading, setClosingLoading] = useState(false);
-
-  const handleLogout = async () => {
-    if (isAdmin) { logout(); navigate('/login'); return; }
-    try {
-      const res = await cashRegisterAPI.getCurrent();
-      if (res.data.data) { setShowCloseDialog(true); return; }
-    } catch { /* no open register */ }
+  const handleLogout = () => {
     logout();
     navigate('/login');
-  };
-
-  const handleCloseAndLogout = async () => {
-    setClosingLoading(true);
-    try {
-      await cashRegisterAPI.close({ closingAmount: parseFloat(closingAmount) || 0 });
-      toast.success('Caisse clôturée avec succès');
-      setShowCloseDialog(false);
-      logout();
-      navigate('/login');
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Erreur lors de la clôture');
-    } finally {
-      setClosingLoading(false);
-    }
   };
 
   const handleNav = () => { onNavigate?.(); };
@@ -130,12 +109,11 @@ export default function Sidebar({ onNavigate, collapsed, onToggleCollapse }) {
     },
     { to: '/agent/new-order', icon: Truck, label: 'Emporter / Livraison' },
     { to: '/agent/tickets', icon: Receipt, label: 'Tickets' },
-    { to: '/agent/cash-register', icon: Wallet, label: 'Caisse' },
     { to: '/agent/clients', icon: UserCircle, label: 'Clients' },
     { to: '/agent/settings', icon: Settings, label: 'Paramètres' },
   ];
 
-  const navItems = isAdmin ? adminNav : agentNav;
+  const navItems = isAdmin ? adminNav : isCaissier ? caissierNav : agentNav;
 
   return (
     <aside className={cn(
@@ -225,33 +203,6 @@ export default function Sidebar({ onNavigate, collapsed, onToggleCollapse }) {
         </Button>
       </div>
 
-      {/* Cash register close dialog */}
-      <Dialog open={showCloseDialog} onOpenChange={setShowCloseDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-yellow-500" />
-              Clôturer la caisse
-            </DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Vous devez clôturer votre caisse avant de vous déconnecter.
-          </p>
-          <div className="space-y-3">
-            <div>
-              <Label>Montant en caisse (FCFA)</Label>
-              <Input type="number" placeholder="0" value={closingAmount} onChange={e => setClosingAmount(e.target.value)} />
-            </div>
-          </div>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setShowCloseDialog(false)}>Annuler</Button>
-            <Button onClick={handleCloseAndLogout} disabled={closingLoading}>
-              {closingLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Clôturer et se déconnecter
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </aside>
   );
 }

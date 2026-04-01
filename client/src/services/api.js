@@ -190,9 +190,14 @@ export const paymentsAPI = {
 export const cashRegisterAPI = {
   getAll: (params) => cachedGet('/cash-register', params),
   getCurrent: () => cachedGet('/cash-register/current'),
-  open: (data) => api.post('/cash-register/open', data).then(r => { invalidateCache('/cash-register'); return r; }),
-  close: (data) => api.post('/cash-register/close', data).then(r => { invalidateCache('/cash-register'); return r; }),
   getById: (id) => api.get(`/cash-register/${id}`),
+  // Caissier methods
+  getAgents: () => api.get('/cash-register/agents'),
+  openService: (data) => api.post('/cash-register/open-service', data).then(r => { invalidateCache('/cash-register'); return r; }),
+  closeService: (data) => api.post('/cash-register/close-service', data).then(r => { invalidateCache('/cash-register'); return r; }),
+  agentInvoices: (agentId) => api.get(`/cash-register/agent-invoices/${agentId}`),
+  serviceReport: (agentId, params) => api.get(`/cash-register/service-report/${agentId}`, { params }),
+  globalReport: (params) => api.get('/cash-register/global-report', { params }),
 };
 
 // Clients

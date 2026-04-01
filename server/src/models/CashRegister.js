@@ -3,6 +3,9 @@ const mongoose = require('mongoose');
 const cashRegisterSchema = new mongoose.Schema({
   sessionNumber: { type: String, required: true, unique: true },
   agent: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  openedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  closedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  service: { type: Number, enum: [1, 2], required: true },
   openingAmount: { type: Number, required: true, default: 0 },
   closingAmount: { type: Number, default: 0 },
   expectedAmount: { type: Number, default: 0 },
@@ -26,5 +29,6 @@ const cashRegisterSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 cashRegisterSchema.index({ agent: 1, status: 1 });
+cashRegisterSchema.index({ openedBy: 1 });
 
 module.exports = mongoose.model('CashRegister', cashRegisterSchema);
