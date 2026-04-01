@@ -245,11 +245,11 @@ export function PrinterProvider({ children }) {
         toast.success('🖨️ Ticket envoyé à l\'impression');
         return true;
       }
-      // Backend returned fallback data - use browser print
+      // Backend returned fallback data — no browser popup, just warn
     } catch { /* backend printer failed */ }
 
-    // 3. Browser print fallback
-    browserPrint(ticketData);
+    // 3. No popup fallback — print silently failed
+    toast.error('Imprimante non disponible — vérifiez la connexion');
     return false;
   }, [btConnected, characteristic, printViaBluetooth]);
 

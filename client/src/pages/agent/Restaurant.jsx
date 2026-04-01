@@ -144,7 +144,7 @@ export default function Restaurant() {
     if (cart.length === 0) { toast.error('Le panier est vide'); return; }
     setPrintLoading(true);
     try {
-      await printTicket({
+      const ok = await printTicket({
         ticketNumber: `CMD-${Date.now().toString().slice(-6)}`,
         orderType: 'dine_in',
         tableName: tableNumber,
@@ -155,9 +155,10 @@ export default function Restaurant() {
         discount: 0,
         total: cartTotal,
       });
-      toast.success('Commande envoyée à l\'imprimante');
-    } catch {
-      toast.error('Erreur impression');
+      if (ok) {
+        // Vider le panier après envoi individuel à l'imprimante
+        setCart([]);
+      }
     } finally {
       setPrintLoading(false);
     }
@@ -191,7 +192,14 @@ export default function Restaurant() {
     if (!tableConfirmed || !tableNumber.trim()) {
       toast.error('Numéro de table requis'); return;
     }
-    if (cart.length === 0) { toast.error('Le panier est vide'); return; }
+    // Mode ajout avec panier vide → aller directement en facturation sans ajouter d'articles
+    if (cart.length === 0) {
+      if (existingInvoiceId && existingInvoice) {
+        navigate(`/agent/billing/${existingInvoiceId}`);
+        return;
+      }
+      toast.error('Le panier est vide'); return;
+    }
     setSubmitting(true);
     try {
       let invoiceId, invoiceData;
@@ -209,22 +217,17 @@ export default function Restaurant() {
       }
 
       // Auto-print facture client avant la page de facturation
-      try {
-        await printTicket({
-          ticketNumber: invoiceData?.ticketNumber || '',
-          orderType: 'dine_in',
-          tableName: tableNumber,
-          agentName: user ? `${user.firstName} ${user.lastName}` : '',
-          items: invoiceData?.items || cart,
-          subtotal: invoiceData?.subtotal ?? cartTotal,
-          taxAmount: 0,
-          discount: 0,
-          total: invoiceData?.total ?? cartTotal,
-        });
-        toast.success('Facture envoyée à l\'imprimante');
-      } catch {
-        toast('Impression échouée — facture créée', { icon: '⚠️' });
-      }
+      await printTicket({
+        ticketNumber: invoiceData?.ticketNumber || '',
+        orderType: 'dine_in',
+        tableName: tableNumber,
+        agentName: user ? `${user.firstName} ${user.lastName}` : '',
+        items: invoiceData?.items || cart,
+        subtotal: invoiceData?.subtotal ?? cartTotal,
+        taxAmount: 0,
+        discount: 0,
+        total: invoiceData?.total ?? cartTotal,
+      });
 
       navigate(`/agent/billing/${invoiceId}`);
     } catch (error) {
@@ -446,8 +449,8 @@ export default function Restaurant() {
             ))}
           </div>
 
-          {/* Footer actions */}
-          <div className="border-t p-3 space-y-2">
+          {/* Footer actions — pointer-events-none bloque tout clic concurrent pendant un chargement */}
+          <div className={`border-t p-3 space-y-3 ${(memoLoading || submitting || printLoading) ? 'pointer-events-none opacity-80' : ''}`}>
             <div className="flex justify-between items-center font-bold">
               <span className="text-sm">Nouveau total</span>
               <span className="text-primary">{formatCurrency(cartTotal)}</span>
@@ -472,9 +475,9 @@ export default function Restaurant() {
               Mémo
             </Button>
 
-            {/* Facturer → crée facture + print + billing */}
+            {/* Facturer → crée facture + print + billing (actif même sans nouveaux articles en mode ajout) */}
             <Button className="w-full" onClick={handleFacturer}
-              disabled={cart.length === 0 || submitting || memoLoading}>
+              disabled={(cart.length === 0 && !(existingInvoiceId && existingInvoice)) || submitting || memoLoading}>
               {submitting
                 ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 : <Receipt className="w-4 h-4 mr-2" />}
