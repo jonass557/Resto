@@ -10,6 +10,7 @@ require('dotenv').config();
 
 const User = require('./models/User');
 const CashRegister = require('./models/CashRegister');
+const Ticket = require('./models/Ticket');
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const productRoutes = require('./routes/products');
@@ -207,8 +208,16 @@ mongoose.connect(process.env.MONGODB_URI, {
       const result = await CashRegister.deleteMany({ status: 'closed', closedAt: { $lt: cutoff } });
       if (result.deletedCount > 0) console.log(`🗑️  ${result.deletedCount} session(s) caisse supprimée(s) (>24h)`);
     };
+    // Nettoyage automatique : supprimer les factures payées depuis plus de 24h
+    const cleanPaidInvoices = async () => {
+      const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const result = await Ticket.deleteMany({ type: 'invoice', isPaid: true, updatedAt: { $lt: cutoff } });
+      if (result.deletedCount > 0) console.log(`🗑️  ${result.deletedCount} facture(s) payée(s) supprimée(s) (>24h)`);
+    };
     await cleanCashHistory();
+    await cleanPaidInvoices();
     setInterval(cleanCashHistory, 60 * 60 * 1000); // toutes les heures
+    setInterval(cleanPaidInvoices, 60 * 60 * 1000); // toutes les heures
     server.listen(PORT, '0.0.0.0', () => {
       const os = require('os');
       const ifaces = os.networkInterfaces();

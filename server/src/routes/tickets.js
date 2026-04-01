@@ -12,12 +12,13 @@ const router = express.Router();
 // GET /api/tickets
 router.get('/', auth, async (req, res) => {
   try {
-    const { type, table, agent, isPaid, startDate, endDate, page = 1, limit = 50 } = req.query;
+    const { type, table, agent, isPaid, memoStatus, startDate, endDate, page = 1, limit = 50 } = req.query;
     const filter = {};
     if (type) filter.type = type;
     if (table) filter.table = table;
     if (agent) filter.agent = agent;
     if (isPaid !== undefined) filter.isPaid = isPaid === 'true';
+    if (memoStatus) filter.memoStatus = memoStatus;
     if (startDate || endDate) {
       filter.createdAt = {};
       if (startDate) filter.createdAt.$gte = new Date(startDate);

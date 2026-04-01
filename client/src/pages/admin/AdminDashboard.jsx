@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { statsAPI, notificationsAPI, readCache } from '@/services/api';
+import { statsAPI, notificationsAPI, ticketsAPI, readCache } from '@/services/api';
 import toast from 'react-hot-toast';
 import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
@@ -11,7 +11,7 @@ import { formatCurrency, formatDateTime } from '@/lib/utils';
 import {
   DollarSign, ShoppingCart, Receipt, TrendingUp, Users, Loader2,
   Bell, BellRing, CheckCheck, Wallet, LogIn, CreditCard, Banknote,
-  Smartphone, ArrowUpRight, Package, BarChart2, Trash2
+  Smartphone, ArrowUpRight, Package, BarChart2, Trash2, Clock, AlertCircle, CheckCircle2
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -45,6 +45,12 @@ export default function AdminDashboard() {
   );
   const { socket } = useSocket();
 
+  // Invoices section
+  const [invoicesTab, setInvoicesTab] = useState('en_cours');
+  const [invoices, setInvoices] = useState({ en_cours: [], a_encaisser: [], paid: [] });
+  const [invoicesLoading, setInvoicesLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState(null);
+
   const loadStats = useCallback(async () => {
     if (!readCache('/stats/dashboard', { period }) || !readCache('/stats/agents', { period })) setLoading(true);
     try {
@@ -77,22 +83,62 @@ export default function AdminDashboard() {
     }
   }, []);
 
+  const loadInvoices = useCallback(async () => {
+    setInvoicesLoading(true);
+    try {
+      const [enCoursRes, aEncaisserRes, paidRes] = await Promise.all([
+        ticketsAPI.getAll({ type: 'invoice', isPaid: 'false', memoStatus: 'en_cours', limit: 100 }),
+        ticketsAPI.getAll({ type: 'invoice', isPaid: 'false', memoStatus: 'a_encaisser', limit: 100 }),
+        ticketsAPI.getAll({ type: 'invoice', isPaid: 'true', limit: 100 })
+      ]);
+      setInvoices({
+        en_cours: enCoursRes.data.data,
+        a_encaisser: aEncaisserRes.data.data,
+        paid: paidRes.data.data
+      });
+    } catch { /* silent */ }
+    finally { setInvoicesLoading(false); }
+  }, []);
+
+  const handleDeleteInvoice = async (id) => {
+    setDeletingId(id);
+    try {
+      await ticketsAPI.delete(id);
+      toast.success('Facture supprimée');
+      loadInvoices();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Erreur suppression');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   useEffect(() => { loadStats(); }, [loadStats]);
   useEffect(() => { loadNotifications(); }, [loadNotifications]);
+  useEffect(() => { loadInvoices(); }, [loadInvoices]);
 
   useEffect(() => {
     if (!socket) return;
     const refresh = () => loadStats();
     const refreshNotif = () => loadNotifications();
+    const refreshInv = () => loadInvoices();
     socket.on('order:created', refresh);
     socket.on('payment:created', refresh);
     socket.on('notification:new', refreshNotif);
+    socket.on('invoice:created', refreshInv);
+    socket.on('invoice:updated', refreshInv);
+    socket.on('ticket:paid', refreshInv);
+    socket.on('ticket:deleted', refreshInv);
     return () => {
       socket.off('order:created', refresh);
       socket.off('payment:created', refresh);
       socket.off('notification:new', refreshNotif);
+      socket.off('invoice:created', refreshInv);
+      socket.off('invoice:updated', refreshInv);
+      socket.off('ticket:paid', refreshInv);
+      socket.off('ticket:deleted', refreshInv);
     };
-  }, [socket, loadStats, loadNotifications]);
+  }, [socket, loadStats, loadNotifications, loadInvoices]);
 
   const markAllRead = async () => {
     try {
@@ -357,6 +403,80 @@ export default function AdminDashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Invoices Management */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base"><Receipt className="w-5 h-5" /> Gestion des factures</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {/* Tabs */}
+            <div className="flex gap-1 mb-4 bg-muted p-1 rounded-lg w-fit">
+              {[
+                { key: 'en_cours', label: 'En cours', icon: Clock, color: 'text-orange-600', count: invoices.en_cours.length },
+                { key: 'a_encaisser', label: 'À Encaisser', icon: AlertCircle, color: 'text-yellow-600', count: invoices.a_encaisser.length },
+                { key: 'paid', label: 'Payées', icon: CheckCircle2, color: 'text-green-600', count: invoices.paid.length },
+              ].map(tab => (
+                <button key={tab.key}
+                  onClick={() => setInvoicesTab(tab.key)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-all ${
+                    invoicesTab === tab.key ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
+                  }`}>
+                  <tab.icon className={`w-3.5 h-3.5 ${tab.color}`} />
+                  {tab.label}
+                  <span className={`ml-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                    invoicesTab === tab.key ? 'bg-primary text-primary-foreground' : 'bg-muted-foreground/20'
+                  }`}>{tab.count}</span>
+                </button>
+              ))}
+            </div>
+
+            {invoicesLoading ? (
+              <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin" /></div>
+            ) : invoices[invoicesTab].length === 0 ? (
+              <p className="text-center text-muted-foreground py-8 text-sm">Aucune facture</p>
+            ) : (
+              <div className="rounded border overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-muted/50 border-b">
+                      <th className="text-left p-2.5 text-xs font-medium">N° Facture</th>
+                      <th className="text-left p-2.5 text-xs font-medium">Table</th>
+                      <th className="text-left p-2.5 text-xs font-medium">Agent</th>
+                      <th className="text-right p-2.5 text-xs font-medium">Montant</th>
+                      <th className="text-center p-2.5 text-xs font-medium">Date</th>
+                      {invoicesTab !== 'paid' && <th className="text-center p-2.5 text-xs font-medium">Action</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {invoices[invoicesTab].map(inv => (
+                      <tr key={inv._id} className="border-t hover:bg-muted/30 transition-colors">
+                        <td className="p-2.5 font-mono text-xs">{inv.ticketNumber}</td>
+                        <td className="p-2.5 text-xs">{inv.tableNumber || inv.table?.number || '—'}</td>
+                        <td className="p-2.5 text-xs">{inv.agent ? `${inv.agent.firstName} ${inv.agent.lastName}` : '—'}</td>
+                        <td className="p-2.5 text-right text-xs font-semibold">{formatCurrency(inv.total)}</td>
+                        <td className="p-2.5 text-center text-xs text-muted-foreground">
+                          {new Date(inv.createdAt).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                        </td>
+                        {invoicesTab !== 'paid' && (
+                          <td className="p-2.5 text-center">
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-red-50"
+                              disabled={deletingId === inv._id}
+                              onClick={() => handleDeleteInvoice(inv._id)}>
+                              {deletingId === inv._id
+                                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                : <Trash2 className="w-3.5 h-3.5" />}
+                            </Button>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Product Analytics */}
         <Card>

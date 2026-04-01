@@ -139,8 +139,19 @@ export default function Restaurant() {
     setTableConfirmed(true);
   };
 
+  // ── Garde table obligatoire: redirige vers la saisie si table absente ──
+  const requireTable = () => {
+    if (!tableConfirmed || !tableNumber.trim()) {
+      setTableConfirmed(false);
+      toast.error('Veuillez d\'abord saisir le numéro de table');
+      return false;
+    }
+    return true;
+  };
+
   // ── Envoyer la commande à l'imprimante (cuisine) — pas de sauvegarde BD ──
   const handleSendToKitchen = async () => {
+    if (!requireTable()) return;
     if (cart.length === 0) { toast.error('Le panier est vide'); return; }
     setPrintLoading(true);
     try {
@@ -166,6 +177,7 @@ export default function Restaurant() {
 
   // ── Mémo: enregistre en cours + redirige vers En cours ──
   const handleMemo = async () => {
+    if (!requireTable()) return;
     setMemoLoading(true);
     try {
       if (existingInvoiceId && existingInvoice) {
@@ -174,7 +186,7 @@ export default function Restaurant() {
         }
         navigate('/agent/en-cours');
       } else if (cart.length > 0) {
-        if (!tableNumber.trim()) { toast.error('Numéro de table requis'); setMemoLoading(false); return; }
+        if (!tableNumber.trim()) { setTableConfirmed(false); setMemoLoading(false); return; }
         await ticketsAPI.directInvoice({ tableNumber: tableNumber.trim(), items: cart });
         navigate('/agent/en-cours');
       } else {
@@ -189,9 +201,7 @@ export default function Restaurant() {
 
   // ── Facturer: crée facture → auto-print → billing ──
   const handleFacturer = async () => {
-    if (!tableConfirmed || !tableNumber.trim()) {
-      toast.error('Numéro de table requis'); return;
-    }
+    if (!requireTable()) return;
     // Mode ajout avec panier vide → aller directement en facturation sans ajouter d'articles
     if (cart.length === 0) {
       if (existingInvoiceId && existingInvoice) {

@@ -64,12 +64,14 @@ export default function CashierDashboard() {
     socket.on('invoice:created', loadAgents);
     socket.on('invoice:updated', loadAgents);
     socket.on('ticket:paid', loadAgents);
+    socket.on('user:created', loadAgents);
     return () => {
       socket.off('cashRegister:opened', loadAgents);
       socket.off('cashRegister:closed', loadAgents);
       socket.off('invoice:created', loadAgents);
       socket.off('invoice:updated', loadAgents);
       socket.off('ticket:paid', loadAgents);
+      socket.off('user:created', loadAgents);
     };
   }, [socket, loadAgents]);
 
