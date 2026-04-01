@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import { useSocket } from '@/contexts/SocketContext';
+import { usePrinter } from '@/contexts/PrinterContext';
 import { productsAPI, categoriesAPI, ticketsAPI, readCache } from '@/services/api';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent } from '@/components/ui/card';
@@ -10,7 +13,7 @@ import { Separator } from '@/components/ui/separator';
 import { formatCurrency } from '@/lib/utils';
 import {
   ArrowLeft, Plus, Minus, Trash2, Search, Receipt, Loader2,
-  UtensilsCrossed, ChevronLeft, ChevronRight, BookMarked, Hash
+  UtensilsCrossed, ChevronLeft, ChevronRight, BookMarked, Hash, Printer, Send
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -18,10 +21,13 @@ export default function Restaurant() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const existingInvoiceId = searchParams.get('invoiceId');
+  const { user } = useAuth();
+  const { socket } = useSocket();
+  const { printTicket } = usePrinter();
 
-  // Table number step
+  // Table number step — skip immediately if adding to existing invoice
   const [tableNumber, setTableNumber] = useState('');
-  const [tableConfirmed, setTableConfirmed] = useState(false);
+  const [tableConfirmed, setTableConfirmed] = useState(!!existingInvoiceId);
   const tableInputRef = useRef(null);
 
   // Data
@@ -34,7 +40,7 @@ export default function Restaurant() {
     !readCache('/products', { isAvailable: true }) || !readCache('/categories')
   );
 
-  // Existing invoice (add-items mode)
+  // Existing invoice (add-items mode) — cart starts EMPTY, only new items are added
   const [existingInvoice, setExistingInvoice] = useState(null);
 
   // Sidebar collapsible
@@ -44,6 +50,8 @@ export default function Restaurant() {
   const [mobileTab, setMobileTab] = useState('products');
 
   const [submitting, setSubmitting] = useState(false);
+  const [memoLoading, setMemoLoading] = useState(false);
+  const [printLoading, setPrintLoading] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -60,13 +68,7 @@ export default function Restaurant() {
         setExistingInvoice(inv);
         setTableNumber(inv.tableNumber || '');
         setTableConfirmed(true);
-        // Pre-fill cart from existing invoice items
-        setCart(inv.items.map(item => ({
-          name: item.name,
-          unitPrice: item.unitPrice,
-          quantity: item.quantity,
-          totalPrice: item.totalPrice
-        })));
+        // Cart stays EMPTY — agent selects only NEW items to add
       }
     } catch {
       toast.error('Erreur chargement des données');
@@ -76,6 +78,22 @@ export default function Restaurant() {
   }, [existingInvoiceId]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // Refresh products when admin adds/updates/deletes a product
+  useEffect(() => {
+    if (!socket) return;
+    const refreshProducts = () => {
+      productsAPI.getAll({ isAvailable: true }).then(r => setProducts(r.data.data)).catch(() => {});
+    };
+    socket.on('product:created', refreshProducts);
+    socket.on('product:updated', refreshProducts);
+    socket.on('product:deleted', refreshProducts);
+    return () => {
+      socket.off('product:created', refreshProducts);
+      socket.off('product:updated', refreshProducts);
+      socket.off('product:deleted', refreshProducts);
+    };
+  }, [socket]);
 
   useEffect(() => {
     if (!tableConfirmed && tableInputRef.current) {
@@ -121,6 +139,54 @@ export default function Restaurant() {
     setTableConfirmed(true);
   };
 
+  // ── Envoyer la commande à l'imprimante (cuisine) — pas de sauvegarde BD ──
+  const handleSendToKitchen = async () => {
+    if (cart.length === 0) { toast.error('Le panier est vide'); return; }
+    setPrintLoading(true);
+    try {
+      await printTicket({
+        ticketNumber: `CMD-${Date.now().toString().slice(-6)}`,
+        orderType: 'dine_in',
+        tableName: tableNumber,
+        agentName: user ? `${user.firstName} ${user.lastName}` : '',
+        items: cart,
+        subtotal: cartTotal,
+        taxAmount: 0,
+        discount: 0,
+        total: cartTotal,
+      });
+      toast.success('Commande envoyée à l\'imprimante');
+    } catch {
+      toast.error('Erreur impression');
+    } finally {
+      setPrintLoading(false);
+    }
+  };
+
+  // ── Mémo: enregistre en cours + redirige vers En cours ──
+  const handleMemo = async () => {
+    setMemoLoading(true);
+    try {
+      if (existingInvoiceId && existingInvoice) {
+        if (cart.length > 0) {
+          await ticketsAPI.addItems(existingInvoiceId, cart);
+        }
+        navigate('/agent/en-cours');
+      } else if (cart.length > 0) {
+        if (!tableNumber.trim()) { toast.error('Numéro de table requis'); setMemoLoading(false); return; }
+        await ticketsAPI.directInvoice({ tableNumber: tableNumber.trim(), items: cart });
+        navigate('/agent/en-cours');
+      } else {
+        navigate('/agent/en-cours');
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Erreur mémo');
+    } finally {
+      setMemoLoading(false);
+    }
+  };
+
+  // ── Facturer: crée facture → auto-print → billing ──
   const handleFacturer = async () => {
     if (!tableConfirmed || !tableNumber.trim()) {
       toast.error('Numéro de table requis'); return;
@@ -128,20 +194,39 @@ export default function Restaurant() {
     if (cart.length === 0) { toast.error('Le panier est vide'); return; }
     setSubmitting(true);
     try {
+      let invoiceId, invoiceData;
       if (existingInvoiceId && existingInvoice) {
-        // Add items to existing invoice
-        await ticketsAPI.addItems(existingInvoiceId, cart);
-        toast.success('Articles ajoutés à la facture');
-        navigate(`/agent/billing/${existingInvoiceId}`);
+        const { data } = await ticketsAPI.addItems(existingInvoiceId, cart);
+        invoiceId = existingInvoiceId;
+        invoiceData = data.data;
       } else {
-        // Create new direct invoice
         const { data } = await ticketsAPI.directInvoice({
           tableNumber: tableNumber.trim(),
           items: cart
         });
-        toast.success(`Facture ${data.data.ticketNumber} créée`);
-        navigate(`/agent/billing/${data.data._id}`);
+        invoiceId = data.data._id;
+        invoiceData = data.data;
       }
+
+      // Auto-print facture client avant la page de facturation
+      try {
+        await printTicket({
+          ticketNumber: invoiceData?.ticketNumber || '',
+          orderType: 'dine_in',
+          tableName: tableNumber,
+          agentName: user ? `${user.firstName} ${user.lastName}` : '',
+          items: invoiceData?.items || cart,
+          subtotal: invoiceData?.subtotal ?? cartTotal,
+          taxAmount: 0,
+          discount: 0,
+          total: invoiceData?.total ?? cartTotal,
+        });
+        toast.success('Facture envoyée à l\'imprimante');
+      } catch {
+        toast('Impression échouée — facture créée', { icon: '⚠️' });
+      }
+
+      navigate(`/agent/billing/${invoiceId}`);
     } catch (error) {
       toast.error(error.response?.data?.message || 'Erreur création facture');
     } finally {
@@ -198,9 +283,11 @@ export default function Restaurant() {
   }
 
   // ── Step 2: Product selection ──
+  const isAddMode = !!existingInvoiceId && !!existingInvoice;
+
   return (
     <div className="flex flex-col" style={{ height: '100dvh' }}>
-      <TopBar title={`Restaurant — Table ${tableNumber}`} />
+      <TopBar title={isAddMode ? `Ajout — ${existingInvoice.ticketNumber} (Table ${tableNumber})` : `Restaurant — Table ${tableNumber}`} />
 
       {/* Mobile tab switcher */}
       <div className="flex lg:hidden gap-2 p-2 shrink-0">
@@ -238,10 +325,7 @@ export default function Restaurant() {
                 }`}
               >
                 {cat.color && (
-                  <span
-                    className="w-2.5 h-2.5 rounded-full shrink-0"
-                    style={{ backgroundColor: cat.color }}
-                  />
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
                 )}
                 {sidebarOpen && <span className="truncate">{cat.name}</span>}
               </button>
@@ -252,14 +336,14 @@ export default function Restaurant() {
         {/* ── Product grid ── */}
         <div className={`flex-1 flex flex-col overflow-hidden ${mobileTab === 'cart' ? 'hidden lg:flex' : 'flex'}`}>
           <div className="p-2 border-b flex items-center gap-2 shrink-0">
-            <Button variant="ghost" size="icon" className="shrink-0 h-9 w-9" onClick={() => { setTableConfirmed(false); setCart([]); }}>
+            <Button variant="ghost" size="icon" className="shrink-0 h-9 w-9"
+              onClick={() => isAddMode ? navigate('/agent/en-cours') : (setTableConfirmed(false), setCart([]))}>
               <ArrowLeft className="w-4 h-4" />
             </Button>
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Rechercher..." className="pl-9 h-9" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
             </div>
-            {/* Mobile category filter */}
             <div className="flex lg:hidden gap-1 overflow-x-auto">
               {categories.slice(0, 3).map(cat => (
                 <Button key={cat._id} size="sm" variant={selectedCategory === cat._id ? 'default' : 'outline'}
@@ -306,20 +390,39 @@ export default function Restaurant() {
                 <UtensilsCrossed className="w-4 h-4 text-primary" />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Table</p>
-                <p className="font-bold text-sm">{tableNumber}</p>
+                <p className="text-xs text-muted-foreground">{isAddMode ? 'Ajout sur facture' : 'Table'}</p>
+                <p className="font-bold text-sm">{isAddMode ? existingInvoice?.ticketNumber : tableNumber}</p>
               </div>
             </div>
-            <Button variant="ghost" size="sm" className="text-xs h-7"
-              onClick={() => { setTableConfirmed(false); setCart([]); }}>
-              Changer
-            </Button>
+            {!isAddMode && (
+              <Button variant="ghost" size="sm" className="text-xs h-7"
+                onClick={() => { setTableConfirmed(false); setCart([]); }}>
+                Changer
+              </Button>
+            )}
           </div>
 
-          {/* Cart items */}
+          {/* Existing invoice items summary (read-only) */}
+          {isAddMode && existingInvoice?.items?.length > 0 && (
+            <div className="px-3 pt-2 pb-1 border-b">
+              <p className="text-xs font-semibold text-muted-foreground uppercase mb-1">Déjà en facture</p>
+              <div className="space-y-0.5 max-h-24 overflow-y-auto">
+                {existingInvoice.items.map((item, i) => (
+                  <div key={i} className="flex justify-between text-xs text-muted-foreground">
+                    <span>{item.quantity}× {item.name}</span>
+                    <span>{formatCurrency(item.totalPrice)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* New cart items */}
           <div className="flex-1 overflow-y-auto p-3 space-y-2">
             {cart.length === 0 ? (
-              <p className="text-center text-muted-foreground text-sm py-10">Sélectionnez des produits</p>
+              <p className="text-center text-muted-foreground text-sm py-8">
+                {isAddMode ? 'Sélectionnez les articles à ajouter' : 'Sélectionnez des produits'}
+              </p>
             ) : cart.map((item, idx) => (
               <div key={idx} className="flex items-center gap-2 p-2 rounded-lg bg-muted">
                 <div className="flex-1 min-w-0">
@@ -345,21 +448,37 @@ export default function Restaurant() {
 
           {/* Footer actions */}
           <div className="border-t p-3 space-y-2">
-            <Separator />
             <div className="flex justify-between items-center font-bold">
-              <span>Total</span>
-              <span className="text-primary text-lg">{formatCurrency(cartTotal)}</span>
+              <span className="text-sm">Nouveau total</span>
+              <span className="text-primary">{formatCurrency(cartTotal)}</span>
             </div>
+            <Separator />
 
-            <Button className="w-full" onClick={handleFacturer} disabled={cart.length === 0 || submitting}>
+            {/* Envoyer la commande à l'imprimante (cuisine) */}
+            <Button variant="secondary" className="w-full" onClick={handleSendToKitchen}
+              disabled={cart.length === 0 || printLoading}>
+              {printLoading
+                ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                : <Send className="w-4 h-4 mr-2" />}
+              Envoyer la commande
+            </Button>
+
+            {/* Mémo → sauvegarde En cours + redirect */}
+            <Button variant="outline" className="w-full" onClick={handleMemo}
+              disabled={memoLoading || submitting}>
+              {memoLoading
+                ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                : <BookMarked className="w-4 h-4 mr-2" />}
+              Mémo
+            </Button>
+
+            {/* Facturer → crée facture + print + billing */}
+            <Button className="w-full" onClick={handleFacturer}
+              disabled={cart.length === 0 || submitting || memoLoading}>
               {submitting
                 ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 : <Receipt className="w-4 h-4 mr-2" />}
               Facturer
-            </Button>
-
-            <Button variant="outline" className="w-full" onClick={() => navigate('/agent/en-cours')}>
-              <BookMarked className="w-4 h-4 mr-2" /> Mémo
             </Button>
           </div>
         </div>

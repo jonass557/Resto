@@ -45,6 +45,20 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
+// GET /api/tickets/counts — Compteurs En cours / À Encaisser pour sidebar
+router.get('/counts', auth, async (req, res) => {
+  try {
+    const agentId = req.user._id;
+    const [enCours, aEncaisser] = await Promise.all([
+      Ticket.countDocuments({ agent: agentId, type: 'invoice', isPaid: false, memoStatus: 'en_cours' }),
+      Ticket.countDocuments({ agent: agentId, type: 'invoice', isPaid: false, memoStatus: 'a_encaisser' })
+    ]);
+    res.json({ success: true, data: { enCours, aEncaisser } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // GET /api/tickets/:id
 router.get('/:id', auth, async (req, res) => {
   try {
@@ -238,20 +252,6 @@ router.patch('/:id/mark-paid', auth, adminOnly, async (req, res) => {
     io.emit('ticket:paid', { ticketId: ticket._id });
 
     res.json({ success: true, data: ticket, message: 'Ticket marqué comme payé' });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-// GET /api/tickets/counts — Compteurs En cours / À Encaisser pour sidebar
-router.get('/counts', auth, async (req, res) => {
-  try {
-    const agentId = req.user._id;
-    const [enCours, aEncaisser] = await Promise.all([
-      Ticket.countDocuments({ agent: agentId, type: 'invoice', isPaid: false, memoStatus: 'en_cours' }),
-      Ticket.countDocuments({ agent: agentId, type: 'invoice', isPaid: false, memoStatus: 'a_encaisser' })
-    ]);
-    res.json({ success: true, data: { enCours, aEncaisser } });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

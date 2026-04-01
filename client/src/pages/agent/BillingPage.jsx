@@ -95,7 +95,7 @@ export default function BillingPage() {
     try {
       await ticketsAPI.moveToAEncaisser(id);
       toast.success('Facture mise en attente d\'encaissement');
-      navigate('/agent/restaurant');
+      navigate('/agent/a-encaisser');
     } catch {
       toast.error('Erreur mémo');
     } finally {

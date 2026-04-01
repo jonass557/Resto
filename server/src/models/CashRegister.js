@@ -5,7 +5,7 @@ const cashRegisterSchema = new mongoose.Schema({
   agent: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   openedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   closedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  service: { type: Number, enum: [1, 2], required: true },
+  service: { type: Number, enum: [1, 2] },
   openingAmount: { type: Number, required: true, default: 0 },
   closingAmount: { type: Number, default: 0 },
   expectedAmount: { type: Number, default: 0 },

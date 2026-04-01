@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
-import { Loader2, UtensilsCrossed, Plus, CreditCard, BookMarked } from 'lucide-react';
+import { Loader2, UtensilsCrossed, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function InvoicesEnCours() {
@@ -97,14 +97,10 @@ export default function InvoicesEnCours() {
                       <Badge variant="outline" className="text-orange-600 border-orange-300 bg-orange-50">
                         En cours
                       </Badge>
-                      <div className="flex flex-col gap-1.5 mt-2">
-                        <Button size="sm" variant="outline" className="h-8 text-xs"
+                      <div className="mt-2">
+                        <Button size="sm" variant="outline" className="h-8 text-xs w-full"
                           onClick={() => navigate(`/agent/restaurant?invoiceId=${inv._id}`)}>
                           <Plus className="w-3 h-3 mr-1" /> Ajouter
-                        </Button>
-                        <Button size="sm" className="h-8 text-xs"
-                          onClick={() => navigate(`/agent/billing/${inv._id}`)}>
-                          <CreditCard className="w-3 h-3 mr-1" /> Facturer
                         </Button>
                       </div>
                     </div>

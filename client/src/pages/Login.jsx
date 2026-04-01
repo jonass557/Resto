@@ -58,7 +58,7 @@ export default function Login() {
       const user = await login(emailVal, passVal);
       stopPoll();
       toast.success(`Bienvenue, ${user.firstName}!`);
-      navigate(user.role === 'admin' ? '/admin' : user.role === 'caissier' ? '/caissier' : '/agent');
+      navigate(user.role === 'admin' ? '/admin' : user.role === 'caissier' ? '/caissier' : '/agent/restaurant');
       return 'ok';
     } catch (err) {
       if (!err.response) return 'network'; // still waking
