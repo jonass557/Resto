@@ -14,7 +14,7 @@ import toast from 'react-hot-toast';
 export default function AdminTickets() {
   const [tickets, setTickets] = useState(() => readCache('/tickets', { limit: 200 })?.data?.data || []);
   const [loading, setLoading] = useState(() => !readCache('/tickets', { limit: 200 }));
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter] = useState('paid');
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -25,7 +25,7 @@ export default function AdminTickets() {
 
   const loadTickets = useCallback(async () => {
     try {
-      const { data } = await ticketsAPI.getAll({ limit: 200 });
+      const { data } = await ticketsAPI.getAll({ type: 'invoice', limit: 200 });
       setTickets(data.data);
     } catch (error) {
       toast.error('Erreur chargement tickets');
@@ -100,18 +100,18 @@ export default function AdminTickets() {
 
   return (
     <div>
-      <TopBar title="Gestion Tickets & Factures" />
+      <TopBar title="Factures" />
       <div className="p-3 sm:p-6 space-y-4">
         <div className="flex gap-1.5 sm:gap-2 flex-wrap">
           {[
-            { key: 'all', label: 'Tous' },
-            { key: 'order', label: 'Tickets' },
-            { key: 'invoice', label: 'Factures' },
             { key: 'paid', label: 'Factures payées' },
             { key: 'unpaid', label: 'Factures impayées' },
           ].map(({ key, label }) => (
             <Button key={key} variant={filter === key ? 'default' : 'outline'} size="sm" onClick={() => setFilter(key)}>
               {label}
+              <Badge variant="secondary" className="ml-2">
+                {key === 'paid' ? tickets.filter(t => t.isPaid).length : tickets.filter(t => !t.isPaid).length}
+              </Badge>
             </Button>
           ))}
         </div>

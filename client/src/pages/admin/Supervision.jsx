@@ -3,10 +3,11 @@ import { ordersAPI, ticketsAPI, statsAPI, invalidateCache, readCache } from '@/s
 import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatCurrency, formatDateTime, getStatusColor, getStatusLabel } from '@/lib/utils';
-import { Loader2, Activity, ShoppingCart, Receipt, Users, AlertCircle, Clock } from 'lucide-react';
+import { Loader2, Activity, ShoppingCart, Receipt, Users, AlertCircle, Clock, Trash2, Banknote, Smartphone, CreditCard } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function Supervision() {
@@ -17,6 +18,7 @@ export default function Supervision() {
     !readCache('/orders', { limit: 50 }) || !readCache('/tickets', { limit: 50 }) || !readCache('/stats/agents', { period: 'today' })
   );
   const { socket } = useSocket();
+  const [deletingId, setDeletingId] = useState(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -58,17 +60,32 @@ export default function Supervision() {
     socket.on('ticket:created', refresh);
     socket.on('ticket:invoice-created', onInvoiceCreated);
     socket.on('payment:created', refresh);
+    socket.on('ticket:deleted', refresh);
     return () => {
       socket.off('order:created', refresh);
       socket.off('order:status-changed', refresh);
       socket.off('ticket:created', refresh);
       socket.off('ticket:invoice-created', onInvoiceCreated);
       socket.off('payment:created', refresh);
+      socket.off('ticket:deleted', refresh);
     };
   }, [socket, loadData]);
 
   const activeOrders = orders.filter(o => !['paid', 'cancelled'].includes(o.status));
   const pendingInvoices = tickets.filter(t => t.type === 'invoice' && !t.isPaid);
+
+  const handleDeleteInvoice = async (id) => {
+    setDeletingId(id);
+    try {
+      await ticketsAPI.delete(id);
+      toast.success('Facture supprimée');
+      loadData();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Erreur suppression');
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   if (loading) {
     return <div><TopBar title="Supervision en temps réel" /><div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div></div>;
@@ -136,15 +153,15 @@ export default function Supervision() {
               <p className="text-center text-muted-foreground py-8">Aucune facture en attente de paiement</p>
             ) : pendingInvoices.map(ticket => (
               <Card key={ticket._id} className="border-amber-200 bg-amber-50/20">
-                <CardContent className="p-4 flex items-center justify-between">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-amber-500" />
+                <CardContent className="p-4 flex items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Clock className="w-4 h-4 text-amber-500 shrink-0" />
                       <p className="font-bold">{ticket.ticketNumber}</p>
                       <Badge variant="outline" className="text-amber-700 border-amber-300">En attente</Badge>
                     </div>
                     <p className="text-sm text-muted-foreground mt-1">
-                      Table {ticket.table?.number || '—'} &nbsp;|&nbsp;
+                      {ticket.tableNumber ? `Table ${ticket.tableNumber}` : ticket.table?.number ? `Table ${ticket.table.number}` : 'À emporter'} &nbsp;|&nbsp;
                       Agent: {ticket.agent?.firstName} {ticket.agent?.lastName} &nbsp;|&nbsp;
                       {formatDateTime(ticket.createdAt)}
                     </p>
@@ -154,7 +171,17 @@ export default function Supervision() {
                       ))}
                     </div>
                   </div>
-                  <p className="font-bold text-lg text-amber-700 shrink-0 ml-4">{formatCurrency(ticket.total)}</p>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <p className="font-bold text-lg text-amber-700">{formatCurrency(ticket.total)}</p>
+                    <Button size="sm" variant="ghost"
+                      className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-red-50"
+                      disabled={deletingId === ticket._id}
+                      onClick={() => handleDeleteInvoice(ticket._id)}>
+                      {deletingId === ticket._id
+                        ? <Loader2 className="w-4 h-4 animate-spin" />
+                        : <Trash2 className="w-4 h-4" />}
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ))}
@@ -229,7 +256,7 @@ export default function Supervision() {
             {agentStats.map((stat, i) => (
               <Card key={i}>
                 <CardContent className="p-3 sm:p-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                         <span className="font-bold text-primary text-sm">{stat.agent.firstName[0]}{stat.agent.lastName[0]}</span>
@@ -239,10 +266,31 @@ export default function Supervision() {
                         <p className="text-xs text-muted-foreground truncate">{stat.agent.email}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 sm:gap-6">
-                      <div className="text-center"><p className="font-bold text-sm">{stat.orders}</p><p className="text-xs text-muted-foreground">Cmd</p></div>
-                      <div className="text-center"><p className="font-bold text-sm">{stat.transactions}</p><p className="text-xs text-muted-foreground">Trans.</p></div>
-                      <div className="text-center"><p className="font-bold text-sm text-primary">{formatCurrency(stat.revenue)}</p><p className="text-xs text-muted-foreground">CA</p></div>
+                    <div className="flex flex-col items-end gap-2">
+                      <div className="flex items-center gap-4">
+                        <div className="text-center"><p className="font-bold text-sm">{stat.orders}</p><p className="text-xs text-muted-foreground">Cmd</p></div>
+                        <div className="text-center"><p className="font-bold text-sm">{stat.transactions}</p><p className="text-xs text-muted-foreground">Trans.</p></div>
+                        <div className="text-center"><p className="font-bold text-sm text-primary">{formatCurrency(stat.revenue)}</p><p className="text-xs text-muted-foreground">CA Total</p></div>
+                      </div>
+                      {stat.byMethod && stat.revenue > 0 && (
+                        <div className="flex items-center gap-3 text-xs">
+                          {stat.byMethod.cash > 0 && (
+                            <span className="flex items-center gap-1 text-green-700">
+                              <Banknote className="w-3 h-3" /> {formatCurrency(stat.byMethod.cash)}
+                            </span>
+                          )}
+                          {stat.byMethod.mobile_money > 0 && (
+                            <span className="flex items-center gap-1 text-blue-700">
+                              <Smartphone className="w-3 h-3" /> {formatCurrency(stat.byMethod.mobile_money)}
+                            </span>
+                          )}
+                          {stat.byMethod.card > 0 && (
+                            <span className="flex items-center gap-1 text-purple-700">
+                              <CreditCard className="w-3 h-3" /> {formatCurrency(stat.byMethod.card)}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </CardContent>

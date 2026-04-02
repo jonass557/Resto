@@ -35,11 +35,13 @@ export default function InvoicesEnCours() {
     socket.on('invoice:updated', load);
     socket.on('invoice:memo', load);
     socket.on('ticket:paid', load);
+    socket.on('ticket:deleted', load);
     return () => {
       socket.off('invoice:created', load);
       socket.off('invoice:updated', load);
       socket.off('invoice:memo', load);
       socket.off('ticket:paid', load);
+      socket.off('ticket:deleted', load);
     };
   }, [socket, load]);
 

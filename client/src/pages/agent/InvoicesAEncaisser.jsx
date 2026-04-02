@@ -33,9 +33,11 @@ export default function InvoicesAEncaisser() {
     if (!socket) return;
     socket.on('invoice:memo', load);
     socket.on('ticket:paid', load);
+    socket.on('ticket:deleted', load);
     return () => {
       socket.off('invoice:memo', load);
       socket.off('ticket:paid', load);
+      socket.off('ticket:deleted', load);
     };
   }, [socket, load]);
 

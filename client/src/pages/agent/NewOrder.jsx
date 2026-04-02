@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { productsAPI, categoriesAPI, ordersAPI, ticketsAPI, invalidateCache, readCache } from '@/services/api';
+import { productsAPI, categoriesAPI, ordersAPI, ticketsAPI, cashRegisterAPI, invalidateCache, readCache } from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
 import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
 import PaymentDialog from '@/components/PaymentDialog';
@@ -11,11 +12,12 @@ import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatCurrency } from '@/lib/utils';
-import { ArrowLeft, Plus, Minus, Trash2, Send, Search, Receipt, Loader2, Truck, ShoppingBag, MapPin, Phone, User } from 'lucide-react';
+import { ArrowLeft, Plus, Minus, Trash2, Send, Search, Receipt, Loader2, Truck, ShoppingBag, MapPin, Phone, User, LockKeyhole } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function NewOrder() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { socket } = useSocket();
 
   const [orderType, setOrderType] = useState('takeaway');
@@ -40,6 +42,18 @@ export default function NewOrder() {
   // Track orders placed in this session (for consolidated invoice)
   const [sessionOrders, setSessionOrders] = useState([]);
 
+  // Cash register session guard
+  const [cashSession, setCashSession] = useState(null); // null=loading, false=closed, obj=open
+
+  const checkCashSession = useCallback(async () => {
+    try {
+      const { data } = await cashRegisterAPI.getCurrent();
+      setCashSession(data.data || false);
+    } catch {
+      setCashSession(false);
+    }
+  }, []);
+
   const loadData = useCallback(async () => {
     try {
       const [productsRes, categoriesRes] = await Promise.all([
@@ -56,6 +70,17 @@ export default function NewOrder() {
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => { checkCashSession(); }, [checkCashSession]);
+
+  useEffect(() => {
+    if (!socket) return;
+    socket.on('cashRegister:opened', checkCashSession);
+    socket.on('cashRegister:closed', checkCashSession);
+    return () => {
+      socket.off('cashRegister:opened', checkCashSession);
+      socket.off('cashRegister:closed', checkCashSession);
+    };
+  }, [socket, checkCashSession]);
 
   const filteredProducts = products.filter(p => {
     const matchCategory = selectedCategory === 'all' || p.category?._id === selectedCategory;
@@ -99,6 +124,7 @@ export default function NewOrder() {
   const cartTotal = cart.reduce((sum, item) => sum + item.totalPrice, 0);
 
   const submitOrder = async () => {
+    if (!cashSession) { toast.error('Votre caisse n\'est pas ouverte — contactez le caissier'); return; }
     if (cart.length === 0) { toast.error('Le panier est vide'); return; }
 
     if (orderType === 'delivery' && (!deliveryInfo.clientName || !deliveryInfo.phone)) {
@@ -162,12 +188,40 @@ export default function NewOrder() {
 
   const sessionTotal = sessionOrders.reduce((sum, o) => sum + o.total, 0);
 
-  if (loading) {
+  if (loading || cashSession === null) {
     return (
       <div>
-        <TopBar title="Nouvelle commande" />
+        <TopBar title="Emporter / Livraison" />
         <div className="flex items-center justify-center h-64">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </div>
+    );
+  }
+
+  if (cashSession === false) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <TopBar title="Emporter / Livraison" />
+        <div className="flex-1 flex items-center justify-center p-6">
+          <div className="w-full max-w-sm text-center space-y-5">
+            <div className="w-20 h-20 rounded-2xl bg-red-100 flex items-center justify-center mx-auto">
+              <LockKeyhole className="w-10 h-10 text-red-500" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-red-600">Caisse non ouverte</h2>
+              <p className="text-muted-foreground text-sm mt-2">
+                Votre caisse n'a pas encore été ouverte par le caissier.<br />
+                Contactez le caissier pour démarrer votre service.
+              </p>
+            </div>
+            <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-700">
+              En attente d'ouverture de caisse…
+            </div>
+            <Button variant="ghost" className="w-full" onClick={() => navigate('/agent')}>
+              <ArrowLeft className="w-4 h-4 mr-2" /> Retour
+            </Button>
+          </div>
         </div>
       </div>
     );

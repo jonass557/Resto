@@ -1,74 +1,58 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ticketsAPI, readCache } from '@/services/api';
+import { ticketsAPI } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSocket } from '@/contexts/SocketContext';
 import { usePrinter } from '@/contexts/PrinterContext';
 import TopBar from '@/components/layout/TopBar';
-import PaymentDialog from '@/components/PaymentDialog';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
-import { Loader2, Printer, FileText, Receipt, Hash, CreditCard } from 'lucide-react';
+import { Loader2, Printer, CheckCircle2, Banknote, Smartphone, CreditCard } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import toast from 'react-hot-toast';
 
-export default function Tickets() {
+const METHOD_LABEL = { cash: 'Espèces', mobile_money: 'Mobile Money', card: 'Carte', mixed: 'Mixte' };
+const METHOD_ICON = { cash: Banknote, mobile_money: Smartphone, card: CreditCard, mixed: CreditCard };
+const METHOD_COLOR = { cash: 'text-green-600', mobile_money: 'text-blue-600', card: 'text-purple-600', mixed: 'text-orange-600' };
+
+export default function PaidInvoices() {
   const { user } = useAuth();
-  const [tickets, setTickets] = useState(() => {
-    const u = user || JSON.parse(localStorage.getItem('user') || 'null');
-    return readCache('/tickets', { agent: u?._id, limit: 100 })?.data?.data || [];
-  });
-  const [loading, setLoading] = useState(() => {
-    const u = user || JSON.parse(localStorage.getItem('user') || 'null');
-    return !readCache('/tickets', { agent: u?._id, limit: 100 });
-  });
-  const [filter, setFilter] = useState('all');
-  const [selectedTicket, setSelectedTicket] = useState(null);
+  const [invoices, setInvoices] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState(null);
   const [printing, setPrinting] = useState(false);
-  const [payDialog, setPayDialog] = useState(false);
-  const [invoiceToPay, setInvoiceToPay] = useState(null);
   const { socket } = useSocket();
   const { printTicketById } = usePrinter();
 
-  const loadTickets = useCallback(async () => {
+  const load = useCallback(async () => {
     try {
-      const { data } = await ticketsAPI.getAll({ agent: user?._id, limit: 100 });
-      setTickets(data.data);
-    } catch (error) {
-      toast.error('Erreur chargement tickets');
+      const { data } = await ticketsAPI.getAll({ agent: user?._id, type: 'invoice', isPaid: 'true', limit: 200 });
+      setInvoices(data.data);
+    } catch {
+      toast.error('Erreur chargement');
     } finally {
       setLoading(false);
     }
   }, [user?._id]);
 
-  useEffect(() => { loadTickets(); }, [loadTickets]);
+  useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
     if (!socket) return;
-    socket.on('ticket:created', loadTickets);
-    socket.on('ticket:invoice-created', loadTickets);
-    socket.on('ticket:paid', loadTickets);
-    socket.on('ticket:deleted', loadTickets);
+    socket.on('ticket:paid', load);
+    socket.on('ticket:deleted', load);
     return () => {
-      socket.off('ticket:created', loadTickets);
-      socket.off('ticket:invoice-created', loadTickets);
-      socket.off('ticket:paid', loadTickets);
-      socket.off('ticket:deleted', loadTickets);
+      socket.off('ticket:paid', load);
+      socket.off('ticket:deleted', load);
     };
-  }, [socket, loadTickets]);
+  }, [socket, load]);
 
-  const filtered = filter === 'all' ? tickets :
-    filter === 'paid' ? tickets.filter(t => t.type === 'invoice' && t.isPaid) :
-    filter === 'unpaid' ? tickets.filter(t => t.type === 'invoice' && !t.isPaid) :
-    tickets.filter(t => t.type === filter);
-
-  const printTicket = async (ticket) => {
+  const handlePrint = async (inv) => {
     setPrinting(true);
     try {
-      await printTicketById(ticket._id);
-      await ticketsAPI.markPrinted(ticket._id);
-      loadTickets();
+      await printTicketById(inv._id);
     } catch {
       toast.error('Erreur impression');
     } finally {
@@ -78,135 +62,121 @@ export default function Tickets() {
 
   return (
     <div>
-      <TopBar title="Tickets & Factures" />
+      <TopBar title="Factures payées" />
       <div className="p-3 sm:p-6 space-y-4">
-        <div className="flex gap-1.5 sm:gap-2 flex-wrap">
-          {[
-            { key: 'all', label: 'Tous' },
-            { key: 'order', label: 'Tickets' },
-            { key: 'invoice', label: 'Factures' },
-            { key: 'paid', label: 'Factures payées' },
-            { key: 'unpaid', label: 'Factures impayées' },
-          ].map(({ key, label }) => (
-            <Button key={key} variant={filter === key ? 'default' : 'outline'} size="sm" onClick={() => setFilter(key)}>
-              {label}
-            </Button>
-          ))}
-        </div>
+        <p className="text-xs text-muted-foreground">Les factures payées sont automatiquement supprimées après 24 h.</p>
 
         {loading ? (
           <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
-        ) : filtered.length === 0 ? (
-          <p className="text-center text-muted-foreground py-12">Aucun ticket trouvé</p>
+        ) : invoices.length === 0 ? (
+          <div className="text-center py-16">
+            <CheckCircle2 className="w-12 h-12 text-green-400 mx-auto mb-3" />
+            <p className="text-muted-foreground">Aucune facture payée</p>
+          </div>
         ) : (
           <div className="grid gap-3">
-            {filtered.map(ticket => (
-              <Card key={ticket._id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setSelectedTicket(ticket)}>
-                <CardContent className="p-3 sm:p-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center shrink-0 ${ticket.type === 'invoice' ? 'bg-green-50' : 'bg-blue-50'}`}>
-                      {ticket.type === 'invoice' ? <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" /> : <Receipt className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />}
+            {invoices.map(inv => {
+              const Icon = METHOD_ICON[inv.payment?.method] || Banknote;
+              return (
+                <Card key={inv._id} className="hover:shadow-md transition-shadow cursor-pointer border-green-100" onClick={() => setSelected(inv)}>
+                  <CardContent className="p-3 sm:p-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-lg bg-green-50 flex items-center justify-center shrink-0">
+                          <CheckCircle2 className="w-5 h-5 text-green-600" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-sm">{inv.ticketNumber}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {inv.tableNumber || (inv.table?.number ? `Table ${inv.table.number}` : 'À emporter')}
+                            {' · '}{formatDateTime(inv.createdAt)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="outline" className="gap-1 text-green-700 border-green-300">
+                          <Icon className={`w-3 h-3 ${METHOD_COLOR[inv.payment?.method] || ''}`} />
+                          {METHOD_LABEL[inv.payment?.method] || 'Payé'}
+                        </Badge>
+                        <p className="font-bold text-primary text-sm">{formatCurrency(inv.total)}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-bold text-sm sm:text-base">{ticket.ticketNumber}</p>
-                      <p className="text-xs sm:text-sm text-muted-foreground">
-                        {ticket.table ? `Table ${ticket.table.number}` : 'À emporter'} · {ticket.agent?.firstName} {ticket.agent?.lastName}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {ticket.table && (
-                      <Badge variant="outline" className="gap-1">
-                        <Hash className="w-3 h-3" /> Table {ticket.table.number}
-                      </Badge>
-                    )}
-                    <Badge variant={ticket.type === 'invoice' ? 'default' : 'secondary'}>
-                      {ticket.type === 'invoice' ? 'Facture' : 'Ticket'}
-                    </Badge>
-                    {ticket.type === 'invoice' && (
-                      <Badge variant={ticket.isPaid ? 'default' : 'destructive'}>
-                        {ticket.isPaid ? 'Payé' : 'Impayé'}
-                      </Badge>
-                    )}
-                    <p className="font-bold text-primary text-sm">{formatCurrency(ticket.total)}</p>
-                    <p className="text-xs text-muted-foreground">{formatDateTime(ticket.createdAt)}</p>
-                  </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         )}
       </div>
 
-      <Dialog open={!!selectedTicket} onOpenChange={() => setSelectedTicket(null)}>
+      <Dialog open={!!selected} onOpenChange={() => setSelected(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{selectedTicket?.ticketNumber}</DialogTitle>
+            <DialogTitle>{selected?.ticketNumber}</DialogTitle>
           </DialogHeader>
-          {selectedTicket && (
+          {selected && (
             <div className="space-y-4">
-              <div className="flex gap-2 flex-wrap">
-                {selectedTicket.table && (
-                  <Badge variant="outline"><Hash className="w-3 h-3 mr-1" /> Table {selectedTicket.table.number}</Badge>
-                )}
-                <Badge variant={selectedTicket.type === 'invoice' ? 'default' : 'secondary'}>
-                  {selectedTicket.type === 'invoice' ? 'Facture' : 'Ticket'}
-                </Badge>
-                {selectedTicket.type === 'invoice' && (
-                  <Badge variant={selectedTicket.isPaid ? 'default' : 'destructive'}>
-                    {selectedTicket.isPaid ? 'Payé' : 'Impayé'}
-                  </Badge>
-                )}
-              </div>
-
               <div className="text-sm text-muted-foreground">
-                <p>Agent: {selectedTicket.agent?.firstName} {selectedTicket.agent?.lastName}</p>
-                <p>Date: {formatDateTime(selectedTicket.createdAt)}</p>
+                <p>Table : {selected.tableNumber || selected.table?.number || '—'}</p>
+                <p>Date : {formatDateTime(selected.createdAt)}</p>
               </div>
 
               <div className="bg-muted p-3 rounded-lg text-sm space-y-1">
-                {selectedTicket.items?.map((item, i) => (
+                {selected.items?.map((item, i) => (
                   <div key={i} className="flex justify-between">
-                    <span>{item.quantity}x {item.name}</span>
+                    <span>{item.quantity}× {item.name}</span>
                     <span>{formatCurrency(item.totalPrice)}</span>
                   </div>
                 ))}
-                <div className="border-t pt-2 mt-2 flex justify-between font-bold text-base">
+                <div className="border-t pt-2 mt-2 flex justify-between font-bold">
                   <span>Total</span>
-                  <span>{formatCurrency(selectedTicket.total)}</span>
+                  <span>{formatCurrency(selected.total)}</span>
                 </div>
               </div>
 
-              {selectedTicket.type === 'invoice' && !selectedTicket.isPaid && (
-                <Button className="w-full" variant="default" onClick={() => {
-                  setInvoiceToPay(selectedTicket);
-                  setPayDialog(true);
-                }}>
-                  <CreditCard className="w-4 h-4 mr-2" /> Confirmer le paiement
-                </Button>
+              {selected.payment && (
+                <div className="p-3 rounded-lg bg-green-50 border border-green-200 text-sm space-y-1">
+                  <p className="font-semibold text-green-800 mb-1">Paiement</p>
+                  {selected.payment.method === 'mixed' && selected.payment.mixedPayments?.length > 0 ? (
+                    selected.payment.mixedPayments.map((mp, i) => {
+                      const Icon = METHOD_ICON[mp.method] || Banknote;
+                      return (
+                        <div key={i} className="flex justify-between items-center">
+                          <span className="flex items-center gap-1.5">
+                            <Icon className={`w-3.5 h-3.5 ${METHOD_COLOR[mp.method] || ''}`} />
+                            {METHOD_LABEL[mp.method] || mp.method}
+                          </span>
+                          <span className="font-medium">{formatCurrency(mp.amount)}</span>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="flex justify-between items-center">
+                      {(() => { const Icon = METHOD_ICON[selected.payment.method] || Banknote; return (
+                        <span className="flex items-center gap-1.5">
+                          <Icon className={`w-3.5 h-3.5 ${METHOD_COLOR[selected.payment.method] || ''}`} />
+                          {METHOD_LABEL[selected.payment.method] || selected.payment.method}
+                        </span>
+                      ); })()}
+                      <span className="font-medium">{formatCurrency(selected.payment.amount)}</span>
+                    </div>
+                  )}
+                  <Separator className="my-1" />
+                  <div className="flex justify-between font-bold text-green-700">
+                    <span>Total encaissé</span>
+                    <span>{formatCurrency(selected.payment.amountReceived || selected.total)}</span>
+                  </div>
+                </div>
               )}
-              <Button className="w-full" variant="outline" onClick={() => printTicket(selectedTicket)} disabled={printing}>
+
+              <Button className="w-full" variant="outline" onClick={() => handlePrint(selected)} disabled={printing}>
                 {printing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Printer className="w-4 h-4 mr-2" />}
-                Imprimer & envoyer au client
+                Réimprimer
               </Button>
             </div>
           )}
         </DialogContent>
       </Dialog>
-
-      <PaymentDialog
-        open={payDialog}
-        onOpenChange={setPayDialog}
-        invoice={invoiceToPay}
-        onSuccess={() => {
-          setPayDialog(false);
-          setInvoiceToPay(null);
-          setSelectedTicket(null);
-          loadTickets();
-        }}
-      />
     </div>
   );
 }

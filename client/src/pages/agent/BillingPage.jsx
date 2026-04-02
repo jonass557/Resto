@@ -276,7 +276,7 @@ export default function BillingPage() {
                         ))}
                       </SelectContent>
                     </Select>
-                    <Input placeholder="N° téléphone" value={line.phone}
+                    <Input placeholder="N° téléphone (optionnel)" value={line.phone}
                       onChange={e => updateLine(idx, 'phone', e.target.value)} className="h-8 text-xs" />
                   </div>
                 )}

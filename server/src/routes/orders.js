@@ -3,6 +3,7 @@ const Order = require('../models/Order');
 const Table = require('../models/Table');
 const Ticket = require('../models/Ticket');
 const Product = require('../models/Product');
+const CashRegister = require('../models/CashRegister');
 const { auth } = require('../middleware/auth');
 const { generateOrderNumber, generateTicketNumber } = require('../utils/helpers');
 
@@ -59,6 +60,10 @@ router.get('/:id', auth, async (req, res) => {
 // Supports: dine_in (table required), takeaway, delivery (deliveryInfo required)
 router.post('/', auth, async (req, res) => {
   try {
+    const openSession = await CashRegister.findOne({ agent: req.user._id, status: 'open' });
+    if (!openSession) {
+      return res.status(403).json({ success: false, message: 'Votre caisse n\'est pas ouverte. Contactez le caissier pour ouvrir votre service.' });
+    }
     const { tableId, items, notes, clientId, discount, discountType, orderType = 'dine_in', deliveryInfo } = req.body;
 
     let table = null;

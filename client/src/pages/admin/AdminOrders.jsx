@@ -79,11 +79,15 @@ export default function AdminOrders() {
       <TopBar title="Commandes" />
       <div className="p-3 sm:p-6 space-y-4">
         <div className="flex gap-1.5 sm:gap-2 flex-wrap">
-          {['all', 'pending', 'in_progress', 'ready', 'served', 'paid', 'cancelled'].map((s) => (
-            <Button key={s} variant={filter === s ? 'default' : 'outline'} size="sm" onClick={() => setFilter(s)}>
-              {s === 'all' ? 'Toutes' : getStatusLabel(s)}
+          {[
+            { key: 'all', label: 'Toutes' },
+            { key: 'pending', label: 'En attente' },
+            { key: 'paid', label: 'Payé' },
+          ].map(({ key, label }) => (
+            <Button key={key} variant={filter === key ? 'default' : 'outline'} size="sm" onClick={() => setFilter(key)}>
+              {label}
               <Badge variant="secondary" className="ml-2">
-                {s === 'all' ? orders.length : orders.filter(o => o.status === s).length}
+                {key === 'all' ? orders.length : orders.filter(o => o.status === key).length}
               </Badge>
             </Button>
           ))}

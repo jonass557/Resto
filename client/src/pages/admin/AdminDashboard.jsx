@@ -337,6 +337,25 @@ export default function AdminDashboard() {
                           <div className="h-full rounded-full transition-all" style={{ width: `${stat.orderPercent}%`, backgroundColor: COLORS[i % COLORS.length], opacity: 0.6 }} />
                         </div>
                       </div>
+                      {stat.byMethod && stat.revenue > 0 && (
+                        <div className="flex items-center gap-3 pt-1 text-xs border-t border-border/40">
+                          {stat.byMethod.cash > 0 && (
+                            <span className="flex items-center gap-1 text-green-700">
+                              <Banknote className="w-3 h-3" /> {formatCurrency(stat.byMethod.cash)}
+                            </span>
+                          )}
+                          {stat.byMethod.mobile_money > 0 && (
+                            <span className="flex items-center gap-1 text-blue-700">
+                              <Smartphone className="w-3 h-3" /> {formatCurrency(stat.byMethod.mobile_money)}
+                            </span>
+                          )}
+                          {stat.byMethod.card > 0 && (
+                            <span className="flex items-center gap-1 text-purple-700">
+                              <CreditCard className="w-3 h-3" /> {formatCurrency(stat.byMethod.card)}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

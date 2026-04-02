@@ -18,7 +18,6 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 const adminNav = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true },
   { to: '/admin/supervision', icon: BarChart3, label: 'Supervision' },
-  { to: '/admin/tables', icon: UtensilsCrossed, label: 'Tables' },
   { to: '/admin/orders', icon: ShoppingCart, label: 'Commandes' },
   { to: '/admin/tickets', icon: Receipt, label: 'Tickets' },
   { to: '/admin/users', icon: Users, label: 'Utilisateurs' },
@@ -108,7 +107,7 @@ export default function Sidebar({ onNavigate, collapsed, onToggleCollapse }) {
       badgeColor: 'bg-blue-500'
     },
     { to: '/agent/new-order', icon: Truck, label: 'Emporter / Livraison' },
-    { to: '/agent/tickets', icon: Receipt, label: 'Tickets' },
+    { to: '/agent/tickets', icon: Receipt, label: 'Factures payées' },
     { to: '/agent/clients', icon: UserCircle, label: 'Clients' },
     { to: '/agent/settings', icon: Settings, label: 'Paramètres' },
   ];

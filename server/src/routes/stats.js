@@ -94,21 +94,29 @@ router.get('/agents', auth, adminOnly, SC, async (req, res) => {
       ]),
       Payment.aggregate([
         { $match: { createdAt: { $gte: start, $lt: end }, status: 'completed' } },
-        { $group: { _id: '$agent', revenue: { $sum: '$amount' }, transactions: { $sum: 1 } } }
+        { $group: {
+          _id: '$agent',
+          revenue: { $sum: '$amount' },
+          transactions: { $sum: 1 },
+          cash: { $sum: { $cond: [{ $eq: ['$method', 'cash'] }, '$amount', 0] } },
+          mobile_money: { $sum: { $cond: [{ $eq: ['$method', 'mobile_money'] }, '$amount', 0] } },
+          card: { $sum: { $cond: [{ $eq: ['$method', 'card'] }, '$amount', 0] } }
+        }}
       ])
     ]);
 
     const orderMap = Object.fromEntries(orderAggs.map(a => [a._id.toString(), a.orders]));
-    const payMap = Object.fromEntries(paymentAggs.map(a => [a._id.toString(), { revenue: a.revenue, transactions: a.transactions }]));
+    const payMap = Object.fromEntries(paymentAggs.map(a => [a._id.toString(), { revenue: a.revenue, transactions: a.transactions, cash: a.cash, mobile_money: a.mobile_money, card: a.card }]));
 
     const agentStats = agents.map(agent => {
       const id = agent._id.toString();
-      const pay = payMap[id] || { revenue: 0, transactions: 0 };
+      const pay = payMap[id] || { revenue: 0, transactions: 0, cash: 0, mobile_money: 0, card: 0 };
       return {
         agent: { _id: agent._id, firstName: agent.firstName, lastName: agent.lastName, email: agent.email },
         orders: orderMap[id] || 0,
         revenue: pay.revenue,
         transactions: pay.transactions,
+        byMethod: { cash: pay.cash, mobile_money: pay.mobile_money, card: pay.card },
         lastLogin: agent.lastLogin
       };
     });
@@ -373,7 +381,14 @@ router.get('/agent-performance', auth, adminOnly, SC, async (req, res) => {
       ]),
       Payment.aggregate([
         { $match: { createdAt: { $gte: start, $lt: end }, status: 'completed' } },
-        { $group: { _id: '$agent', revenue: { $sum: '$amount' }, transactions: { $sum: 1 } } }
+        { $group: {
+          _id: '$agent',
+          revenue: { $sum: '$amount' },
+          transactions: { $sum: 1 },
+          cash: { $sum: { $cond: [{ $eq: ['$method', 'cash'] }, '$amount', 0] } },
+          mobile_money: { $sum: { $cond: [{ $eq: ['$method', 'mobile_money'] }, '$amount', 0] } },
+          card: { $sum: { $cond: [{ $eq: ['$method', 'card'] }, '$amount', 0] } }
+        }}
       ]),
       Ticket.aggregate([
         { $match: { createdAt: { $gte: start, $lt: end } } },
@@ -389,12 +404,12 @@ router.get('/agent-performance', auth, adminOnly, SC, async (req, res) => {
     const totalRevenueAll = totalAgg[0]?.totalRevenue || 0;
 
     const orderMap = Object.fromEntries(orderAggs.map(a => [a._id.toString(), a.orders]));
-    const payMap = Object.fromEntries(paymentAggs.map(a => [a._id.toString(), { revenue: a.revenue, transactions: a.transactions }]));
+    const payMap = Object.fromEntries(paymentAggs.map(a => [a._id.toString(), { revenue: a.revenue, transactions: a.transactions, cash: a.cash, mobile_money: a.mobile_money, card: a.card }]));
     const ticketMap = Object.fromEntries(ticketAggs.map(a => [a._id.toString(), a.tickets]));
 
     const agentPerf = agents.map(agent => {
       const id = agent._id.toString();
-      const pay = payMap[id] || { revenue: 0, transactions: 0 };
+      const pay = payMap[id] || { revenue: 0, transactions: 0, cash: 0, mobile_money: 0, card: 0 };
       const agOrders = orderMap[id] || 0;
       return {
         agent: { _id: agent._id, firstName: agent.firstName, lastName: agent.lastName, email: agent.email },
@@ -402,6 +417,7 @@ router.get('/agent-performance', auth, adminOnly, SC, async (req, res) => {
         revenue: pay.revenue,
         tickets: ticketMap[id] || 0,
         transactions: pay.transactions,
+        byMethod: { cash: pay.cash, mobile_money: pay.mobile_money, card: pay.card },
         orderPercent: allOrderCount > 0 ? Math.round((agOrders / allOrderCount) * 100) : 0,
         revenuePercent: totalRevenueAll > 0 ? Math.round((pay.revenue / totalRevenueAll) * 100) : 0,
         lastLogin: agent.lastLogin

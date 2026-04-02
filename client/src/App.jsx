@@ -30,7 +30,6 @@ const AdminClients = lazy(() => import('./pages/admin/AdminClients'));
 const Sales = lazy(() => import('./pages/admin/Sales'));
 const Accounting = lazy(() => import('./pages/admin/Accounting'));
 const Reports = lazy(() => import('./pages/admin/Reports'));
-const AdminTables = lazy(() => import('./pages/admin/AdminTables'));
 const AdminSettings = lazy(() => import('./pages/admin/AdminSettings'));
 const RevenueHistory = lazy(() => import('./pages/admin/RevenueHistory'));
 const DailyInvoices = lazy(() => import('./pages/admin/DailyInvoices'));
@@ -109,7 +108,6 @@ export default function App() {
         }>
           <Route index element={<Suspense fallback={<PageLoader />}><AdminDashboard /></Suspense>} />
           <Route path="supervision" element={<Suspense fallback={<PageLoader />}><Supervision /></Suspense>} />
-          <Route path="tables" element={<Suspense fallback={<PageLoader />}><AdminTables /></Suspense>} />
           <Route path="orders" element={<Suspense fallback={<PageLoader />}><AdminOrders /></Suspense>} />
           <Route path="tickets" element={<Suspense fallback={<PageLoader />}><AdminTickets /></Suspense>} />
           <Route path="users" element={<Suspense fallback={<PageLoader />}><UserManagement /></Suspense>} />
