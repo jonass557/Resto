@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { statsAPI, readCache } from '@/services/api';
+import { statsAPI, invalidateCache, readCache } from '@/services/api';
+import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -37,7 +38,10 @@ export default function TransactionHistory() {
     return !readCache(`/stats/agent-history/${u?._id}`, { startDate: sd.toISOString().split('T')[0], endDate: new Date().toISOString().split('T')[0], page: 1, limit: 30 });
   });
 
+  const { socket } = useSocket();
+
   const loadHistory = useCallback(async (page = 1) => {
+    invalidateCache('/stats/agent-history');
     if (!readCache(`/stats/agent-history/${user._id}`, { startDate, endDate, page, limit: 30 })) setLoading(true);
     try {
       const { data } = await statsAPI.getAgentHistory(user._id, {
@@ -54,6 +58,16 @@ export default function TransactionHistory() {
   }, [user._id, startDate, endDate]);
 
   useEffect(() => { loadHistory(); }, [loadHistory]);
+
+  useEffect(() => {
+    if (!socket) return;
+    socket.on('payment:created', loadHistory);
+    socket.on('ticket:paid', loadHistory);
+    return () => {
+      socket.off('payment:created', loadHistory);
+      socket.off('ticket:paid', loadHistory);
+    };
+  }, [socket, loadHistory]);
 
   const quickFilter = (days) => {
     const end = new Date();
