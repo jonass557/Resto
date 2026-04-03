@@ -55,11 +55,13 @@ function useSidebarCounts(isAgent, socket) {
     socket.on('invoice:updated', refresh);
     socket.on('invoice:memo', refresh);
     socket.on('ticket:paid', refresh);
+    socket.on('ticket:deleted', refresh);
     return () => {
       socket.off('invoice:created', refresh);
       socket.off('invoice:updated', refresh);
       socket.off('invoice:memo', refresh);
       socket.off('ticket:paid', refresh);
+      socket.off('ticket:deleted', refresh);
     };
   }, [socket, isAgent, refresh]);
 

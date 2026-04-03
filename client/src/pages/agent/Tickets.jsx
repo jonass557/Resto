@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ticketsAPI } from '@/services/api';
+import { ticketsAPI, invalidateCache } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSocket } from '@/contexts/SocketContext';
 import { usePrinter } from '@/contexts/PrinterContext';
@@ -27,6 +27,7 @@ export default function PaidInvoices() {
   const { printTicketById } = usePrinter();
 
   const load = useCallback(async () => {
+    invalidateCache('/tickets');
     try {
       const { data } = await ticketsAPI.getAll({ agent: user?._id, type: 'invoice', isPaid: 'true', limit: 200 });
       setInvoices(data.data);

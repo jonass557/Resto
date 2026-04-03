@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { usersAPI, readCache } from '@/services/api';
+import { usersAPI, invalidateCache, readCache } from '@/services/api';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,7 @@ export default function UserManagement() {
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', password: '', role: 'agent', phone: '' });
 
   const loadUsers = useCallback(async () => {
+    invalidateCache('/users');
     try {
       const { data } = await usersAPI.getAll({ search: searchQuery });
       setUsers(data.data);

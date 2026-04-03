@@ -21,6 +21,9 @@ export default function Supervision() {
   const [deletingId, setDeletingId] = useState(null);
 
   const loadData = useCallback(async () => {
+    invalidateCache('/orders');
+    invalidateCache('/tickets');
+    invalidateCache('/stats');
     try {
       const [ordersRes, ticketsRes, agentsRes] = await Promise.all([
         ordersAPI.getAll({ limit: 50 }),

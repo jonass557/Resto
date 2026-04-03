@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ordersAPI, readCache } from '@/services/api';
+import { ordersAPI, invalidateCache, readCache } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
@@ -26,6 +26,7 @@ export default function Orders() {
   const { socket } = useSocket();
 
   const loadOrders = useCallback(async () => {
+    invalidateCache('/orders');
     try {
       const { data } = await ordersAPI.getAll({ agent: user?._id, limit: 100 });
       setOrders(data.data);

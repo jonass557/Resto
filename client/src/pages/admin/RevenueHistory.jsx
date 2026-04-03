@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { statsAPI, readCache } from '@/services/api';
+import { statsAPI, invalidateCache, readCache } from '@/services/api';
 import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -38,6 +38,7 @@ export default function RevenueHistory() {
   for (let y = currentYear; y >= currentYear - 5; y--) years.push(y);
 
   const loadMonthly = useCallback(async () => {
+    invalidateCache('/stats/revenue-history');
     if (!readCache('/stats/revenue-history', { year })) setLoading(true);
     try {
       const { data } = await statsAPI.getRevenueHistory({ year });
@@ -71,7 +72,11 @@ export default function RevenueHistory() {
       else if (view === 'days' && selectedMonth) loadDaily(selectedMonth);
     };
     socket.on('payment:created', refresh);
-    return () => socket.off('payment:created', refresh);
+    socket.on('ticket:paid', refresh);
+    return () => {
+      socket.off('payment:created', refresh);
+      socket.off('ticket:paid', refresh);
+    };
   }, [socket, view, selectedMonth, loadMonthly, loadDaily]);
 
   const openMonth = (monthNum) => {

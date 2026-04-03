@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ticketsAPI } from '@/services/api';
+import { ticketsAPI, invalidateCache } from '@/services/api';
 import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent } from '@/components/ui/card';
@@ -17,6 +17,7 @@ export default function InvoicesEnCours() {
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
+    invalidateCache('/tickets');
     try {
       const { data } = await ticketsAPI.getAll({ type: 'invoice', isPaid: false, limit: 100 });
       setInvoices((data.data || []).filter(t => t.memoStatus === 'en_cours'));

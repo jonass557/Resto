@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ordersAPI, readCache } from '@/services/api';
+import { ordersAPI, invalidateCache, readCache } from '@/services/api';
 import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent } from '@/components/ui/card';
@@ -21,6 +21,7 @@ export default function AdminOrders() {
   const { socket } = useSocket();
 
   const loadOrders = useCallback(async () => {
+    invalidateCache('/orders');
     try {
       const { data } = await ordersAPI.getAll({ limit: 200 });
       setOrders(data.data);
@@ -38,10 +39,12 @@ export default function AdminOrders() {
     socket.on('order:created', loadOrders);
     socket.on('order:status-changed', loadOrders);
     socket.on('order:deleted', loadOrders);
+    socket.on('ticket:paid', loadOrders);
     return () => {
       socket.off('order:created', loadOrders);
       socket.off('order:status-changed', loadOrders);
       socket.off('order:deleted', loadOrders);
+      socket.off('ticket:paid', loadOrders);
     };
   }, [socket, loadOrders]);
 

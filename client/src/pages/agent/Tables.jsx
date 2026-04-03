@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { tablesAPI, readCache } from '@/services/api';
+import { tablesAPI, invalidateCache, readCache } from '@/services/api';
 import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent } from '@/components/ui/card';
@@ -24,6 +24,7 @@ export default function Tables() {
   const { socket } = useSocket();
 
   const loadTables = useCallback(async () => {
+    invalidateCache('/tables');
     try {
       const { data } = await tablesAPI.getAll();
       setTables(data.data);

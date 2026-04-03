@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { statsAPI, notificationsAPI, ticketsAPI, readCache } from '@/services/api';
+import { statsAPI, notificationsAPI, ticketsAPI, invalidateCache, readCache } from '@/services/api';
 import toast from 'react-hot-toast';
 import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
@@ -52,6 +52,7 @@ export default function AdminDashboard() {
   const [deletingId, setDeletingId] = useState(null);
 
   const loadStats = useCallback(async () => {
+    invalidateCache('/stats');
     if (!readCache('/stats/dashboard', { period }) || !readCache('/stats/agents', { period })) setLoading(true);
     try {
       const [dashRes, agentsRes, revenueRes, perfRes, prodRes] = await Promise.all([
@@ -84,6 +85,7 @@ export default function AdminDashboard() {
   }, []);
 
   const loadInvoices = useCallback(async () => {
+    invalidateCache('/tickets');
     setInvoicesLoading(true);
     try {
       const [enCoursRes, aEncaisserRes, paidRes] = await Promise.all([
@@ -123,19 +125,23 @@ export default function AdminDashboard() {
     const refreshNotif = () => loadNotifications();
     const refreshInv = () => loadInvoices();
     socket.on('order:created', refresh);
+    socket.on('order:status-changed', refresh);
     socket.on('payment:created', refresh);
     socket.on('notification:new', refreshNotif);
     socket.on('invoice:created', refreshInv);
     socket.on('invoice:updated', refreshInv);
-    socket.on('ticket:paid', refreshInv);
+    socket.on('invoice:memo', refreshInv);
+    socket.on('ticket:paid', () => { refresh(); refreshInv(); });
     socket.on('ticket:deleted', refreshInv);
     return () => {
       socket.off('order:created', refresh);
+      socket.off('order:status-changed', refresh);
       socket.off('payment:created', refresh);
       socket.off('notification:new', refreshNotif);
       socket.off('invoice:created', refreshInv);
       socket.off('invoice:updated', refreshInv);
-      socket.off('ticket:paid', refreshInv);
+      socket.off('invoice:memo', refreshInv);
+      socket.off('ticket:paid');
       socket.off('ticket:deleted', refreshInv);
     };
   }, [socket, loadStats, loadNotifications, loadInvoices]);

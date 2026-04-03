@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { productsAPI, categoriesAPI, readCache } from '@/services/api';
+import { productsAPI, categoriesAPI, invalidateCache, readCache } from '@/services/api';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatCurrency } from '@/lib/utils';
+import { useSocket } from '@/contexts/SocketContext';
 import { Plus, Search, Edit, Trash2, Package, Loader2, Tag } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -32,8 +33,11 @@ export default function ProductManagement() {
   const [categoryForm, setCategoryForm] = useState({ name: '', color: '#3B82F6', description: '' });
 
   const [submitting, setSubmitting] = useState(false);
+  const { socket } = useSocket();
 
   const loadData = useCallback(async () => {
+    invalidateCache('/products');
+    invalidateCache('/categories');
     try {
       const [prodRes, catRes] = await Promise.all([
         productsAPI.getAll({ search: searchQuery }),
@@ -49,6 +53,24 @@ export default function ProductManagement() {
   }, [searchQuery]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  useEffect(() => {
+    if (!socket) return;
+    socket.on('product:created', loadData);
+    socket.on('product:updated', loadData);
+    socket.on('product:deleted', loadData);
+    socket.on('category:created', loadData);
+    socket.on('category:updated', loadData);
+    socket.on('category:deleted', loadData);
+    return () => {
+      socket.off('product:created', loadData);
+      socket.off('product:updated', loadData);
+      socket.off('product:deleted', loadData);
+      socket.off('category:created', loadData);
+      socket.off('category:updated', loadData);
+      socket.off('category:deleted', loadData);
+    };
+  }, [socket, loadData]);
 
   const filtered = selectedCategory === 'all' ? products : products.filter(p => p.category?._id === selectedCategory);
 

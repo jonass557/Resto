@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ticketsAPI, readCache } from '@/services/api';
+import { ticketsAPI, invalidateCache, readCache } from '@/services/api';
 import { useSocket } from '@/contexts/SocketContext';
 import { usePrinter } from '@/contexts/PrinterContext';
 import TopBar from '@/components/layout/TopBar';
@@ -24,6 +24,7 @@ export default function AdminTickets() {
   const { printTicketById } = usePrinter();
 
   const loadTickets = useCallback(async () => {
+    invalidateCache('/tickets');
     try {
       const { data } = await ticketsAPI.getAll({ type: 'invoice', limit: 200 });
       setTickets(data.data);

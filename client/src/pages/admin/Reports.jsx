@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import { statsAPI, accountingAPI, readCache } from '@/services/api';
+import { useState, useEffect, useCallback } from 'react';
+import { statsAPI, accountingAPI, invalidateCache, readCache } from '@/services/api';
+import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -32,7 +33,11 @@ export default function Reports() {
     return !readCache('/stats/sales', { startDate: sd, endDate: ed }) || !readCache('/accounting/balance', { startDate: sd, endDate: ed });
   });
 
-  const loadData = async () => {
+  const { socket } = useSocket();
+
+  const loadData = useCallback(async () => {
+    invalidateCache('/stats');
+    invalidateCache('/accounting');
     if (!readCache('/stats/sales', { startDate, endDate })) setLoading(true);
     try {
       const [salesRes, balanceRes, productsRes] = await Promise.all([
@@ -48,9 +53,19 @@ export default function Reports() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [startDate, endDate]);
 
-  useEffect(() => { loadData(); }, [startDate, endDate]);
+  useEffect(() => { loadData(); }, [loadData]);
+
+  useEffect(() => {
+    if (!socket) return;
+    socket.on('payment:created', loadData);
+    socket.on('ticket:paid', loadData);
+    return () => {
+      socket.off('payment:created', loadData);
+      socket.off('ticket:paid', loadData);
+    };
+  }, [socket, loadData]);
 
   const exportCSV = (data, filename) => {
     if (!data || data.length === 0) return;

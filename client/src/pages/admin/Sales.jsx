@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import { statsAPI, readCache } from '@/services/api';
+import { useState, useEffect, useCallback } from 'react';
+import { statsAPI, invalidateCache, readCache } from '@/services/api';
+import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -25,7 +26,10 @@ export default function Sales() {
     return !readCache('/stats/sales', { startDate: sd, endDate: ed }) || !readCache('/stats/products', { period: 'month' });
   });
 
-  const loadData = async () => {
+  const { socket } = useSocket();
+
+  const loadData = useCallback(async () => {
+    invalidateCache('/stats');
     if (!readCache('/stats/sales', { startDate, endDate })) setLoading(true);
     try {
       const [salesRes, productsRes] = await Promise.all([
@@ -39,9 +43,19 @@ export default function Sales() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [startDate, endDate]);
 
-  useEffect(() => { loadData(); }, [startDate, endDate]);
+  useEffect(() => { loadData(); }, [loadData]);
+
+  useEffect(() => {
+    if (!socket) return;
+    socket.on('payment:created', loadData);
+    socket.on('ticket:paid', loadData);
+    return () => {
+      socket.off('payment:created', loadData);
+      socket.off('ticket:paid', loadData);
+    };
+  }, [socket, loadData]);
 
   if (loading) {
     return <div><TopBar title="Ventes" /><div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div></div>;

@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import { accountingAPI, readCache } from '@/services/api';
+import { useState, useEffect, useCallback } from 'react';
+import { accountingAPI, invalidateCache, readCache } from '@/services/api';
+import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -45,7 +46,10 @@ export default function Accounting() {
   const [expenseForm, setExpenseForm] = useState({ description: '', amount: '', category: 'other', paymentMethod: 'cash', date: new Date().toISOString().split('T')[0] });
   const [submitting, setSubmitting] = useState(false);
 
-  const loadData = async () => {
+  const { socket } = useSocket();
+
+  const loadData = useCallback(async () => {
+    invalidateCache('/accounting');
     if (!readCache('/accounting/journal', { startDate, endDate })) setLoading(true);
     try {
       const [journalRes, balanceRes, expensesRes, ledgerRes] = await Promise.all([
@@ -63,9 +67,19 @@ export default function Accounting() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [startDate, endDate]);
 
-  useEffect(() => { loadData(); }, [startDate, endDate]);
+  useEffect(() => { loadData(); }, [loadData]);
+
+  useEffect(() => {
+    if (!socket) return;
+    socket.on('payment:created', loadData);
+    socket.on('ticket:paid', loadData);
+    return () => {
+      socket.off('payment:created', loadData);
+      socket.off('ticket:paid', loadData);
+    };
+  }, [socket, loadData]);
 
   const handleExpenseSubmit = async () => {
     if (!expenseForm.description || !expenseForm.amount) { toast.error('Champs requis'); return; }

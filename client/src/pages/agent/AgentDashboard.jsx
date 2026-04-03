@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSocket } from '@/contexts/SocketContext';
-import { statsAPI, cashRegisterAPI, readCache } from '@/services/api';
+import { statsAPI, cashRegisterAPI, invalidateCache, readCache } from '@/services/api';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -31,6 +31,8 @@ export default function AgentDashboard() {
   const firstLoad = useRef(true);
 
   const loadData = useCallback(async () => {
+    invalidateCache('/stats');
+    invalidateCache('/cash-register');
     if (firstLoad.current) setLoading(true);
     try {
       const [statsRes, cashRes] = await Promise.all([
@@ -53,9 +55,15 @@ export default function AgentDashboard() {
     if (!socket) return;
     socket.on('cashRegister:opened', loadData);
     socket.on('cashRegister:closed', loadData);
+    socket.on('ticket:paid', loadData);
+    socket.on('payment:created', loadData);
+    socket.on('order:created', loadData);
     return () => {
       socket.off('cashRegister:opened', loadData);
       socket.off('cashRegister:closed', loadData);
+      socket.off('ticket:paid', loadData);
+      socket.off('payment:created', loadData);
+      socket.off('order:created', loadData);
     };
   }, [socket, loadData]);
 

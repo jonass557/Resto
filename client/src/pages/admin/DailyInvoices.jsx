@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { statsAPI, readCache } from '@/services/api';
+import { statsAPI, invalidateCache, readCache } from '@/services/api';
 import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,6 +18,7 @@ export default function DailyInvoices() {
   const [loading, setLoading] = useState(() => !readCache('/stats/daily-invoices', { date: new Date().toISOString().split('T')[0] }));
 
   const loadData = useCallback(async () => {
+    invalidateCache('/stats/daily-invoices');
     if (!readCache('/stats/daily-invoices', { date })) setLoading(true);
     try {
       const res = await statsAPI.getDailyInvoices({ date });
@@ -31,11 +32,17 @@ export default function DailyInvoices() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Auto-refresh when a new payment arrives
+  // Auto-refresh when invoices change
   useEffect(() => {
     if (!socket) return;
     socket.on('payment:created', loadData);
-    return () => socket.off('payment:created', loadData);
+    socket.on('ticket:paid', loadData);
+    socket.on('ticket:deleted', loadData);
+    return () => {
+      socket.off('payment:created', loadData);
+      socket.off('ticket:paid', loadData);
+      socket.off('ticket:deleted', loadData);
+    };
   }, [socket, loadData]);
 
   const printConsolidated = () => {
