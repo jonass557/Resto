@@ -248,8 +248,7 @@ export function PrinterProvider({ children }) {
       // Backend returned fallback data — no browser popup, just warn
     } catch { /* backend printer failed */ }
 
-    // 3. No popup fallback — print silently failed
-    toast.error('Imprimante non disponible — vérifiez la connexion');
+    // 3. No printer available — return false, let caller handle messaging
     return false;
   }, [btConnected, characteristic, printViaBluetooth]);
 

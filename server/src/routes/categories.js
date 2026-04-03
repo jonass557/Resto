@@ -7,7 +7,7 @@ const router = express.Router();
 // GET /api/categories
 router.get('/', auth, async (req, res) => {
   try {
-    const categories = await Category.find({ isActive: true }).sort({ order: 1, name: 1 });
+    const categories = await Category.find({ isActive: true }).sort({ order: 1, name: 1 }).lean();
     res.json({ success: true, data: categories });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

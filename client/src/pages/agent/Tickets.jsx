@@ -75,30 +75,33 @@ export default function PaidInvoices() {
           </div>
         ) : (
           <div className="grid gap-3">
-            {invoices.map(inv => {
+            {invoices.map((inv, idx) => {
               const Icon = METHOD_ICON[inv.payment?.method] || Banknote;
               return (
                 <Card key={inv._id} className="hover:shadow-md transition-shadow cursor-pointer border-green-100" onClick={() => setSelected(inv)}>
                   <CardContent className="p-3 sm:p-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-lg bg-green-50 flex items-center justify-center shrink-0">
-                          <CheckCircle2 className="w-5 h-5 text-green-600" />
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                        <div className="relative shrink-0">
+                          <div className="w-9 h-9 rounded-lg bg-green-50 flex items-center justify-center">
+                            <CheckCircle2 className="w-5 h-5 text-green-600" />
+                          </div>
+                          <span className="absolute -top-1.5 -right-1.5 bg-green-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">{idx + 1}</span>
                         </div>
-                        <div>
-                          <p className="font-bold text-sm">{inv.ticketNumber}</p>
-                          <p className="text-xs text-muted-foreground">
+                        <div className="min-w-0">
+                          <p className="font-bold text-sm truncate">{inv.ticketNumber}</p>
+                          <p className="text-xs text-muted-foreground truncate">
                             {inv.tableNumber || (inv.table?.number ? `Table ${inv.table.number}` : 'À emporter')}
                             {' · '}{formatDateTime(inv.createdAt)}
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Badge variant="outline" className="gap-1 text-green-700 border-green-300">
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        <p className="font-bold text-primary text-sm">{formatCurrency(inv.total)}</p>
+                        <Badge variant="outline" className="gap-1 text-green-700 border-green-300 text-xs">
                           <Icon className={`w-3 h-3 ${METHOD_COLOR[inv.payment?.method] || ''}`} />
                           {METHOD_LABEL[inv.payment?.method] || 'Payé'}
                         </Badge>
-                        <p className="font-bold text-primary text-sm">{formatCurrency(inv.total)}</p>
                       </div>
                     </div>
                   </CardContent>

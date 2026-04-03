@@ -24,7 +24,8 @@ router.get('/', auth, async (req, res) => {
       .populate('category', 'name color icon')
       .sort({ order: 1, name: 1 })
       .skip((page - 1) * limit)
-      .limit(parseInt(limit));
+      .limit(parseInt(limit))
+      .lean();
 
     res.json({
       success: true,
@@ -39,7 +40,7 @@ router.get('/', auth, async (req, res) => {
 // GET /api/products/:id
 router.get('/:id', auth, async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id).populate('category');
+    const product = await Product.findById(req.params.id).populate('category').lean();
     if (!product) return res.status(404).json({ success: false, message: 'Produit non trouvé' });
     res.json({ success: true, data: product });
   } catch (error) {

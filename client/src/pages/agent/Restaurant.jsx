@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSocket } from '@/contexts/SocketContext';
 import { usePrinter } from '@/contexts/PrinterContext';
-import { productsAPI, categoriesAPI, ticketsAPI, cashRegisterAPI, readCache } from '@/services/api';
+import { productsAPI, categoriesAPI, ticketsAPI, cashRegisterAPI, invalidateCache, readCache } from '@/services/api';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -103,19 +103,30 @@ export default function Restaurant() {
     };
   }, [socket, checkCashSession]);
 
-  // Refresh products when admin adds/updates/deletes a product
+  // Refresh products/categories when admin adds/updates/deletes
   useEffect(() => {
     if (!socket) return;
     const refreshProducts = () => {
+      invalidateCache('/products');
       productsAPI.getAll({ isAvailable: true }).then(r => setProducts(r.data.data)).catch(() => {});
+    };
+    const refreshCategories = () => {
+      invalidateCache('/categories');
+      categoriesAPI.getAll().then(r => setCategories(r.data.data)).catch(() => {});
     };
     socket.on('product:created', refreshProducts);
     socket.on('product:updated', refreshProducts);
     socket.on('product:deleted', refreshProducts);
+    socket.on('category:created', refreshCategories);
+    socket.on('category:updated', refreshCategories);
+    socket.on('category:deleted', refreshCategories);
     return () => {
       socket.off('product:created', refreshProducts);
       socket.off('product:updated', refreshProducts);
       socket.off('product:deleted', refreshProducts);
+      socket.off('category:created', refreshCategories);
+      socket.off('category:updated', refreshCategories);
+      socket.off('category:deleted', refreshCategories);
     };
   }, [socket]);
 
@@ -200,9 +211,10 @@ export default function Restaurant() {
         discount: 0,
         total: cartTotal,
       });
-      if (ok) {
-        // Vider le panier après envoi individuel à l'imprimante
-        setCart([]);
+      // Vider le panier dans tous les cas — impression optionnelle
+      setCart([]);
+      if (!ok) {
+        toast('Commande notée — aucune imprimante disponible', { icon: '⚠️' });
       }
     } finally {
       setPrintLoading(false);

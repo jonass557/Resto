@@ -68,23 +68,26 @@ export default function InvoicesEnCours() {
           </div>
         ) : (
           <div className="grid gap-3">
-            {invoices.map(inv => (
+            {invoices.map((inv, idx) => (
               <Card key={inv._id} className="hover:shadow-md transition-shadow">
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-orange-50 flex items-center justify-center shrink-0">
-                        <UtensilsCrossed className="w-5 h-5 text-orange-500" />
+                <CardContent className="p-3 sm:p-4">
+                  <div className="flex items-start justify-between gap-2 sm:gap-3">
+                    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                      <div className="relative shrink-0">
+                        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-orange-50 flex items-center justify-center">
+                          <UtensilsCrossed className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500" />
+                        </div>
+                        <span className="absolute -top-1.5 -right-1.5 bg-orange-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">{idx + 1}</span>
                       </div>
-                      <div>
-                        <p className="font-bold">{inv.ticketNumber}</p>
-                        <p className="text-sm text-muted-foreground">
+                      <div className="min-w-0">
+                        <p className="font-bold text-sm truncate">{inv.ticketNumber}</p>
+                        <p className="text-xs text-muted-foreground">
                           Table {inv.tableNumber || inv.table?.number || '—'}
                         </p>
                         <p className="text-xs text-muted-foreground">{formatDateTime(inv.createdAt)}</p>
                         <div className="mt-1 space-y-0.5">
                           {inv.items?.slice(0, 3).map((item, i) => (
-                            <p key={i} className="text-xs text-muted-foreground">
+                            <p key={i} className="text-xs text-muted-foreground truncate">
                               {item.quantity}× {item.name}
                             </p>
                           ))}
@@ -94,13 +97,13 @@ export default function InvoicesEnCours() {
                         </div>
                       </div>
                     </div>
-                    <div className="text-right shrink-0 space-y-2">
-                      <p className="font-bold text-primary">{formatCurrency(inv.total)}</p>
-                      <Badge variant="outline" className="text-orange-600 border-orange-300 bg-orange-50">
+                    <div className="text-right shrink-0 space-y-1.5">
+                      <p className="font-bold text-primary text-sm">{formatCurrency(inv.total)}</p>
+                      <Badge variant="outline" className="text-orange-600 border-orange-300 bg-orange-50 text-xs">
                         En cours
                       </Badge>
-                      <div className="mt-2">
-                        <Button size="sm" variant="outline" className="h-8 text-xs w-full"
+                      <div className="mt-1.5">
+                        <Button size="sm" variant="outline" className="h-7 text-xs w-full"
                           onClick={() => navigate(`/agent/restaurant?invoiceId=${inv._id}`)}>
                           <Plus className="w-3 h-3 mr-1" /> Ajouter
                         </Button>

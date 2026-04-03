@@ -82,6 +82,32 @@ export default function NewOrder() {
     };
   }, [socket, checkCashSession]);
 
+  useEffect(() => {
+    if (!socket) return;
+    const refreshProducts = () => {
+      invalidateCache('/products');
+      productsAPI.getAll({ isAvailable: true }).then(r => setProducts(r.data.data)).catch(() => {});
+    };
+    const refreshCategories = () => {
+      invalidateCache('/categories');
+      categoriesAPI.getAll().then(r => setCategories(r.data.data)).catch(() => {});
+    };
+    socket.on('product:created', refreshProducts);
+    socket.on('product:updated', refreshProducts);
+    socket.on('product:deleted', refreshProducts);
+    socket.on('category:created', refreshCategories);
+    socket.on('category:updated', refreshCategories);
+    socket.on('category:deleted', refreshCategories);
+    return () => {
+      socket.off('product:created', refreshProducts);
+      socket.off('product:updated', refreshProducts);
+      socket.off('product:deleted', refreshProducts);
+      socket.off('category:created', refreshCategories);
+      socket.off('category:updated', refreshCategories);
+      socket.off('category:deleted', refreshCategories);
+    };
+  }, [socket]);
+
   const filteredProducts = products.filter(p => {
     const matchCategory = selectedCategory === 'all' || p.category?._id === selectedCategory;
     const matchSearch = !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase());
