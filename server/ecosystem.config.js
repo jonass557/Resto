@@ -3,14 +3,14 @@ module.exports = {
     {
       name: 'restaurant-api',
       script: 'src/index.js',
-      cwd: __dirname,  // résout correctement le chemin depuis la racine Railway
+      cwd: __dirname,  // résout correctement le chemin depuis la racine du repo
 
-      // Cluster mode : utilise tous les CPU disponibles (Railway paid = 2+ vCPU)
-      instances: 'max',
-      exec_mode: 'cluster',
+      // Render Starter = 0.5 CPU partagé → 1 instance suffit
+      instances: 1,
+      exec_mode: 'fork',
 
-      // Redémarrage automatique si la mémoire dépasse 512 MB
-      max_memory_restart: '512M',
+      // Redémarrage automatique si la mémoire dépasse 400 MB (limite Starter = 512 MB)
+      max_memory_restart: '400M',
 
       // Variables d'environnement production
       env_production: {

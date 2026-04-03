@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: manageresto-api
+    runtime: node
+    region: frankfurt        # le plus proche de l'Afrique centrale
+    plan: starter            # plan payant — pas de mise en veille
+    buildCommand: npm install --prefix server --omit=dev && npm install -g pm2
+    startCommand: pm2-runtime server/ecosystem.config.js --env production
+    healthCheckPath: /api/health
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      # --- Secrets : à saisir manuellement dans le Dashboard Render ---
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: CLIENT_URL
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
