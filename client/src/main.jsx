@@ -10,6 +10,18 @@ import { PrintAgentProvider } from './contexts/PrintAgentContext'
 import { Toaster } from 'react-hot-toast'
 import './index.css'
 
+// ── Tablet virtual keyboard: scroll focused input into view ──────────────
+// Runs after the keyboard animation (≈300 ms) so the element is fully visible.
+document.addEventListener('focusin', (e) => {
+  const tag = e.target?.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+    setTimeout(() => {
+      e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 350);
+  }
+});
+// ─────────────────────────────────────────────────────────────────────────
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
