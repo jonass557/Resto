@@ -66,7 +66,7 @@ export function PrintAgentProvider({ children }) {
 
     const API_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || window.location.origin;
     const newSocket = io(API_URL, {
-      transports: ['websocket', 'polling'],
+      transports: ['websocket'],
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionAttempts: Infinity,

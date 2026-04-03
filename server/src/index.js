@@ -37,7 +37,13 @@ const io = new Server(server, {
   cors: {
     origin: allowedOrigins,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
-  }
+  },
+  // WebSocket uniquement — élimine la latence du fallback HTTP long-polling
+  transports: ['websocket'],
+  // Ping/pong optimisé pour Railway (connexions stables)
+  pingTimeout: 20000,
+  pingInterval: 25000,
+  upgradeTimeout: 5000
 });
 
 // Middleware
@@ -193,9 +199,11 @@ async function ensureAdminExists() {
 }
 
 mongoose.connect(process.env.MONGODB_URI, {
-  maxPoolSize: 10,
+  maxPoolSize: 25,        // plan payant → plus de RAM disponible
+  minPoolSize: 5,         // connexions pré-établies au démarrage
   serverSelectionTimeoutMS: 5000,
   socketTimeoutMS: 45000,
+  heartbeatFrequencyMS: 10000,
   compressors: 'zlib'
 })
   .then(async () => {
@@ -233,20 +241,7 @@ mongoose.connect(process.env.MONGODB_URI, {
         localIPs.forEach(ip => console.log(`   http://${ip}:${PORT}`));
       }
 
-      // Self-ping pour empêcher Render free tier de s'endormir (veille après 15 min)
-      const renderUrl = process.env.RENDER_EXTERNAL_URL;
-      if (renderUrl) {
-        const https = require('https');
-        const pingUrl = renderUrl.replace(/\/$/, '') + '/api/health';
-        setInterval(() => {
-          https.get(pingUrl, (res) => {
-            console.log(`🏓 Self-ping Render: ${res.statusCode}`);
-          }).on('error', (err) => {
-            console.warn('⚠️  Self-ping error:', err.message);
-          });
-        }, 14 * 60 * 1000); // toutes les 14 minutes
-        console.log(`🏓 Self-ping activé → ${pingUrl}`);
-      }
+      // Railway ne dort jamais (même en free) — pas besoin de self-ping
     });
   })
   .catch((err) => {
