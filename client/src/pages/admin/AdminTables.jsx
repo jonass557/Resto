@@ -29,7 +29,6 @@ export default function AdminTables() {
   const [deleting, setDeleting] = useState(false);
 
   const loadTables = useCallback(async () => {
-    invalidateCache('/tables');
     try {
       const { data } = await tablesAPI.getAll();
       setTables(data.data);
@@ -44,15 +43,16 @@ export default function AdminTables() {
 
   useEffect(() => {
     if (!socket) return;
-    socket.on('table:created', loadTables);
-    socket.on('table:updated', loadTables);
-    socket.on('table:deleted', loadTables);
-    socket.on('table:status-changed', loadTables);
+    const reload = () => { invalidateCache('/tables'); loadTables(); };
+    socket.on('table:created', reload);
+    socket.on('table:updated', reload);
+    socket.on('table:deleted', reload);
+    socket.on('table:status-changed', reload);
     return () => {
-      socket.off('table:created', loadTables);
-      socket.off('table:updated', loadTables);
-      socket.off('table:deleted', loadTables);
-      socket.off('table:status-changed', loadTables);
+      socket.off('table:created', reload);
+      socket.off('table:updated', reload);
+      socket.off('table:deleted', reload);
+      socket.off('table:status-changed', reload);
     };
   }, [socket, loadTables]);
 

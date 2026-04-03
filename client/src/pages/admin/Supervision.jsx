@@ -21,9 +21,6 @@ export default function Supervision() {
   const [deletingId, setDeletingId] = useState(null);
 
   const loadData = useCallback(async () => {
-    invalidateCache('/orders');
-    invalidateCache('/tickets');
-    invalidateCache('/stats');
     try {
       const [ordersRes, ticketsRes, agentsRes] = await Promise.all([
         ordersAPI.getAll({ limit: 50 }),
@@ -44,14 +41,8 @@ export default function Supervision() {
 
   useEffect(() => {
     if (!socket) return;
-    const refresh = () => {
-      invalidateCache('/orders');
-      invalidateCache('/tickets');
-      loadData();
-    };
-    const onInvoiceCreated = () => {
-      invalidateCache('/tickets');
-      loadData();
+    const refresh = () => { invalidateCache('/orders'); invalidateCache('/tickets'); invalidateCache('/stats'); loadData(); };
+    const onInvoiceCreated = () => { invalidateCache('/tickets'); loadData();
       toast('📋 Nouvelle facture en attente de paiement', {
         icon: '⏳',
         duration: 6000,

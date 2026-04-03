@@ -36,8 +36,6 @@ export default function ProductManagement() {
   const { socket } = useSocket();
 
   const loadData = useCallback(async () => {
-    invalidateCache('/products');
-    invalidateCache('/categories');
     try {
       const [prodRes, catRes] = await Promise.all([
         productsAPI.getAll({ search: searchQuery }),
@@ -56,19 +54,20 @@ export default function ProductManagement() {
 
   useEffect(() => {
     if (!socket) return;
-    socket.on('product:created', loadData);
-    socket.on('product:updated', loadData);
-    socket.on('product:deleted', loadData);
-    socket.on('category:created', loadData);
-    socket.on('category:updated', loadData);
-    socket.on('category:deleted', loadData);
+    const reload = () => { invalidateCache('/products'); invalidateCache('/categories'); loadData(); };
+    socket.on('product:created', reload);
+    socket.on('product:updated', reload);
+    socket.on('product:deleted', reload);
+    socket.on('category:created', reload);
+    socket.on('category:updated', reload);
+    socket.on('category:deleted', reload);
     return () => {
-      socket.off('product:created', loadData);
-      socket.off('product:updated', loadData);
-      socket.off('product:deleted', loadData);
-      socket.off('category:created', loadData);
-      socket.off('category:updated', loadData);
-      socket.off('category:deleted', loadData);
+      socket.off('product:created', reload);
+      socket.off('product:updated', reload);
+      socket.off('product:deleted', reload);
+      socket.off('category:created', reload);
+      socket.off('category:updated', reload);
+      socket.off('category:deleted', reload);
     };
   }, [socket, loadData]);
 

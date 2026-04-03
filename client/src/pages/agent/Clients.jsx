@@ -24,7 +24,6 @@ export default function Clients() {
   const [submitting, setSubmitting] = useState(false);
 
   const loadClients = useCallback(async () => {
-    invalidateCache('/clients');
     try {
       const { data } = await clientsAPI.getAll({ search: searchQuery });
       setClients(data.data);

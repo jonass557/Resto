@@ -24,7 +24,6 @@ export default function AdminTickets() {
   const { printTicketById } = usePrinter();
 
   const loadTickets = useCallback(async () => {
-    invalidateCache('/tickets');
     try {
       const { data } = await ticketsAPI.getAll({ type: 'invoice', limit: 200 });
       setTickets(data.data);
@@ -39,15 +38,16 @@ export default function AdminTickets() {
 
   useEffect(() => {
     if (!socket) return;
-    socket.on('ticket:created', loadTickets);
-    socket.on('ticket:invoice-created', loadTickets);
-    socket.on('ticket:paid', loadTickets);
-    socket.on('ticket:deleted', loadTickets);
+    const reload = () => { invalidateCache('/tickets'); loadTickets(); };
+    socket.on('ticket:created', reload);
+    socket.on('ticket:invoice-created', reload);
+    socket.on('ticket:paid', reload);
+    socket.on('ticket:deleted', reload);
     return () => {
-      socket.off('ticket:created', loadTickets);
-      socket.off('ticket:invoice-created', loadTickets);
-      socket.off('ticket:paid', loadTickets);
-      socket.off('ticket:deleted', loadTickets);
+      socket.off('ticket:created', reload);
+      socket.off('ticket:invoice-created', reload);
+      socket.off('ticket:paid', reload);
+      socket.off('ticket:deleted', reload);
     };
   }, [socket, loadTickets]);
 

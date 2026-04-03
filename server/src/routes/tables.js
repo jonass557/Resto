@@ -15,7 +15,8 @@ router.get('/', auth, async (req, res) => {
 
     const tables = await Table.find(filter)
       .populate({ path: 'currentOrders', populate: { path: 'items.product', select: 'name' } })
-      .sort({ number: 1 });
+      .sort({ number: 1 })
+      .lean();
 
     // Auto-nettoyage : libérer les tables occupées sans commandes actives
     const toFree = tables.filter(t => {

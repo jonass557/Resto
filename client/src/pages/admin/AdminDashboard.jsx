@@ -52,7 +52,6 @@ export default function AdminDashboard() {
   const [deletingId, setDeletingId] = useState(null);
 
   const loadStats = useCallback(async () => {
-    invalidateCache('/stats');
     if (!readCache('/stats/dashboard', { period }) || !readCache('/stats/agents', { period })) setLoading(true);
     try {
       const [dashRes, agentsRes, revenueRes, perfRes, prodRes] = await Promise.all([
@@ -85,7 +84,6 @@ export default function AdminDashboard() {
   }, []);
 
   const loadInvoices = useCallback(async () => {
-    invalidateCache('/tickets');
     setInvoicesLoading(true);
     try {
       const [enCoursRes, aEncaisserRes, paidRes] = await Promise.all([
@@ -121,28 +119,29 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     if (!socket) return;
-    const refresh = () => loadStats();
+    const reloadStats = () => { invalidateCache('/stats'); loadStats(); };
     const refreshNotif = () => loadNotifications();
-    const refreshInv = () => loadInvoices();
-    socket.on('order:created', refresh);
-    socket.on('order:status-changed', refresh);
-    socket.on('payment:created', refresh);
+    const reloadInv = () => { invalidateCache('/tickets'); loadInvoices(); };
+    const reloadBoth = () => { reloadStats(); reloadInv(); };
+    socket.on('order:created', reloadStats);
+    socket.on('order:status-changed', reloadStats);
+    socket.on('payment:created', reloadStats);
     socket.on('notification:new', refreshNotif);
-    socket.on('invoice:created', refreshInv);
-    socket.on('invoice:updated', refreshInv);
-    socket.on('invoice:memo', refreshInv);
-    socket.on('ticket:paid', () => { refresh(); refreshInv(); });
-    socket.on('ticket:deleted', refreshInv);
+    socket.on('invoice:created', reloadInv);
+    socket.on('invoice:updated', reloadInv);
+    socket.on('invoice:memo', reloadInv);
+    socket.on('ticket:paid', reloadBoth);
+    socket.on('ticket:deleted', reloadInv);
     return () => {
-      socket.off('order:created', refresh);
-      socket.off('order:status-changed', refresh);
-      socket.off('payment:created', refresh);
+      socket.off('order:created', reloadStats);
+      socket.off('order:status-changed', reloadStats);
+      socket.off('payment:created', reloadStats);
       socket.off('notification:new', refreshNotif);
-      socket.off('invoice:created', refreshInv);
-      socket.off('invoice:updated', refreshInv);
-      socket.off('invoice:memo', refreshInv);
-      socket.off('ticket:paid');
-      socket.off('ticket:deleted', refreshInv);
+      socket.off('invoice:created', reloadInv);
+      socket.off('invoice:updated', reloadInv);
+      socket.off('invoice:memo', reloadInv);
+      socket.off('ticket:paid', reloadBoth);
+      socket.off('ticket:deleted', reloadInv);
     };
   }, [socket, loadStats, loadNotifications, loadInvoices]);
 

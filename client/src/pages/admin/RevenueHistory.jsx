@@ -38,7 +38,6 @@ export default function RevenueHistory() {
   for (let y = currentYear; y >= currentYear - 5; y--) years.push(y);
 
   const loadMonthly = useCallback(async () => {
-    invalidateCache('/stats/revenue-history');
     if (!readCache('/stats/revenue-history', { year })) setLoading(true);
     try {
       const { data } = await statsAPI.getRevenueHistory({ year });
@@ -67,15 +66,16 @@ export default function RevenueHistory() {
   // Auto-refresh when a payment is confirmed
   useEffect(() => {
     if (!socket) return;
-    const refresh = () => {
+    const reload = () => {
+      invalidateCache('/stats/revenue-history');
       if (view === 'months') loadMonthly();
       else if (view === 'days' && selectedMonth) loadDaily(selectedMonth);
     };
-    socket.on('payment:created', refresh);
-    socket.on('ticket:paid', refresh);
+    socket.on('payment:created', reload);
+    socket.on('ticket:paid', reload);
     return () => {
-      socket.off('payment:created', refresh);
-      socket.off('ticket:paid', refresh);
+      socket.off('payment:created', reload);
+      socket.off('ticket:paid', reload);
     };
   }, [socket, view, selectedMonth, loadMonthly, loadDaily]);
 

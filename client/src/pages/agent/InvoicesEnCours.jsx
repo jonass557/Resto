@@ -17,7 +17,6 @@ export default function InvoicesEnCours() {
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    invalidateCache('/tickets');
     try {
       const { data } = await ticketsAPI.getAll({ type: 'invoice', isPaid: false, limit: 100 });
       setInvoices((data.data || []).filter(t => t.memoStatus === 'en_cours'));
@@ -32,17 +31,18 @@ export default function InvoicesEnCours() {
 
   useEffect(() => {
     if (!socket) return;
-    socket.on('invoice:created', load);
-    socket.on('invoice:updated', load);
-    socket.on('invoice:memo', load);
-    socket.on('ticket:paid', load);
-    socket.on('ticket:deleted', load);
+    const reload = () => { invalidateCache('/tickets'); load(); };
+    socket.on('invoice:created', reload);
+    socket.on('invoice:updated', reload);
+    socket.on('invoice:memo', reload);
+    socket.on('ticket:paid', reload);
+    socket.on('ticket:deleted', reload);
     return () => {
-      socket.off('invoice:created', load);
-      socket.off('invoice:updated', load);
-      socket.off('invoice:memo', load);
-      socket.off('ticket:paid', load);
-      socket.off('ticket:deleted', load);
+      socket.off('invoice:created', reload);
+      socket.off('invoice:updated', reload);
+      socket.off('invoice:memo', reload);
+      socket.off('ticket:paid', reload);
+      socket.off('ticket:deleted', reload);
     };
   }, [socket, load]);
 

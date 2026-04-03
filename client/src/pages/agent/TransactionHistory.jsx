@@ -41,7 +41,6 @@ export default function TransactionHistory() {
   const { socket } = useSocket();
 
   const loadHistory = useCallback(async (page = 1) => {
-    invalidateCache('/stats/agent-history');
     if (!readCache(`/stats/agent-history/${user._id}`, { startDate, endDate, page, limit: 30 })) setLoading(true);
     try {
       const { data } = await statsAPI.getAgentHistory(user._id, {
@@ -61,11 +60,12 @@ export default function TransactionHistory() {
 
   useEffect(() => {
     if (!socket) return;
-    socket.on('payment:created', loadHistory);
-    socket.on('ticket:paid', loadHistory);
+    const reload = () => { invalidateCache('/stats/agent-history'); loadHistory(); };
+    socket.on('payment:created', reload);
+    socket.on('ticket:paid', reload);
     return () => {
-      socket.off('payment:created', loadHistory);
-      socket.off('ticket:paid', loadHistory);
+      socket.off('payment:created', reload);
+      socket.off('ticket:paid', reload);
     };
   }, [socket, loadHistory]);
 

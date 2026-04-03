@@ -31,7 +31,8 @@ router.get('/', auth, async (req, res) => {
       .populate('items.product', 'name image')
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
-      .limit(parseInt(limit));
+      .limit(parseInt(limit))
+      .lean();
 
     res.json({
       success: true,
@@ -48,7 +49,8 @@ router.get('/:id', auth, async (req, res) => {
   try {
     const order = await Order.findById(req.params.id)
       .populate('table').populate('agent', 'firstName lastName')
-      .populate('client').populate('items.product');
+      .populate('client').populate('items.product')
+      .lean();
     if (!order) return res.status(404).json({ success: false, message: 'Commande non trouvée' });
     res.json({ success: true, data: order });
   } catch (error) {

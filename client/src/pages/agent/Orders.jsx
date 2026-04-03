@@ -26,7 +26,6 @@ export default function Orders() {
   const { socket } = useSocket();
 
   const loadOrders = useCallback(async () => {
-    invalidateCache('/orders');
     try {
       const { data } = await ordersAPI.getAll({ agent: user?._id, limit: 100 });
       setOrders(data.data);
@@ -41,13 +40,14 @@ export default function Orders() {
 
   useEffect(() => {
     if (!socket) return;
-    socket.on('order:created', loadOrders);
-    socket.on('order:status-changed', loadOrders);
-    socket.on('order:deleted', loadOrders);
+    const reload = () => { invalidateCache('/orders'); loadOrders(); };
+    socket.on('order:created', reload);
+    socket.on('order:status-changed', reload);
+    socket.on('order:deleted', reload);
     return () => {
-      socket.off('order:created', loadOrders);
-      socket.off('order:status-changed', loadOrders);
-      socket.off('order:deleted', loadOrders);
+      socket.off('order:created', reload);
+      socket.off('order:status-changed', reload);
+      socket.off('order:deleted', reload);
     };
   }, [socket, loadOrders]);
 

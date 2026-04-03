@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { authAPI } from '../services/api';
+import { authAPI, prefetchCriticalData } from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -34,6 +34,7 @@ export function AuthProvider({ children }) {
         const { data } = await authAPI.getMe();
         setUser(data.data);
         localStorage.setItem('user', JSON.stringify(data.data));
+        prefetchCriticalData(data.data.role);
       } catch {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
@@ -54,6 +55,7 @@ export function AuthProvider({ children }) {
     didRefresh.current = true; // Données fraîches reçues du login — skip getMe()
     setToken(newToken);
     setUser(userData);
+    prefetchCriticalData(userData.role);
     return userData;
   };
 

@@ -18,7 +18,6 @@ export default function DailyInvoices() {
   const [loading, setLoading] = useState(() => !readCache('/stats/daily-invoices', { date: new Date().toISOString().split('T')[0] }));
 
   const loadData = useCallback(async () => {
-    invalidateCache('/stats/daily-invoices');
     if (!readCache('/stats/daily-invoices', { date })) setLoading(true);
     try {
       const res = await statsAPI.getDailyInvoices({ date });
@@ -35,13 +34,14 @@ export default function DailyInvoices() {
   // Auto-refresh when invoices change
   useEffect(() => {
     if (!socket) return;
-    socket.on('payment:created', loadData);
-    socket.on('ticket:paid', loadData);
-    socket.on('ticket:deleted', loadData);
+    const reload = () => { invalidateCache('/stats/daily-invoices'); loadData(); };
+    socket.on('payment:created', reload);
+    socket.on('ticket:paid', reload);
+    socket.on('ticket:deleted', reload);
     return () => {
-      socket.off('payment:created', loadData);
-      socket.off('ticket:paid', loadData);
-      socket.off('ticket:deleted', loadData);
+      socket.off('payment:created', reload);
+      socket.off('ticket:paid', reload);
+      socket.off('ticket:deleted', reload);
     };
   }, [socket, loadData]);
 

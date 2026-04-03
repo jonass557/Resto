@@ -36,8 +36,6 @@ export default function CashRegister() {
   const { socket } = useSocket();
 
   const loadData = useCallback(async () => {
-    invalidateCache('/cash-register');
-    invalidateCache('/tickets');
     try {
       const [currentRes, historyRes, ticketsRes] = await Promise.all([
         cashRegisterAPI.getCurrent(),
@@ -68,15 +66,16 @@ export default function CashRegister() {
 
   useEffect(() => {
     if (!socket) return;
-    socket.on('cashRegister:opened', loadData);
-    socket.on('cashRegister:closed', loadData);
-    socket.on('ticket:paid', loadData);
-    socket.on('payment:created', loadData);
+    const reload = () => { invalidateCache('/cash-register'); invalidateCache('/tickets'); loadData(); };
+    socket.on('cashRegister:opened', reload);
+    socket.on('cashRegister:closed', reload);
+    socket.on('ticket:paid', reload);
+    socket.on('payment:created', reload);
     return () => {
-      socket.off('cashRegister:opened', loadData);
-      socket.off('cashRegister:closed', loadData);
-      socket.off('ticket:paid', loadData);
-      socket.off('payment:created', loadData);
+      socket.off('cashRegister:opened', reload);
+      socket.off('cashRegister:closed', reload);
+      socket.off('ticket:paid', reload);
+      socket.off('payment:created', reload);
     };
   }, [socket, loadData]);
 

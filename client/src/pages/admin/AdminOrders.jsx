@@ -21,7 +21,6 @@ export default function AdminOrders() {
   const { socket } = useSocket();
 
   const loadOrders = useCallback(async () => {
-    invalidateCache('/orders');
     try {
       const { data } = await ordersAPI.getAll({ limit: 200 });
       setOrders(data.data);
@@ -36,15 +35,16 @@ export default function AdminOrders() {
 
   useEffect(() => {
     if (!socket) return;
-    socket.on('order:created', loadOrders);
-    socket.on('order:status-changed', loadOrders);
-    socket.on('order:deleted', loadOrders);
-    socket.on('ticket:paid', loadOrders);
+    const reload = () => { invalidateCache('/orders'); loadOrders(); };
+    socket.on('order:created', reload);
+    socket.on('order:status-changed', reload);
+    socket.on('order:deleted', reload);
+    socket.on('ticket:paid', reload);
     return () => {
-      socket.off('order:created', loadOrders);
-      socket.off('order:status-changed', loadOrders);
-      socket.off('order:deleted', loadOrders);
-      socket.off('ticket:paid', loadOrders);
+      socket.off('order:created', reload);
+      socket.off('order:status-changed', reload);
+      socket.off('order:deleted', reload);
+      socket.off('ticket:paid', reload);
     };
   }, [socket, loadOrders]);
 

@@ -33,9 +33,6 @@ export default function TableDetail() {
   const [mobileTab, setMobileTab] = useState('products');
 
   const loadData = useCallback(async () => {
-    invalidateCache('/tables');
-    invalidateCache('/products');
-    invalidateCache('/categories');
     try {
       const [tableRes, productsRes, categoriesRes] = await Promise.all([
         tablesAPI.getAll(),
@@ -57,14 +54,14 @@ export default function TableDetail() {
 
   useEffect(() => {
     if (!socket) return;
-    const refresh = () => loadData();
-    socket.on('order:created', refresh);
-    socket.on('table:updated', refresh);
-    socket.on('payment:created', refresh);
+    const reload = () => { invalidateCache('/tables'); invalidateCache('/products'); invalidateCache('/categories'); loadData(); };
+    socket.on('order:created', reload);
+    socket.on('table:updated', reload);
+    socket.on('payment:created', reload);
     return () => {
-      socket.off('order:created', refresh);
-      socket.off('table:updated', refresh);
-      socket.off('payment:created', refresh);
+      socket.off('order:created', reload);
+      socket.off('table:updated', reload);
+      socket.off('payment:created', reload);
     };
   }, [socket, loadData]);
 

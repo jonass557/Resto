@@ -36,8 +36,6 @@ export default function Reports() {
   const { socket } = useSocket();
 
   const loadData = useCallback(async () => {
-    invalidateCache('/stats');
-    invalidateCache('/accounting');
     if (!readCache('/stats/sales', { startDate, endDate })) setLoading(true);
     try {
       const [salesRes, balanceRes, productsRes] = await Promise.all([
@@ -59,11 +57,12 @@ export default function Reports() {
 
   useEffect(() => {
     if (!socket) return;
-    socket.on('payment:created', loadData);
-    socket.on('ticket:paid', loadData);
+    const reload = () => { invalidateCache('/stats'); invalidateCache('/accounting'); loadData(); };
+    socket.on('payment:created', reload);
+    socket.on('ticket:paid', reload);
     return () => {
-      socket.off('payment:created', loadData);
-      socket.off('ticket:paid', loadData);
+      socket.off('payment:created', reload);
+      socket.off('ticket:paid', reload);
     };
   }, [socket, loadData]);
 

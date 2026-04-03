@@ -23,7 +23,6 @@ export default function UserManagement() {
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', password: '', role: 'agent', phone: '' });
 
   const loadUsers = useCallback(async () => {
-    invalidateCache('/users');
     try {
       const { data } = await usersAPI.getAll({ search: searchQuery });
       setUsers(data.data);

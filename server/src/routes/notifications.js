@@ -14,7 +14,8 @@ router.get('/', auth, adminOnly, async (req, res) => {
     const notifications = await Notification.find(filter)
       .populate('agent', 'firstName lastName')
       .sort({ createdAt: -1 })
-      .limit(parseInt(limit));
+      .limit(parseInt(limit))
+      .lean();
 
     const unreadCount = await Notification.countDocuments({ isRead: false });
 

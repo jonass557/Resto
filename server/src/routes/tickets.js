@@ -35,7 +35,8 @@ router.get('/', auth, async (req, res) => {
       .populate('payment')
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
-      .limit(parseInt(limit));
+      .limit(parseInt(limit))
+      .lean();
 
     res.json({
       success: true,

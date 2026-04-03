@@ -24,7 +24,6 @@ export default function Tables() {
   const { socket } = useSocket();
 
   const loadTables = useCallback(async () => {
-    invalidateCache('/tables');
     try {
       const { data } = await tablesAPI.getAll();
       setTables(data.data);
@@ -41,13 +40,14 @@ export default function Tables() {
 
   useEffect(() => {
     if (!socket) return;
-    socket.on('table:updated', loadTables);
-    socket.on('table:status-changed', loadTables);
-    socket.on('order:created', loadTables);
+    const reload = () => { invalidateCache('/tables'); loadTables(); };
+    socket.on('table:updated', reload);
+    socket.on('table:status-changed', reload);
+    socket.on('order:created', reload);
     return () => {
-      socket.off('table:updated', loadTables);
-      socket.off('table:status-changed', loadTables);
-      socket.off('order:created', loadTables);
+      socket.off('table:updated', reload);
+      socket.off('table:status-changed', reload);
+      socket.off('order:created', reload);
     };
   }, [socket, loadTables]);
 

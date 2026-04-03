@@ -27,7 +27,6 @@ export default function PaidInvoices() {
   const { printTicketById } = usePrinter();
 
   const load = useCallback(async () => {
-    invalidateCache('/tickets');
     try {
       const { data } = await ticketsAPI.getAll({ agent: user?._id, type: 'invoice', isPaid: 'true', limit: 200 });
       setInvoices(data.data);
@@ -42,11 +41,12 @@ export default function PaidInvoices() {
 
   useEffect(() => {
     if (!socket) return;
-    socket.on('ticket:paid', load);
-    socket.on('ticket:deleted', load);
+    const reload = () => { invalidateCache('/tickets'); load(); };
+    socket.on('ticket:paid', reload);
+    socket.on('ticket:deleted', reload);
     return () => {
-      socket.off('ticket:paid', load);
-      socket.off('ticket:deleted', load);
+      socket.off('ticket:paid', reload);
+      socket.off('ticket:deleted', reload);
     };
   }, [socket, load]);
 

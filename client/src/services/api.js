@@ -11,12 +11,27 @@ const api = axios.create({
 
 // ── In-memory GET cache (stale-while-revalidate) ──
 const _cache = new Map();
-const CACHE_TTL = 30000; // 30s default — serve instantly, revalidate in background
-const CACHE_TTL_SHORT = 15000; // 15s for volatile data (orders, tables, tickets)
-const MAX_CACHE = 100;
+const MAX_CACHE = 150;
 
-// URLs that change frequently and need a shorter TTL
-const SHORT_TTL_PREFIXES = ['/orders', '/tables', '/tickets', '/stats/supervision'];
+// Per-prefix TTLs — stable data stays cached longer, volatile data expires fast
+const TTL_MAP = [
+  { p: '/products',      ttl: 300000 }, // 5min — menu changes rarely
+  { p: '/categories',    ttl: 300000 }, // 5min — rarely changes
+  { p: '/settings',      ttl: 300000 }, // 5min — rarely changes
+  { p: '/users',         ttl: 120000 }, // 2min
+  { p: '/clients',       ttl: 120000 }, // 2min
+  { p: '/accounting',    ttl:  60000 }, // 1min
+  { p: '/stats',         ttl:  60000 }, // 1min
+  { p: '/orders',        ttl:  15000 }, // 15s — volatile
+  { p: '/tables',        ttl:  15000 }, // 15s — volatile
+  { p: '/tickets',       ttl:  15000 }, // 15s — volatile
+  { p: '/cash-register', ttl:  15000 }, // 15s — volatile
+];
+
+function getTTL(url) {
+  const m = TTL_MAP.find(x => url.startsWith(x.p));
+  return m ? m.ttl : 60000;
+}
 
 function cacheKey(url, params) {
   return url + (params ? '?' + new URLSearchParams(params).toString() : '');
@@ -29,14 +44,14 @@ function pruneCache() {
   }
 }
 
-// Invalidate cache entries matching a prefix (called on write ops)
+// Invalidate cache entries matching a prefix (socket events call this before reloading)
 export function invalidateCache(prefix) {
   for (const key of _cache.keys()) {
     if (key.startsWith(prefix)) _cache.delete(key);
   }
 }
 
-// Synchronous cache read — returns the cached response or null (used to init component state instantly)
+// Synchronous cache read — returns cached response or null (used to init component state instantly)
 export function readCache(url, params) {
   const entry = _cache.get(cacheKey(url, params));
   return entry ? entry.data : null;
@@ -47,14 +62,14 @@ export function cachedGet(url, params) {
   const key = cacheKey(url, params);
   const entry = _cache.get(key);
   const now = Date.now();
-  const ttl = SHORT_TTL_PREFIXES.some(p => url.startsWith(p)) ? CACHE_TTL_SHORT : CACHE_TTL;
+  const ttl = getTTL(url);
 
-  // Fresh cache hit — return immediately
+  // Fresh cache hit — return immediately (no network call)
   if (entry && now - entry.ts < ttl) {
     return Promise.resolve(entry.data);
   }
 
-  // Stale cache — return stale data but refresh in background
+  // Fetch fresh data
   const fetchPromise = api.get(url, { params }).then(res => {
     _cache.set(key, { data: res, ts: Date.now() });
     pruneCache();
@@ -62,12 +77,32 @@ export function cachedGet(url, params) {
   });
 
   if (entry) {
-    // Trigger background revalidation, return stale immediately
+    // Stale cache — return stale instantly, refresh in background
     fetchPromise.catch(() => {});
     return Promise.resolve(entry.data);
   }
 
   return fetchPromise;
+}
+
+// Preload critical data in parallel at app startup (called after login)
+export function prefetchCriticalData(role) {
+  const common = [
+    ['/products', { isAvailable: true }],
+    ['/categories', null],
+    ['/tables', null],
+    ['/settings', null],
+  ];
+  const adminExtra = [['/users', null]];
+  const targets = role === 'admin' ? [...common, ...adminExtra] : common;
+  targets.forEach(([url, params]) => {
+    const key = cacheKey(url, params);
+    if (!_cache.has(key)) {
+      api.get(url, { params: params || undefined })
+        .then(res => { _cache.set(key, { data: res, ts: Date.now() }); })
+        .catch(() => {});
+    }
+  });
 }
 
 // Request interceptor - add token

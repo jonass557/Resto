@@ -31,8 +31,6 @@ export default function AgentDashboard() {
   const firstLoad = useRef(true);
 
   const loadData = useCallback(async () => {
-    invalidateCache('/stats');
-    invalidateCache('/cash-register');
     if (firstLoad.current) setLoading(true);
     try {
       const [statsRes, cashRes] = await Promise.all([
@@ -53,17 +51,18 @@ export default function AgentDashboard() {
 
   useEffect(() => {
     if (!socket) return;
-    socket.on('cashRegister:opened', loadData);
-    socket.on('cashRegister:closed', loadData);
-    socket.on('ticket:paid', loadData);
-    socket.on('payment:created', loadData);
-    socket.on('order:created', loadData);
+    const reload = () => { invalidateCache('/stats'); invalidateCache('/cash-register'); loadData(); };
+    socket.on('cashRegister:opened', reload);
+    socket.on('cashRegister:closed', reload);
+    socket.on('ticket:paid', reload);
+    socket.on('payment:created', reload);
+    socket.on('order:created', reload);
     return () => {
-      socket.off('cashRegister:opened', loadData);
-      socket.off('cashRegister:closed', loadData);
-      socket.off('ticket:paid', loadData);
-      socket.off('payment:created', loadData);
-      socket.off('order:created', loadData);
+      socket.off('cashRegister:opened', reload);
+      socket.off('cashRegister:closed', reload);
+      socket.off('ticket:paid', reload);
+      socket.off('payment:created', reload);
+      socket.off('order:created', reload);
     };
   }, [socket, loadData]);
 
