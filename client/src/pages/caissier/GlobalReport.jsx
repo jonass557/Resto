@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { cashRegisterAPI } from '@/services/api';
+import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +21,8 @@ export default function GlobalReport() {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  const { socket } = useSocket();
+
   const loadReport = useCallback(async () => {
     setLoading(true);
     try {
@@ -35,6 +38,18 @@ export default function GlobalReport() {
   }, [date, service]);
 
   useEffect(() => { loadReport(); }, [loadReport]);
+
+  useEffect(() => {
+    if (!socket) return;
+    socket.on('payment:created', loadReport);
+    socket.on('ticket:paid', loadReport);
+    socket.on('cashRegister:closed', loadReport);
+    return () => {
+      socket.off('payment:created', loadReport);
+      socket.off('ticket:paid', loadReport);
+      socket.off('cashRegister:closed', loadReport);
+    };
+  }, [socket, loadReport]);
 
   return (
     <div>

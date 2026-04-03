@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { clientsAPI, readCache } from '@/services/api';
+import { clientsAPI, invalidateCache, readCache } from '@/services/api';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -24,6 +24,7 @@ export default function Clients() {
   const [submitting, setSubmitting] = useState(false);
 
   const loadClients = useCallback(async () => {
+    invalidateCache('/clients');
     try {
       const { data } = await clientsAPI.getAll({ search: searchQuery });
       setClients(data.data);

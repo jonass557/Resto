@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { cashRegisterAPI, ticketsAPI, readCache } from '@/services/api';
+import { cashRegisterAPI, ticketsAPI, invalidateCache, readCache } from '@/services/api';
+import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -32,7 +33,11 @@ export default function CashRegister() {
   const [closingAmount, setClosingAmount] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  const { socket } = useSocket();
+
   const loadData = useCallback(async () => {
+    invalidateCache('/cash-register');
+    invalidateCache('/tickets');
     try {
       const [currentRes, historyRes, ticketsRes] = await Promise.all([
         cashRegisterAPI.getCurrent(),
@@ -60,6 +65,20 @@ export default function CashRegister() {
   }, [user?._id]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  useEffect(() => {
+    if (!socket) return;
+    socket.on('cashRegister:opened', loadData);
+    socket.on('cashRegister:closed', loadData);
+    socket.on('ticket:paid', loadData);
+    socket.on('payment:created', loadData);
+    return () => {
+      socket.off('cashRegister:opened', loadData);
+      socket.off('cashRegister:closed', loadData);
+      socket.off('ticket:paid', loadData);
+      socket.off('payment:created', loadData);
+    };
+  }, [socket, loadData]);
 
   const handleOpen = async () => {
     setSubmitting(true);
