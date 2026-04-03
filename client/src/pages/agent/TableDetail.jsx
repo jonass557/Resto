@@ -33,6 +33,9 @@ export default function TableDetail() {
   const [mobileTab, setMobileTab] = useState('products');
 
   const loadData = useCallback(async () => {
+    invalidateCache('/tables');
+    invalidateCache('/products');
+    invalidateCache('/categories');
     try {
       const [tableRes, productsRes, categoriesRes] = await Promise.all([
         tablesAPI.getAll(),
