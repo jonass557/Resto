@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { tablesAPI, productsAPI, categoriesAPI, ordersAPI, ticketsAPI, invalidateCache, readCache } from '@/services/api';
 import { useSocket } from '@/contexts/SocketContext';
+import { usePrinter } from '@/contexts/PrinterContext';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,7 @@ export default function TableDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { socket } = useSocket();
+  const { printTicketById } = usePrinter();
 
   const [products, setProducts] = useState(() => readCache('/products', { isAvailable: true })?.data?.data || []);
   const [categories, setCategories] = useState(() => readCache('/categories')?.data?.data || []);
@@ -137,6 +139,8 @@ export default function TableDetail() {
     try {
       const { data } = await ticketsAPI.createInvoice(id);
       toast.success(`Facture ${data.data.ticketNumber} créée`);
+      const printed = await printTicketById(data.data._id);
+      if (!printed) toast('Facture créée — aucune imprimante disponible', { icon: '⚠️' });
       toast('Facture en attente de paiement — vous pouvez continuer à travailler', { icon: '⏳', duration: 4000 });
       navigate('/agent/tables');
     } catch (error) {

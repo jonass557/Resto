@@ -279,6 +279,13 @@ router.post('/print-ticket', auth, async (req, res) => {
         printerConfig = settings?.printerConfig || {};
       }
     }
+
+    // Always fall back to DB printer config if not provided in request
+    if (!printerConfig || !printerConfig.type) {
+      const settings = await Settings.findOne();
+      printerConfig = settings?.printerConfig || {};
+    }
+
     const config = printerConfig || {};
     const receiptBuffer = buildEscPosReceipt(ticketData, config.paperWidth || 80);
 

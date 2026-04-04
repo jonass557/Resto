@@ -23,7 +23,7 @@ export default function Restaurant() {
   const existingInvoiceId = searchParams.get('invoiceId');
   const { user } = useAuth();
   const { socket } = useSocket();
-  const { printTicket } = usePrinter();
+  const { printTicket, printTicketById } = usePrinter();
 
   // Table number step — skip immediately if adding to existing invoice
   const [tableNumber, setTableNumber] = useState('');
@@ -274,18 +274,9 @@ export default function Restaurant() {
         invoiceData = data.data;
       }
 
-      // Auto-print facture client avant la page de facturation
-      await printTicket({
-        ticketNumber: invoiceData?.ticketNumber || '',
-        orderType: 'dine_in',
-        tableName: tableNumber,
-        agentName: user ? `${user.firstName} ${user.lastName}` : '',
-        items: invoiceData?.items || cart,
-        subtotal: invoiceData?.subtotal ?? cartTotal,
-        taxAmount: 0,
-        discount: 0,
-        total: invoiceData?.total ?? cartTotal,
-      });
+      // Auto-print facture client (ticketId → backend récupère config imprimante + données)
+      const printed = await printTicketById(invoiceId);
+      if (!printed) toast('Facture créée — aucune imprimante disponible', { icon: '⚠️' });
 
       navigate(`/agent/billing/${invoiceId}`);
     } catch (error) {
