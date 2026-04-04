@@ -1,5 +1,22 @@
 # Installation de l'Agent d'Impression
 
+## Comment ça fonctionne
+
+```
+PC d'impression (local)                   Cloud (Internet)
+────────────────────────────              ──────────────────────────
+1. server/ → tourne sur port 5000  ←───→  Render  (API principale)
+2. Chrome  → ouvre le site web     ←───→  Vercel  (interface React)
+```
+
+**Tu n'as PAS besoin d'installer le frontend/client** sur ce PC.  
+L'interface web est déjà hébergée sur Vercel — tu y accèdes simplement avec Chrome.
+
+Le rôle du serveur local (port 5000) est uniquement de recevoir les commandes d'impression
+et d'envoyer les données ESC/POS directement à l'imprimante via WiFi (TCP port 9100).
+
+---
+
 L'agent d'impression est le serveur local (`server/`) qui tourne sur le PC connecté à l'imprimante.  
 Il écoute sur le port **5000** et reçoit les jobs d'impression depuis le serveur cloud (Render) via Socket.IO.
 
