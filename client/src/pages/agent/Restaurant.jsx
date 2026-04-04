@@ -52,6 +52,8 @@ export default function Restaurant() {
   const [submitting, setSubmitting] = useState(false);
   const [memoLoading, setMemoLoading] = useState(false);
   const [printLoading, setPrintLoading] = useState(false);
+  // Tracks the running invoice built up by successive "Envoyer" clicks
+  const [sessionInvoiceId, setSessionInvoiceId] = useState(null);
 
   // Cash register session guard
   const [cashSession, setCashSession] = useState(null); // null=loading, false=closed, obj=open
@@ -193,13 +195,28 @@ export default function Restaurant() {
     return true;
   };
 
-  // ── Envoyer la commande à l'imprimante (cuisine) — pas de sauvegarde BD ──
+  // ── Envoyer la commande : sauvegarde en BD + impression cuisine ──
   const handleSendToKitchen = async () => {
     if (!requireCash()) return;
     if (!requireTable()) return;
     if (cart.length === 0) { toast.error('Le panier est vide'); return; }
     setPrintLoading(true);
     try {
+      // 1. Sauvegarder les articles sur la facture en cours (créer si première envoi)
+      const activeInvoiceId = existingInvoiceId || sessionInvoiceId;
+      let savedInvoiceId = activeInvoiceId;
+      if (activeInvoiceId) {
+        await ticketsAPI.addItems(activeInvoiceId, cart);
+      } else {
+        const { data } = await ticketsAPI.directInvoice({
+          tableNumber: tableNumber.trim(),
+          items: cart
+        });
+        savedInvoiceId = data.data._id;
+        setSessionInvoiceId(savedInvoiceId);
+      }
+
+      // 2. Imprimer le bon de commande cuisine
       const ok = await printTicket({
         ticketNumber: `CMD-${Date.now().toString().slice(-6)}`,
         orderType: 'dine_in',
@@ -211,11 +228,15 @@ export default function Restaurant() {
         discount: 0,
         total: cartTotal,
       });
-      // Vider le panier dans tous les cas — impression optionnelle
+
       setCart([]);
       if (!ok) {
-        toast('Commande notée — aucune imprimante disponible', { icon: '⚠️' });
+        toast('Commande enregistrée — aucune imprimante disponible', { icon: '⚠️' });
+      } else {
+        toast.success('Commande envoyée et enregistrée sur la facture');
       }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Erreur envoi commande');
     } finally {
       setPrintLoading(false);
     }
@@ -227,9 +248,10 @@ export default function Restaurant() {
     if (!requireTable()) return;
     setMemoLoading(true);
     try {
-      if (existingInvoiceId && existingInvoice) {
+      const activeInvoiceId = existingInvoiceId || sessionInvoiceId;
+      if (activeInvoiceId) {
         if (cart.length > 0) {
-          await ticketsAPI.addItems(existingInvoiceId, cart);
+          await ticketsAPI.addItems(activeInvoiceId, cart);
         }
         navigate('/agent/en-cours');
       } else if (cart.length > 0) {
@@ -246,38 +268,42 @@ export default function Restaurant() {
     }
   };
 
-  // ── Facturer: crée facture → auto-print → billing ──
+  // ── Facturer: consolide toutes les commandes de la session → impression → billing ──
   const handleFacturer = async () => {
     if (!requireCash()) return;
     if (!requireTable()) return;
-    // Mode ajout avec panier vide → aller directement en facturation sans ajouter d'articles
+    const activeInvoiceId = existingInvoiceId || sessionInvoiceId;
+
+    // Panier vide mais facture déjà créée par les envois précédents → aller directement facturer
     if (cart.length === 0) {
-      if (existingInvoiceId && existingInvoice) {
-        navigate(`/agent/billing/${existingInvoiceId}`);
+      if (activeInvoiceId) {
+        setSubmitting(true);
+        try {
+          const printed = await printTicketById(activeInvoiceId);
+          if (!printed) toast('Facture — aucune imprimante disponible', { icon: '⚠️' });
+          navigate(`/agent/billing/${activeInvoiceId}`);
+        } finally { setSubmitting(false); }
         return;
       }
       toast.error('Le panier est vide'); return;
     }
+
     setSubmitting(true);
     try {
-      let invoiceId, invoiceData;
-      if (existingInvoiceId && existingInvoice) {
-        const { data } = await ticketsAPI.addItems(existingInvoiceId, cart);
-        invoiceId = existingInvoiceId;
-        invoiceData = data.data;
+      let invoiceId;
+      if (activeInvoiceId) {
+        await ticketsAPI.addItems(activeInvoiceId, cart);
+        invoiceId = activeInvoiceId;
       } else {
         const { data } = await ticketsAPI.directInvoice({
           tableNumber: tableNumber.trim(),
           items: cart
         });
         invoiceId = data.data._id;
-        invoiceData = data.data;
       }
 
-      // Auto-print facture client (ticketId → backend récupère config imprimante + données)
       const printed = await printTicketById(invoiceId);
       if (!printed) toast('Facture créée — aucune imprimante disponible', { icon: '⚠️' });
-
       navigate(`/agent/billing/${invoiceId}`);
     } catch (error) {
       toast.error(error.response?.data?.message || 'Erreur création facture');
