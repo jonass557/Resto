@@ -170,9 +170,10 @@ export default function BillingPage() {
   if (!invoice) return null;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex flex-col bg-background" style={{ height: 'var(--vvh, 100dvh)', overflow: 'hidden' }}>
       <TopBar title={`Facturation — ${invoice.ticketNumber}`} />
 
+      <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
       <div className="max-w-2xl mx-auto p-4 space-y-4">
 
         {/* Invoice header */}
@@ -353,6 +354,7 @@ export default function BillingPage() {
             Confirmer & Imprimer
           </Button>
         </div>
+      </div>
       </div>
     </div>
   );

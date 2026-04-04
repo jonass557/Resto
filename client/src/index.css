@@ -121,14 +121,13 @@
   }
 }
 
-/* ── Tablet virtual keyboard fix ──────────────────────────────────────────
-   dvh = dynamic viewport height — automatically shrinks when the virtual
-   keyboard appears (Chrome 108+, Safari 15.4+, modern Android browsers).
-   scroll-padding-bottom gives focused inputs breathing room above the keyboard
-   on browsers that don't support interactive-widget.
-──────────────────────────────────────────────────────────────────────────── */
-html, body, #root {
-  height: 100%;
+/* ── Tablet virtual keyboard fix (Visual Viewport API) ──────────────────────────────
+   --vvh is set by main.jsx via window.visualViewport.height.
+   Pages that use "height: var(--vvh, 100dvh)" shrink when the keyboard
+   appears and become internally scrollable, keeping inputs visible.
+   scroll-padding-bottom gives focused inputs room above sticky toolbars.
+────────────────────────────────────────────────────────────────────────────────── */
+body, #root {
   min-height: 100dvh;
 }
 

@@ -10,15 +10,37 @@ import { PrintAgentProvider } from './contexts/PrintAgentContext'
 import { Toaster } from 'react-hot-toast'
 import './index.css'
 
-// ── Tablet virtual keyboard: scroll focused input into view ──────────────
-// Runs after the keyboard animation (≈300 ms) so the element is fully visible.
+// ── Tablet virtual keyboard: Visual Viewport API ─────────────────────────
+// 1. Track visual viewport height → CSS variable --vvh.
+//    Pages that use height:var(--vvh) shrink when the keyboard appears,
+//    making their content internally scrollable above the keyboard.
+// 2. On each focus, scroll the input above the keyboard if needed.
+const _updateVVH = () => {
+  const h = window.visualViewport?.height ?? window.innerHeight;
+  document.documentElement.style.setProperty('--vvh', h + 'px');
+};
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', _updateVVH);
+  window.visualViewport.addEventListener('scroll', _updateVVH);
+}
+window.addEventListener('resize', _updateVVH);
+_updateVVH();
+
 document.addEventListener('focusin', (e) => {
   const tag = e.target?.tagName;
-  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
-    setTimeout(() => {
+  if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') return;
+  setTimeout(() => {
+    const vv = window.visualViewport;
+    if (vv) {
+      const rect = e.target.getBoundingClientRect();
+      const vvBottom = vv.offsetTop + vv.height;
+      if (rect.bottom > vvBottom - 16) {
+        window.scrollBy({ top: rect.bottom - vvBottom + 80, behavior: 'smooth' });
+      }
+    } else {
       e.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 350);
-  }
+    }
+  }, 400);
 });
 // ─────────────────────────────────────────────────────────────────────────
 
