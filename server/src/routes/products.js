@@ -7,7 +7,7 @@ const router = express.Router();
 // GET /api/products
 router.get('/', auth, async (req, res) => {
   try {
-    const { category, search, isAvailable, page = 1, limit = 100 } = req.query;
+    const { category, search, isAvailable, page = 1, limit = 10000 } = req.query;
     const filter = {};
     if (category) filter.category = category;
     if (isAvailable !== undefined) filter.isAvailable = isAvailable === 'true';

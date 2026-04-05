@@ -124,7 +124,43 @@ function buildEscPosReceipt(ticketData, paperWidth = 80) {
 
   // Payment info
   if (ticketData.paymentMethod) {
-    cmds.push(`Paiement: ${ticketData.paymentMethod}\n`);
+    const methodLabel = {
+      cash: 'Espèces',
+      card: 'Carte bancaire',
+      mobile_money: 'Mobile Money',
+      mixed: 'Paiement mixte',
+      gift_card: 'Carte cadeau'
+    }[ticketData.paymentMethod] || ticketData.paymentMethod;
+
+    if (ticketData.paymentMethod === 'mixed' && ticketData.mixedPayments?.length > 0) {
+      cmds.push(`Paiement: ${methodLabel}\n`);
+      for (const mp of ticketData.mixedPayments) {
+        if (!mp.amount || mp.amount <= 0) continue;
+        const mpLabel = {
+          cash: 'Espèces',
+          card: 'Carte bancaire',
+          mobile_money: 'Mobile Money',
+          gift_card: 'Carte cadeau'
+        }[mp.method] || mp.method;
+        const mpVal = `${mp.amount} ${ticketData.currency || 'FCFA'}`;
+        const mpPad = cols - mpLabel.length - mpVal.length;
+        cmds.push(mpLabel + (mpPad > 0 ? ' '.repeat(mpPad) : ' ') + mpVal + '\n');
+      }
+      if (ticketData.amountReceived > 0) {
+        const recVal = `${ticketData.amountReceived} ${ticketData.currency || 'FCFA'}`;
+        const recLabel = 'Total reçu';
+        const recPad = cols - recLabel.length - recVal.length;
+        cmds.push(recLabel + (recPad > 0 ? ' '.repeat(recPad) : ' ') + recVal + '\n');
+      }
+    } else {
+      cmds.push(`Paiement: ${methodLabel}\n`);
+      if (ticketData.amountReceived > 0) {
+        const recVal = `${ticketData.amountReceived} ${ticketData.currency || 'FCFA'}`;
+        const recLabel = 'Montant reçu';
+        const recPad = cols - recLabel.length - recVal.length;
+        cmds.push(recLabel + (recPad > 0 ? ' '.repeat(recPad) : ' ') + recVal + '\n');
+      }
+    }
   }
 
   // Mobile Money payment codes
@@ -264,6 +300,8 @@ router.post('/print-ticket', auth, async (req, res) => {
         total: ticket.total,
         isPaid: ticket.isPaid,
         paymentMethod: ticket.payment?.method || null,
+        amountReceived: ticket.payment?.amountReceived || 0,
+        mixedPayments: ticket.payment?.mixedPayments || [],
         restaurantName: settings?.restaurantName || 'Restaurant',
         address: settings?.address || '',
         phone: settings?.phone || '',
