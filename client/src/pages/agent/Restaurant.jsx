@@ -358,9 +358,9 @@ export default function Restaurant() {
   // ── Step 1: Table number input ──
   if (!tableConfirmed) {
     return (
-      <div className="min-h-screen bg-background flex flex-col">
+      <div className="flex flex-col bg-background" style={{ height: 'var(--vvh, 100dvh)', overflow: 'hidden' }}>
         <TopBar title="Restaurant" />
-        <div className="flex-1 flex items-center justify-center p-6">
+        <div className="flex-1 overflow-y-auto flex items-center justify-center p-6">
           <div className="w-full max-w-sm space-y-6">
             <div className="text-center">
               <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
@@ -396,7 +396,7 @@ export default function Restaurant() {
   const isAddMode = !!existingInvoiceId && !!existingInvoice;
 
   return (
-    <div className="flex flex-col" style={{ height: '100dvh' }}>
+    <div className="flex flex-col" style={{ height: 'var(--vvh, 100dvh)' }}>
       <TopBar title={isAddMode ? `Ajout — ${existingInvoice.ticketNumber} (Table ${tableNumber})` : `Restaurant — Table ${tableNumber}`} />
 
       {/* Mobile tab switcher */}

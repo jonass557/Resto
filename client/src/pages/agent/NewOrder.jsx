@@ -254,9 +254,9 @@ export default function NewOrder() {
   }
 
   return (
-    <div>
+    <div className="flex flex-col" style={{ height: 'var(--vvh, 100dvh)', overflow: 'hidden' }}>
       <TopBar title="Nouvelle commande" />
-      <div className="p-2 sm:p-4 flex flex-col lg:flex-row gap-3 lg:gap-4" style={{ height: 'calc(100vh - 4rem)', overflow: 'hidden' }}>
+      <div className="p-2 sm:p-4 flex flex-col lg:flex-row gap-3 lg:gap-4 flex-1 overflow-hidden">
         {/* Mobile Tab Switcher */}
         <div className="flex lg:hidden gap-2 shrink-0">
           <Button variant={mobileTab === 'products' ? 'default' : 'outline'} className="flex-1" onClick={() => setMobileTab('products')}>
