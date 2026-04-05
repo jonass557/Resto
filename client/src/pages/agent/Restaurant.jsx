@@ -54,6 +54,8 @@ export default function Restaurant() {
   const [printLoading, setPrintLoading] = useState(false);
   // Tracks the running invoice built up by successive "Envoyer" clicks
   const [sessionInvoiceId, setSessionInvoiceId] = useState(null);
+  // Cumulative total of all items already sent (not in cart)
+  const [sessionTotal, setSessionTotal] = useState(0);
 
   // Cash register session guard
   const [cashSession, setCashSession] = useState(null); // null=loading, false=closed, obj=open
@@ -229,6 +231,7 @@ export default function Restaurant() {
         total: cartTotal,
       });
 
+      setSessionTotal(prev => prev + cartTotal);
       setCart([]);
       if (!ok) {
         toast('Commande enregistrée — aucune imprimante disponible', { icon: '⚠️' });
@@ -555,10 +558,31 @@ export default function Restaurant() {
 
           {/* Footer actions — pointer-events-none bloque tout clic concurrent pendant un chargement */}
           <div className={`border-t p-3 space-y-3 ${(memoLoading || submitting || printLoading) ? 'pointer-events-none opacity-80' : ''}`}>
-            <div className="flex justify-between items-center font-bold">
-              <span className="text-sm">Nouveau total</span>
-              <span className="text-primary">{formatCurrency(cartTotal)}</span>
-            </div>
+            {/* Running total breakdown */}
+            {(() => {
+              const alreadySent = (isAddMode ? (existingInvoice?.total || 0) : 0) + sessionTotal;
+              const grandTotal = alreadySent + cartTotal;
+              return (
+                <div className="space-y-1">
+                  {alreadySent > 0 && (
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Déjà enregistré</span>
+                      <span>{formatCurrency(alreadySent)}</span>
+                    </div>
+                  )}
+                  {alreadySent > 0 && cartTotal > 0 && (
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Panier actuel</span>
+                      <span>{formatCurrency(cartTotal)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center font-bold">
+                    <span className="text-sm">Total facture</span>
+                    <span className="text-primary text-base">{formatCurrency(grandTotal)}</span>
+                  </div>
+                </div>
+              );
+            })()}
             <Separator />
 
             {/* Envoyer la commande à l'imprimante (cuisine) */}
@@ -579,9 +603,9 @@ export default function Restaurant() {
               Mémo
             </Button>
 
-            {/* Facturer → crée facture + print + billing (actif même sans nouveaux articles en mode ajout) */}
+            {/* Facturer → crée facture + print + billing (actif dès qu'une commande a été envoyée) */}
             <Button className="w-full" onClick={handleFacturer}
-              disabled={(cart.length === 0 && !(existingInvoiceId && existingInvoice)) || submitting || memoLoading}>
+              disabled={(cart.length === 0 && !(existingInvoiceId && existingInvoice) && !sessionInvoiceId) || submitting || memoLoading}>
               {submitting
                 ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 : <Receipt className="w-4 h-4 mr-2" />}
