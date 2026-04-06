@@ -12,10 +12,11 @@ router.get('/', auth, async (req, res) => {
     if (category) filter.category = category;
     if (isAvailable !== undefined) filter.isAvailable = isAvailable === 'true';
     if (search) {
+      const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       filter.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } },
-        { sku: { $regex: search, $options: 'i' } }
+        { name: { $regex: '^' + escaped, $options: 'i' } },
+        { description: { $regex: escaped, $options: 'i' } },
+        { sku: { $regex: '^' + escaped, $options: 'i' } }
       ];
     }
 

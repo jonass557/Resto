@@ -101,6 +101,7 @@ router.post('/invoice/:tableId', auth, async (req, res) => {
       for (const item of order.items) {
         allItems.push({
           name: item.name,
+          category: item.category || '',
           quantity: item.quantity,
           unitPrice: item.unitPrice,
           totalPrice: item.totalPrice,
@@ -169,6 +170,7 @@ router.post('/invoice-orders', auth, async (req, res) => {
       for (const item of order.items) {
         allItems.push({
           name: item.name,
+          category: item.category || '',
           quantity: item.quantity,
           unitPrice: item.unitPrice,
           totalPrice: item.totalPrice,
@@ -279,7 +281,7 @@ router.post('/direct-invoice', auth, async (req, res) => {
     const processedItems = items.map(item => {
       const tp = item.unitPrice * item.quantity;
       subtotal += tp;
-      return { name: item.name, quantity: item.quantity, unitPrice: item.unitPrice, totalPrice: tp, options: [] };
+      return { name: item.name, category: item.category || '', quantity: item.quantity, unitPrice: item.unitPrice, totalPrice: tp, options: [] };
     });
 
     const invoice = new Ticket({
@@ -346,7 +348,7 @@ router.patch('/:id/add-items', auth, async (req, res) => {
         existing.quantity += item.quantity;
         existing.totalPrice = existing.quantity * existing.unitPrice;
       } else {
-        ticket.items.push({ name: item.name, quantity: item.quantity, unitPrice: item.unitPrice, totalPrice: item.unitPrice * item.quantity, options: [] });
+        ticket.items.push({ name: item.name, category: item.category || '', quantity: item.quantity, unitPrice: item.unitPrice, totalPrice: item.unitPrice * item.quantity, options: [] });
       }
     }
 

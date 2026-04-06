@@ -90,7 +90,7 @@ router.post('/', auth, async (req, res) => {
     let taxAmount = 0;
 
     for (const item of items) {
-      const product = await Product.findById(item.productId);
+      const product = await Product.findById(item.productId).populate('category', 'name');
       if (!product) continue;
       if (!product.isAvailable) continue;
 
@@ -118,6 +118,7 @@ router.post('/', auth, async (req, res) => {
       orderItems.push({
         product: product._id,
         name: product.name,
+        category: product.category?.name || '',
         quantity: item.quantity,
         unitPrice: product.price,
         totalPrice: itemTotal,
@@ -190,6 +191,7 @@ router.post('/', auth, async (req, res) => {
       } : undefined,
       items: orderItems.map(i => ({
         name: i.name,
+        category: i.category || '',
         quantity: i.quantity,
         unitPrice: i.unitPrice,
         totalPrice: i.totalPrice,

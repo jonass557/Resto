@@ -84,8 +84,8 @@ function buildEscPosReceipt(ticketData, paperWidth = 80) {
   cmds.push(`Date: ${new Date().toLocaleString('fr-FR')}\n`);
   cmds.push('-'.repeat(cols) + '\n');
 
-  // Items
-  for (const item of ticketData.items || []) {
+  // Items — grouped by category when available
+  const printItem = (item) => {
     const qty = `${item.quantity}x ${item.name}`;
     const price = `${item.totalPrice} ${ticketData.currency || 'FCFA'}`;
     const spaces = cols - qty.length - price.length;
@@ -95,12 +95,38 @@ function buildEscPosReceipt(ticketData, paperWidth = 80) {
       cmds.push(qty + '\n');
       cmds.push(' '.repeat(cols - price.length) + price + '\n');
     }
-    // Item options
     if (item.options && item.options.length > 0) {
       for (const opt of item.options) {
         cmds.push(`  + ${opt.name} ${opt.price > 0 ? opt.price + ' ' + (ticketData.currency || 'FCFA') : ''}\n`);
       }
     }
+  };
+
+  const allItems = ticketData.items || [];
+  const hasCategories = allItems.some(i => i.category);
+
+  if (hasCategories) {
+    const groups = {};
+    const ungrouped = [];
+    for (const item of allItems) {
+      if (item.category) {
+        if (!groups[item.category]) groups[item.category] = [];
+        groups[item.category].push(item);
+      } else {
+        ungrouped.push(item);
+      }
+    }
+    for (const item of ungrouped) printItem(item);
+    for (const [cat, catItems] of Object.entries(groups)) {
+      const catLabel = `-- ${cat.toUpperCase()} --`;
+      const pad = Math.floor((cols - catLabel.length) / 2);
+      cmds.push(`${ESC}E\x01`);
+      cmds.push((pad > 0 ? ' '.repeat(pad) : '') + catLabel + '\n');
+      cmds.push(`${ESC}E\x00`);
+      for (const item of catItems) printItem(item);
+    }
+  } else {
+    for (const item of allItems) printItem(item);
   }
 
   cmds.push('-'.repeat(cols) + '\n');
@@ -407,8 +433,32 @@ router.post('/print-ticket', auth, async (req, res) => {
     receiptLines.push({ type: 'text', value: `Date: ${new Date().toLocaleString('fr-FR')}`, align: 'left' });
     receiptLines.push({ type: 'line' });
 
-    for (const item of ticketData.items || []) {
-      receiptLines.push({ type: 'item', name: `${item.quantity}x ${item.name}`, price: `${item.totalPrice} ${ticketData.currency || 'FCFA'}` });
+    const fallbackItems = ticketData.items || [];
+    const fallbackHasCategories = fallbackItems.some(i => i.category);
+    if (fallbackHasCategories) {
+      const fbGroups = {};
+      const fbUngrouped = [];
+      for (const item of fallbackItems) {
+        if (item.category) {
+          if (!fbGroups[item.category]) fbGroups[item.category] = [];
+          fbGroups[item.category].push(item);
+        } else {
+          fbUngrouped.push(item);
+        }
+      }
+      for (const item of fbUngrouped) {
+        receiptLines.push({ type: 'item', name: `${item.quantity}x ${item.name}`, price: `${item.totalPrice} ${ticketData.currency || 'FCFA'}` });
+      }
+      for (const [cat, catItems] of Object.entries(fbGroups)) {
+        receiptLines.push({ type: 'text', value: `-- ${cat.toUpperCase()} --`, align: 'center', bold: true });
+        for (const item of catItems) {
+          receiptLines.push({ type: 'item', name: `${item.quantity}x ${item.name}`, price: `${item.totalPrice} ${ticketData.currency || 'FCFA'}` });
+        }
+      }
+    } else {
+      for (const item of fallbackItems) {
+        receiptLines.push({ type: 'item', name: `${item.quantity}x ${item.name}`, price: `${item.totalPrice} ${ticketData.currency || 'FCFA'}` });
+      }
     }
 
     receiptLines.push({ type: 'line' });

@@ -43,11 +43,38 @@ function buildReceipt(data, cols = 32) {
   c.push(`Date: ${new Date().toLocaleString('fr-FR')}\n`);
   c.push('-'.repeat(cols) + '\n');
 
-  for (const item of data.items || []) {
+  const printItem = (item) => {
     const qty = `${item.quantity}x ${item.name}`;
     const price = `${item.totalPrice} ${data.currency || 'FCFA'}`;
     const sp = cols - qty.length - price.length;
     c.push(sp > 0 ? qty + ' '.repeat(sp) + price + '\n' : qty + '\n' + ' '.repeat(Math.max(0, cols - price.length)) + price + '\n');
+  };
+
+  const allItems = data.items || [];
+  const hasCategories = allItems.some(i => i.category);
+
+  if (hasCategories) {
+    const groups = {};
+    const ungrouped = [];
+    for (const item of allItems) {
+      if (item.category) {
+        if (!groups[item.category]) groups[item.category] = [];
+        groups[item.category].push(item);
+      } else {
+        ungrouped.push(item);
+      }
+    }
+    for (const item of ungrouped) printItem(item);
+    for (const [cat, catItems] of Object.entries(groups)) {
+      const catLabel = `-- ${cat.toUpperCase()} --`;
+      const pad = Math.floor((cols - catLabel.length) / 2);
+      c.push(`${ESC}E\x01`);
+      c.push((pad > 0 ? ' '.repeat(pad) : '') + catLabel + '\n');
+      c.push(`${ESC}E\x00`);
+      for (const item of catItems) printItem(item);
+    }
+  } else {
+    for (const item of allItems) printItem(item);
   }
 
   c.push('-'.repeat(cols) + '\n');
@@ -304,9 +331,25 @@ export function PrinterProvider({ children }) {
 function browserPrint(data) {
   const w = window.open('', '_blank', 'width=300,height=600');
   if (!w) return;
-  const items = (data.items || []).map(i =>
-    `<tr><td>${i.quantity}x ${i.name}</td><td style="text-align:right">${i.totalPrice} ${data.currency || 'FCFA'}</td></tr>`
-  ).join('');
+  const cur = data.currency || 'FCFA';
+  const allItems = data.items || [];
+  const hasCategories = allItems.some(i => i.category);
+  let itemsHtml = '';
+  if (hasCategories) {
+    const groups = {};
+    const ungrouped = [];
+    for (const i of allItems) {
+      if (i.category) { if (!groups[i.category]) groups[i.category] = []; groups[i.category].push(i); }
+      else ungrouped.push(i);
+    }
+    for (const i of ungrouped) itemsHtml += `<tr><td>${i.quantity}x ${i.name}</td><td style="text-align:right">${i.totalPrice} ${cur}</td></tr>`;
+    for (const [cat, catItems] of Object.entries(groups)) {
+      itemsHtml += `<tr><td colspan="2" style="font-weight:bold;padding-top:4px;text-align:center">-- ${cat.toUpperCase()} --</td></tr>`;
+      for (const i of catItems) itemsHtml += `<tr><td>${i.quantity}x ${i.name}</td><td style="text-align:right">${i.totalPrice} ${cur}</td></tr>`;
+    }
+  } else {
+    itemsHtml = allItems.map(i => `<tr><td>${i.quantity}x ${i.name}</td><td style="text-align:right">${i.totalPrice} ${cur}</td></tr>`).join('');
+  }
   w.document.write(`<!DOCTYPE html><html><head><title>Ticket</title>
     <style>body{font-family:monospace;font-size:12px;width:280px;margin:0 auto;padding:10px}
     h2{text-align:center;margin:0}p{margin:2px 0;font-size:11px}
@@ -322,9 +365,9 @@ function browserPrint(data) {
     <p>Serveur: ${data.agentName || ''}</p>
     <p>Date: ${new Date().toLocaleString('fr-FR')}</p>
     <div class="sep"></div>
-    <table>${items}</table>
+    <table>${itemsHtml}</table>
     <div class="sep"></div>
-    <table><tr class="total"><td>TOTAL</td><td style="text-align:right">${data.total} ${data.currency || 'FCFA'}</td></tr></table>
+    <table><tr class="total"><td>TOTAL</td><td style="text-align:right">${data.total} ${cur}</td></tr></table>
     <div class="sep"></div>
     <p class="center">${data.footer || 'Merci de votre visite!'}</p>
     </body></html>`);

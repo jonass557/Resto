@@ -23,6 +23,7 @@ const ticketSchema = new mongoose.Schema({
   client: { type: mongoose.Schema.Types.ObjectId, ref: 'Client', default: null },
   items: [{
     name: String,
+    category: { type: String, default: '' },
     quantity: Number,
     unitPrice: Number,
     totalPrice: Number,

@@ -142,7 +142,7 @@ export default function Restaurant() {
 
   const filteredProducts = products.filter(p => {
     const matchCategory = selectedCategory === 'all' || p.category?._id === selectedCategory;
-    const matchSearch = !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchSearch = !searchQuery || p.name.toLowerCase().startsWith(searchQuery.toLowerCase());
     return matchCategory && matchSearch;
   });
 
@@ -156,7 +156,7 @@ export default function Restaurant() {
             : item
         );
       }
-      return [...prev, { name: product.name, unitPrice: product.price, quantity: 1, totalPrice: product.price }];
+      return [...prev, { name: product.name, category: product.category?.name || '', unitPrice: product.price, quantity: 1, totalPrice: product.price }];
     });
   };
 
