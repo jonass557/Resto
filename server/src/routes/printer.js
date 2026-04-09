@@ -2,6 +2,7 @@ const express = require('express');
 const { auth } = require('../middleware/auth');
 const Settings = require('../models/Settings');
 const Ticket = require('../models/Ticket');
+const CashRegister = require('../models/CashRegister');
 const net = require('net');
 
 const router = express.Router();
@@ -512,9 +513,39 @@ router.post('/print-ticket', auth, async (req, res) => {
 // POST /api/printer/print-global-report — Impression du rapport journalier
 router.post('/print-global-report', auth, async (req, res) => {
   try {
-    const { reportData } = req.body; // { date, detail, grandTotal, grandCash, grandCard, grandMobile, grandGiftCard, totalInvoices, sessionCount }
-    if (!reportData) return res.status(400).json({ success: false, message: 'Données du rapport manquantes' });
+    const { date, service } = req.body;
 
+    // --- Fetch daily data directly from DB ---
+    const targetDate = date ? new Date(date) : new Date();
+    const dayStart = new Date(targetDate); dayStart.setHours(0, 0, 0, 0);
+    const dayEnd   = new Date(targetDate); dayEnd.setHours(23, 59, 59, 999);
+
+    const sessionQuery = { openedAt: { $gte: dayStart, $lte: dayEnd } };
+    if (service && service !== 'all') sessionQuery.service = Number(service);
+
+    const sessions = await CashRegister.find(sessionQuery)
+      .populate('agent', 'firstName lastName')
+      .sort({ openedAt: 1 });
+
+    let grandTotal = 0, grandCash = 0, grandCard = 0, grandMobile = 0;
+    let totalInvoices = 0;
+    const detail = [];
+
+    for (const sess of sessions) {
+      if (!sess.agent) continue;
+      const dateFilter = { $gte: sess.openedAt };
+      if (sess.closedAt) dateFilter.$lte = sess.closedAt;
+      const invoices = await Ticket.find({ agent: sess.agent._id, type: 'invoice', isPaid: true, createdAt: dateFilter });
+      const sessionTotal = invoices.reduce((s, i) => s + i.total, 0);
+      grandTotal   += sessionTotal;
+      grandCash    += sess.totalCash    || 0;
+      grandCard    += sess.totalCard    || 0;
+      grandMobile  += sess.totalMobileMoney || 0;
+      totalInvoices += invoices.length;
+      detail.push({ session: sess, totalAmount: sessionTotal });
+    }
+
+    // --- Build ESC/POS ---
     const settings = await Settings.findOne();
     const config = settings?.printerConfig || {};
     const cols = (config.paperWidth || 80) === 58 ? 32 : 48;
@@ -522,7 +553,7 @@ router.post('/print-global-report', auth, async (req, res) => {
     const GS  = '\x1D';
     const cur = settings?.currencySymbol || 'FCFA';
     const fmt = (n) => `${(n || 0).toLocaleString('fr-FR')} ${cur}`;
-    const line = (l, v) => {
+    const padLine = (l, v) => {
       const s = cols - l.length - v.length;
       return l + (s > 0 ? ' '.repeat(s) : ' ') + v + '\n';
     };
@@ -535,43 +566,44 @@ router.post('/print-global-report', auth, async (req, res) => {
     cmds.push(`${settings?.restaurantName || 'Restaurant'}\n`);
     cmds.push(`${GS}!\x00${ESC}E\x00`);
     cmds.push(`${ESC}a\x01RAPPORT JOURNALIER\n${ESC}a\x00`);
-    const dateStr = new Date(reportData.date).toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const dateStr = dayStart.toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
     cmds.push(`${dateStr}\n`);
     cmds.push(`Imprime le: ${new Date().toLocaleString('fr-FR')}\n`);
     cmds.push(sep);
 
-    for (const row of (reportData.detail || [])) {
+    for (const row of detail) {
       const s = row.session;
-      const agentName = s.agent ? `${s.agent.firstName} ${s.agent.lastName}` : 'Agent inconnu';
+      const agentName = `${s.agent.firstName} ${s.agent.lastName}`;
       cmds.push(`${ESC}E\x01${agentName} - Serv.${s.service}${ESC}E\x00\n`);
       cmds.push(`Statut: ${s.status === 'open' ? 'En cours' : 'Cloture'}\n`);
       if (s.openedAt) cmds.push(`Ouverture: ${new Date(s.openedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}\n`);
       if (s.closedAt) cmds.push(`Cloture: ${new Date(s.closedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}\n`);
-      cmds.push(line('  Transactions', `${s.transactionCount || 0}`));
-      cmds.push(line('  Especes', fmt(s.totalCash)));
-      cmds.push(line('  Carte', fmt(s.totalCard)));
-      cmds.push(line('  Mobile', fmt(s.totalMobileMoney)));
+      cmds.push(padLine('  Transactions', `${s.transactionCount || 0}`));
+      cmds.push(padLine('  Especes', fmt(s.totalCash)));
+      cmds.push(padLine('  Carte', fmt(s.totalCard)));
+      cmds.push(padLine('  Mobile', fmt(s.totalMobileMoney)));
       cmds.push(`${ESC}E\x01`);
-      cmds.push(line('  SOUS-TOTAL', fmt(row.totalAmount)));
+      cmds.push(padLine('  SOUS-TOTAL', fmt(row.totalAmount)));
       cmds.push(`${ESC}E\x00`);
       cmds.push(sep);
     }
 
     cmds.push(dsep);
     cmds.push(`${ESC}E\x01`);
-    cmds.push(line('TOTAL JOURNEE', fmt(reportData.grandTotal)));
+    cmds.push(padLine('TOTAL JOURNEE', fmt(grandTotal)));
     cmds.push(`${ESC}E\x00`);
-    cmds.push(line('  Especes', fmt(reportData.grandCash)));
-    cmds.push(line('  Carte', fmt(reportData.grandCard)));
-    cmds.push(line('  Mobile', fmt(reportData.grandMobile)));
-    cmds.push(line('Factures', `${reportData.totalInvoices}`));
-    cmds.push(line('Sessions', `${reportData.sessionCount}`));
+    cmds.push(padLine('  Especes', fmt(grandCash)));
+    cmds.push(padLine('  Carte', fmt(grandCard)));
+    cmds.push(padLine('  Mobile', fmt(grandMobile)));
+    cmds.push(padLine('Factures', `${totalInvoices}`));
+    cmds.push(padLine('Sessions', `${detail.length}`));
     cmds.push(dsep);
     cmds.push(`\n${ESC}a\x01${settings?.receiptFooter || 'Merci de votre visite!'}\n\n\n\n`);
     cmds.push(`${GS}V\x00`);
 
     const receiptBuffer = Buffer.from(cmds.join(''), 'binary');
 
+    // --- Send to printer ---
     if (config.type === 'network' && config.address) {
       const cleanAddr = sanitizeIP(config.address);
       if (isCloudHosted() && isPrivateIP(cleanAddr)) {
@@ -615,8 +647,8 @@ router.post('/print-global-report', auth, async (req, res) => {
       }
     }
 
-    // Fallback: no physical printer
-    res.json({ success: true, message: 'Aucune imprimante configurée — impression navigateur uniquement', data: { printed: false, fallback: true } });
+    // Fallback: no physical printer configured
+    res.json({ success: true, message: 'Aucune imprimante configurée', data: { printed: false, fallback: true } });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
