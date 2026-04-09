@@ -67,11 +67,11 @@ function buildEscPosReceipt(ticketData, paperWidth = 80) {
 
   // Deleted invoice banner
   if (ticketData.deleted) {
-    cmds.push('X'.repeat(cols) + '\n');
+    cmds.push('-'.repeat(cols) + '\n');
     cmds.push(`${ESC}a\x01${ESC}E\x01${GS}!\x11`);
-    cmds.push('FACTURE ANNULEE\n');
+    cmds.push('Annulation BON\n');
     cmds.push(`${GS}!\x00${ESC}E\x00${ESC}a\x00`);
-    cmds.push('X'.repeat(cols) + '\n');
+    cmds.push('-'.repeat(cols) + '\n');
   } else {
     cmds.push('-'.repeat(cols) + '\n');
   }
@@ -94,21 +94,30 @@ function buildEscPosReceipt(ticketData, paperWidth = 80) {
   if (ticketData.deleted) {
     cmds.push(`${ESC}E\x01Annulee par: ${ticketData.adminName || ''}${ESC}E\x00\n`);
     if (ticketData.deletedAt) cmds.push(`Date annulation: ${new Date(ticketData.deletedAt).toLocaleString('fr-FR')}\n`);
-    cmds.push('X'.repeat(cols) + '\n');
+    cmds.push('-'.repeat(cols) + '\n');
   } else {
     cmds.push('-'.repeat(cols) + '\n');
   }
 
   // Items — grouped by category when available
+  const isDeleted = !!ticketData.deleted;
   const printItem = (item) => {
-    const qty = `${item.quantity}x ${item.name}`;
+    const qtyPrefix = isDeleted ? '-' : '';
+    const qty = `${qtyPrefix}${item.quantity}x ${item.name}`;
     const price = `${item.totalPrice} ${ticketData.currency || 'FCFA'}`;
     const spaces = cols - qty.length - price.length;
+    let line;
     if (spaces > 0) {
-      cmds.push(qty + ' '.repeat(spaces) + price + '\n');
+      line = qty + ' '.repeat(spaces) + price + '\n';
     } else {
-      cmds.push(qty + '\n');
-      cmds.push(' '.repeat(cols - price.length) + price + '\n');
+      line = qty + '\n' + ' '.repeat(Math.max(0, cols - price.length)) + price + '\n';
+    }
+    if (isDeleted) {
+      cmds.push(`${GS}B\x01`); // reverse mode on (black bg, white text)
+      cmds.push(line);
+      cmds.push(`${GS}B\x00`); // reverse mode off
+    } else {
+      cmds.push(line);
     }
     if (item.options && item.options.length > 0) {
       for (const opt of item.options) {
