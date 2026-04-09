@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ticketsAPI, invalidateCache } from '@/services/api';
+import { ticketsAPI, invalidateCache, printerAPI } from '@/services/api';
 import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent } from '@/components/ui/card';
@@ -20,13 +20,11 @@ export default function InvoicesEnCours() {
   const [loading, setLoading] = useState(true);
 
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   const openDeleteDialog = (inv) => {
     setDeleteTarget(inv);
-    setAdminEmail('');
     setAdminPassword('');
   };
 
@@ -34,11 +32,17 @@ export default function InvoicesEnCours() {
     if (!deleteTarget) return;
     setDeleteLoading(true);
     try {
-      const { data } = await ticketsAPI.adminDelete(deleteTarget._id, { email: adminEmail, password: adminPassword });
+      const { data } = await ticketsAPI.adminDelete(deleteTarget._id, { password: adminPassword });
       toast.success(data.message || 'Facture supprimée');
       setDeleteTarget(null);
       invalidateCache('/tickets');
       load();
+      // Print deleted invoice
+      if (data.ticketData) {
+        try {
+          await printerAPI.printTicket({ ticketData: data.ticketData });
+        } catch { /* printer error non-bloquant */ }
+      }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Erreur suppression');
     } finally {
@@ -165,24 +169,20 @@ export default function InvoicesEnCours() {
               Facture <strong>{deleteTarget?.ticketNumber}</strong> — {formatCurrency(deleteTarget?.total || 0)}
             </p>
             <p className="text-xs text-amber-600 bg-amber-50 rounded p-2">
-              Entrez les identifiants de l'administrateur pour confirmer la suppression.
+              Entrez le mot de passe administrateur pour confirmer la suppression.
             </p>
             <div>
-              <Label className="text-xs">Email administrateur</Label>
-              <Input type="email" placeholder="admin@exemple.com" value={adminEmail}
-                onChange={e => setAdminEmail(e.target.value)} className="h-8 text-sm mt-1" />
-            </div>
-            <div>
-              <Label className="text-xs">Mot de passe</Label>
-              <Input type="password" placeholder="••••••••" value={adminPassword}
-                onChange={e => setAdminPassword(e.target.value)} className="h-8 text-sm mt-1"
-                onKeyDown={e => e.key === 'Enter' && handleAdminDelete()} />
+              <Label className="text-xs">Mot de passe administrateur</Label>
+              <Input type="password" inputMode="numeric" pattern="[0-9]*" placeholder="••••" value={adminPassword}
+                onChange={e => setAdminPassword(e.target.value.replace(/\D/g, ''))} className="h-8 text-sm mt-1"
+                autoFocus
+                onKeyDown={e => e.key === 'Enter' && adminPassword && handleAdminDelete()} />
             </div>
           </div>
           <DialogFooter className="gap-2">
             <Button variant="outline" size="sm" onClick={() => setDeleteTarget(null)}>Annuler</Button>
             <Button variant="destructive" size="sm" onClick={handleAdminDelete}
-              disabled={deleteLoading || !adminEmail || !adminPassword}>
+              disabled={deleteLoading || !adminPassword}>
               {deleteLoading && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
               Confirmer la suppression
             </Button>

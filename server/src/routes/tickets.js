@@ -329,7 +329,7 @@ router.patch('/:id/a-encaisser', auth, async (req, res) => {
   }
 });
 
-// PATCH /api/tickets/:id/add-items — Ajouter des articles à une facture "En cours"
+// PATCH /api/tickets/:id/add-items — Ajouter des articles à une facture (En cours ou À encaisser)
 router.patch('/:id/add-items', auth, async (req, res) => {
   try {
     const openSession = await CashRegister.findOne({ agent: req.user._id, status: 'open' });
@@ -342,6 +342,8 @@ router.patch('/:id/add-items', auth, async (req, res) => {
     }
     const ticket = await Ticket.findOne({ _id: req.params.id, agent: req.user._id, isPaid: false });
     if (!ticket) return res.status(404).json({ success: false, message: 'Facture non trouvée' });
+
+    const prevStatus = ticket.memoStatus;
 
     for (const item of items) {
       const existing = ticket.items.find(i => i.name === item.name && i.unitPrice === item.unitPrice);
@@ -356,7 +358,10 @@ router.patch('/:id/add-items', auth, async (req, res) => {
 
     ticket.subtotal = ticket.items.reduce((s, i) => s + i.totalPrice, 0);
     ticket.total = ticket.subtotal + ticket.taxAmount - ticket.discount;
-    ticket.memoStatus = 'en_cours';
+    // Preserve a_encaisser status; otherwise reset to en_cours
+    if (prevStatus !== 'a_encaisser') {
+      ticket.memoStatus = 'en_cours';
+    }
 
     await ticket.save();
     const io = req.app.get('io');
@@ -368,25 +373,48 @@ router.patch('/:id/add-items', auth, async (req, res) => {
   }
 });
 
-// POST /api/tickets/:id/admin-delete — Agent triggers deletion, server verifies admin credentials
+// POST /api/tickets/:id/admin-delete — Agent triggers deletion, server verifies admin password only
 router.post('/:id/admin-delete', auth, async (req, res) => {
   try {
-    const { email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ success: false, message: 'Identifiants administrateur requis' });
+    const { password } = req.body;
+    if (!password) {
+      return res.status(400).json({ success: false, message: 'Mot de passe administrateur requis' });
     }
 
-    const admin = await User.findOne({ email: email.toLowerCase(), role: 'admin', isActive: true });
+    // Check password against all active admins
+    const admins = await User.find({ role: 'admin', isActive: true });
+    let admin = null;
+    for (const a of admins) {
+      const isMatch = await a.comparePassword(password);
+      if (isMatch) { admin = a; break; }
+    }
     if (!admin) {
-      return res.status(401).json({ success: false, message: 'Identifiants administrateur invalides' });
-    }
-    const isMatch = await admin.comparePassword(password);
-    if (!isMatch) {
-      return res.status(401).json({ success: false, message: 'Identifiants administrateur invalides' });
+      return res.status(401).json({ success: false, message: 'Mot de passe administrateur invalide' });
     }
 
-    const ticket = await Ticket.findById(req.params.id).populate('table', 'number name');
+    const ticket = await Ticket.findById(req.params.id)
+      .populate('table', 'number name')
+      .populate('agent', 'firstName lastName');
     if (!ticket) return res.status(404).json({ success: false, message: 'Ticket non trouvé' });
+
+    // Capture ticket data for printing before deletion
+    const ticketPrintData = {
+      ticketNumber: ticket.ticketNumber,
+      type: ticket.type,
+      orderType: ticket.orderType || 'dine_in',
+      tableName: ticket.table ? `Table ${ticket.table.number}` : null,
+      tableNumber: ticket.table?.number || null,
+      agentName: ticket.agent ? `${ticket.agent.firstName} ${ticket.agent.lastName}` : '',
+      items: (ticket.items || []).map(i => ({ name: i.name, quantity: i.quantity, unitPrice: i.unitPrice, totalPrice: i.totalPrice, category: i.category || '', options: i.options || [] })),
+      subtotal: ticket.subtotal,
+      taxAmount: ticket.taxAmount || 0,
+      discount: ticket.discount || 0,
+      total: ticket.total,
+      isPaid: ticket.isPaid,
+      deleted: true,
+      adminName: `${admin.firstName} ${admin.lastName}`,
+      deletedAt: new Date().toISOString(),
+    };
 
     if (ticket.payment) await Payment.findByIdAndDelete(ticket.payment);
 
@@ -420,7 +448,11 @@ router.post('/:id/admin-delete', auth, async (req, res) => {
     io.emit('notification:new', notif);
     io.emit('ticket:deleted', { ticketId: req.params.id, ticketNumber });
 
-    res.json({ success: true, message: `${ticketType === 'invoice' ? 'Facture' : 'Ticket'} ${ticketNumber} supprimé(e)` });
+    res.json({
+      success: true,
+      message: `${ticketType === 'invoice' ? 'Facture' : 'Ticket'} ${ticketNumber} supprimé(e)`,
+      ticketData: ticketPrintData
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
