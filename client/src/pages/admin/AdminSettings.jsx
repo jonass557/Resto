@@ -222,10 +222,10 @@ export default function AdminSettings() {
             <Button onClick={saveProfile} disabled={saving} size="sm">Enregistrer le profil</Button>
             <Separator />
             <p className="text-sm font-medium">Changer mon mot de passe</p>
-            <div><Label>Mot de passe actuel</Label><Input type="password" value={passwords.currentPassword} onChange={e => setPasswords({...passwords, currentPassword: e.target.value})} /></div>
+            <div><Label>Mot de passe actuel</Label><Input type="password" inputMode="text" autoComplete="current-password" value={passwords.currentPassword} onChange={e => setPasswords({...passwords, currentPassword: e.target.value})} /></div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Nouveau <span className="text-xs text-muted-foreground">(min. 4 caractères)</span></Label><Input type="password" value={passwords.newPassword} onChange={e => setPasswords({...passwords, newPassword: e.target.value})} /></div>
-              <div><Label>Confirmer</Label><Input type="password" value={passwords.confirmPassword} onChange={e => setPasswords({...passwords, confirmPassword: e.target.value})} /></div>
+              <div><Label>Nouveau <span className="text-xs text-muted-foreground">(min. 4 caractères)</span></Label><Input type="password" inputMode="text" autoComplete="new-password" value={passwords.newPassword} onChange={e => setPasswords({...passwords, newPassword: e.target.value})} /></div>
+              <div><Label>Confirmer</Label><Input type="password" inputMode="text" autoComplete="new-password" value={passwords.confirmPassword} onChange={e => setPasswords({...passwords, confirmPassword: e.target.value})} /></div>
             </div>
             <Button onClick={changeOwnPassword} disabled={saving} size="sm">Changer le mot de passe</Button>
           </CardContent>
@@ -472,7 +472,7 @@ export default function AdminSettings() {
           </DialogHeader>
           <div className="space-y-3">
             <div><Label>Nouveau mot de passe <span className="text-xs text-muted-foreground">(min. 4 caractères)</span></Label>
-              <Input type="password" value={newUserPw}
+              <Input type="password" inputMode="text" autoComplete="new-password" value={newUserPw}
                 onChange={e => setNewUserPw(e.target.value)}
                 placeholder="Nouveau mot de passe" />
             </div>
