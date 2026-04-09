@@ -28,12 +28,11 @@ export default function CashierDashboard() {
   const [openDialog, setOpenDialog] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState(null);
   const [serviceNum, setServiceNum] = useState('1');
-  const [openingAmount, setOpeningAmount] = useState('');
 
   // Close service dialog
   const [closeDialog, setCloseDialog] = useState(false);
   const [closeAgent, setCloseAgent] = useState(null);
-  const [closingAmount, setClosingAmount] = useState('');
+  const [closingAmount, setClosingAmount] = useState(0);
 
   // Invoice detail
   const [invoiceDetail, setInvoiceDetail] = useState(null);
@@ -85,12 +84,11 @@ export default function CashierDashboard() {
       await cashRegisterAPI.openService({
         agentId: selectedAgent._id,
         service: parseInt(serviceNum),
-        openingAmount: parseFloat(openingAmount) || 0
+        openingAmount: 0
       });
       toast.success(`Service ${serviceNum} ouvert pour ${selectedAgent.firstName} ${selectedAgent.lastName}`);
       setOpenDialog(false);
       setSelectedAgent(null);
-      setOpeningAmount('');
       loadAgents();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Erreur ouverture service');
@@ -119,12 +117,12 @@ export default function CashierDashboard() {
     try {
       await cashRegisterAPI.closeService({
         agentId: closeAgent._id,
-        closingAmount: parseFloat(closingAmount) || 0
+        closingAmount: closingAmount
       });
       toast.success(`Service clôturé pour ${closeAgent.firstName} ${closeAgent.lastName}`);
       setCloseDialog(false);
       setCloseAgent(null);
-      setClosingAmount('');
+      setClosingAmount(0);
       setExpandedAgent(null);
       setInvoiceDetail(null);
       setReportDetail(null);
@@ -243,7 +241,7 @@ export default function CashierDashboard() {
                             Détails
                             {expandedAgent === agent._id ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />}
                           </Button>
-                          <Button size="sm" variant="destructive" onClick={() => { setCloseAgent(agent); setCloseDialog(true); }}>
+                          <Button size="sm" variant="destructive" onClick={() => { setCloseAgent(agent); setClosingAmount(agent.openSession?.totalSales || 0); setCloseDialog(true); }}>
                             <Square className="w-4 h-4 mr-1" />
                             Clôturer
                           </Button>
@@ -405,9 +403,8 @@ export default function CashierDashboard() {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label>Montant d'ouverture (FCFA)</Label>
-                <Input type="number" placeholder="0" value={openingAmount} onChange={e => setOpeningAmount(e.target.value)} />
+              <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-sm text-blue-800">
+                La caisse s'ouvre automatiquement à <strong>0 FCFA</strong>.
               </div>
             </div>
           )}
@@ -436,12 +433,26 @@ export default function CashierDashboard() {
                 Agent: <strong>{closeAgent.firstName} {closeAgent.lastName}</strong>
                 {closeAgent.openSession && <> — Service {closeAgent.openSession.service}</>}
               </p>
-              <div>
-                <Label>Montant en caisse (FCFA)</Label>
-                <Input type="number" placeholder="0" value={closingAmount} onChange={e => setClosingAmount(e.target.value)} />
+              <div className="rounded-lg bg-green-50 border border-green-200 p-3 space-y-2">
+                <p className="text-xs font-semibold text-green-800 uppercase tracking-wide">Total encaissé sur cette session</p>
+                <p className="text-2xl font-bold text-green-700">{formatCurrency(closeAgent.openSession?.totalSales || 0)}</p>
+                <div className="grid grid-cols-3 gap-2 text-xs text-green-700 pt-1">
+                  <div className="text-center">
+                    <p className="text-muted-foreground">Espèces</p>
+                    <p className="font-semibold">{formatCurrency(closeAgent.openSession?.totalCash || 0)}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-muted-foreground">Carte</p>
+                    <p className="font-semibold">{formatCurrency(closeAgent.openSession?.totalCard || 0)}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-muted-foreground">Mobile</p>
+                    <p className="font-semibold">{formatCurrency(closeAgent.openSession?.totalMobileMoney || 0)}</p>
+                  </div>
+                </div>
               </div>
               <p className="text-xs text-muted-foreground">
-                Toutes les factures en cours et à encaisser doivent être réglées avant la clôture.
+                Toutes les factures doivent être réglées avant la clôture.
               </p>
             </div>
           )}
