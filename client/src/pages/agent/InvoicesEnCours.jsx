@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
-import { Loader2, UtensilsCrossed, Plus, Trash2, ShieldAlert } from 'lucide-react';
+import { Loader2, UtensilsCrossed, Plus, Trash2, ShieldAlert, Ban } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function InvoicesEnCours() {
@@ -19,6 +19,7 @@ export default function InvoicesEnCours() {
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const [deletedIds, setDeletedIds] = useState(new Set());
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [adminPassword, setAdminPassword] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -28,16 +29,23 @@ export default function InvoicesEnCours() {
     setAdminPassword('');
   };
 
+  const markDeleted = (id) => {
+    setDeletedIds(prev => new Set([...prev, id]));
+    setTimeout(() => {
+      setDeletedIds(prev => { const n = new Set(prev); n.delete(id); return n; });
+      setInvoices(prev => prev.filter(i => i._id !== id));
+    }, 10000);
+  };
+
   const handleAdminDelete = async () => {
     if (!deleteTarget) return;
     setDeleteLoading(true);
     try {
       const { data } = await ticketsAPI.adminDelete(deleteTarget._id, { password: adminPassword });
       toast.success(data.message || 'Facture supprimée');
+      markDeleted(deleteTarget._id);
       setDeleteTarget(null);
       invalidateCache('/tickets');
-      load();
-      // Print deleted invoice
       if (data.ticketData) {
         try {
           await printerAPI.printTicket({ ticketData: data.ticketData });
@@ -66,17 +74,21 @@ export default function InvoicesEnCours() {
   useEffect(() => {
     if (!socket) return;
     const reload = () => { invalidateCache('/tickets'); load(); };
+    const onDeleted = ({ ticketId }) => {
+      if (ticketId) markDeleted(ticketId);
+      invalidateCache('/tickets');
+    };
     socket.on('invoice:created', reload);
     socket.on('invoice:updated', reload);
     socket.on('invoice:memo', reload);
     socket.on('ticket:paid', reload);
-    socket.on('ticket:deleted', reload);
+    socket.on('ticket:deleted', onDeleted);
     return () => {
       socket.off('invoice:created', reload);
       socket.off('invoice:updated', reload);
       socket.off('invoice:memo', reload);
       socket.off('ticket:paid', reload);
-      socket.off('ticket:deleted', reload);
+      socket.off('ticket:deleted', onDeleted);
     };
   }, [socket, load]);
 
@@ -103,55 +115,67 @@ export default function InvoicesEnCours() {
           </div>
         ) : (
           <div className="grid gap-3">
-            {invoices.map((inv, idx) => (
-              <Card key={inv._id} className="hover:shadow-md transition-shadow">
-                <CardContent className="p-3 sm:p-4">
-                  <div className="flex items-start justify-between gap-2 sm:gap-3">
-                    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                      <div className="relative shrink-0">
-                        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-orange-50 flex items-center justify-center">
-                          <UtensilsCrossed className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500" />
-                        </div>
-                        <span className="absolute -top-1.5 -right-1.5 bg-orange-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">{idx + 1}</span>
+            {invoices.map((inv, idx) => {
+              const isDeleted = deletedIds.has(inv._id);
+              return (
+                <Card key={inv._id} className={`transition-all ${isDeleted ? 'opacity-60 border-destructive/50 bg-red-50/40' : 'hover:shadow-md'}`}>
+                  <CardContent className="p-3 sm:p-4">
+                    {isDeleted && (
+                      <div className="flex items-center gap-1.5 mb-2 px-2 py-1 bg-red-100 rounded text-red-700 text-xs font-semibold">
+                        <Ban className="w-3.5 h-3.5" /> FACTURE SUPPRIMÉE
                       </div>
-                      <div className="min-w-0">
-                        <p className="font-bold text-sm truncate">{inv.ticketNumber}</p>
-                        <p className="text-xs text-muted-foreground">
-                          Table {inv.tableNumber || inv.table?.number || '—'}
-                        </p>
-                        <p className="text-xs text-muted-foreground">{formatDateTime(inv.createdAt)}</p>
-                        <div className="mt-1 space-y-0.5">
-                          {inv.items?.slice(0, 3).map((item, i) => (
-                            <p key={i} className="text-xs text-muted-foreground truncate">
-                              {item.quantity}× {item.name}
-                            </p>
-                          ))}
-                          {inv.items?.length > 3 && (
-                            <p className="text-xs text-muted-foreground">+{inv.items.length - 3} article(s)…</p>
-                          )}
+                    )}
+                    <div className="flex items-start justify-between gap-2 sm:gap-3">
+                      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                        <div className="relative shrink-0">
+                          <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center ${isDeleted ? 'bg-red-100' : 'bg-orange-50'}`}>
+                            <UtensilsCrossed className={`w-4 h-4 sm:w-5 sm:h-5 ${isDeleted ? 'text-red-400' : 'text-orange-500'}`} />
+                          </div>
+                          <span className="absolute -top-1.5 -right-1.5 bg-orange-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">{idx + 1}</span>
                         </div>
+                        <div className="min-w-0">
+                          <p className={`font-bold text-sm truncate ${isDeleted ? 'line-through text-muted-foreground' : ''}`}>{inv.ticketNumber}</p>
+                          <p className="text-xs text-muted-foreground">Table {inv.tableNumber || inv.table?.number || '—'}</p>
+                          <p className="text-xs text-muted-foreground">{formatDateTime(inv.createdAt)}</p>
+                          <div className="mt-1 space-y-0.5">
+                            {inv.items?.slice(0, 3).map((item, i) => (
+                              <p key={i} className={`text-xs text-muted-foreground truncate ${isDeleted ? 'line-through' : ''}`}>
+                                {item.quantity}× {item.name}
+                              </p>
+                            ))}
+                            {inv.items?.length > 3 && (
+                              <p className="text-xs text-muted-foreground">+{inv.items.length - 3} article(s)…</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0 space-y-1.5">
+                        <p className={`font-bold text-sm ${isDeleted ? 'text-red-500 line-through' : 'text-primary'}`}>{formatCurrency(inv.total)}</p>
+                        {isDeleted ? (
+                          <Badge variant="outline" className="text-red-600 border-red-300 bg-red-50 text-xs">
+                            Supprimée
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-orange-600 border-orange-300 bg-orange-50 text-xs">En cours</Badge>
+                        )}
+                        {!isDeleted && (
+                          <div className="mt-1.5 flex flex-col gap-1">
+                            <Button size="sm" variant="outline" className="h-7 text-xs w-full"
+                              onClick={() => navigate(`/agent/restaurant?invoiceId=${inv._id}`)}>
+                              <Plus className="w-3 h-3 mr-1" /> Ajouter
+                            </Button>
+                            <Button size="sm" variant="ghost" className="h-7 text-xs w-full text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => openDeleteDialog(inv)}>
+                              <Trash2 className="w-3 h-3 mr-1" /> Supprimer
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     </div>
-                    <div className="text-right shrink-0 space-y-1.5">
-                      <p className="font-bold text-primary text-sm">{formatCurrency(inv.total)}</p>
-                      <Badge variant="outline" className="text-orange-600 border-orange-300 bg-orange-50 text-xs">
-                        En cours
-                      </Badge>
-                      <div className="mt-1.5 flex flex-col gap-1">
-                        <Button size="sm" variant="outline" className="h-7 text-xs w-full"
-                          onClick={() => navigate(`/agent/restaurant?invoiceId=${inv._id}`)}>
-                          <Plus className="w-3 h-3 mr-1" /> Ajouter
-                        </Button>
-                        <Button size="sm" variant="ghost" className="h-7 text-xs w-full text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => openDeleteDialog(inv)}>
-                          <Trash2 className="w-3 h-3 mr-1" /> Supprimer
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         )}
       </div>
