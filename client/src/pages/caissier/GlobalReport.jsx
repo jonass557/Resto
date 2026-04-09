@@ -11,8 +11,120 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatCurrency } from '@/lib/utils';
 import {
-  Loader2, Calendar, ClipboardList, Banknote, CreditCard, Smartphone, Wallet, FileText
+  Loader2, Calendar, ClipboardList, Banknote, CreditCard, Smartphone, Wallet, FileText, Printer
 } from 'lucide-react';
+
+const PAYMENT_LABELS = { cash: 'Espèces', card: 'Carte', mobile_money: 'Mobile Money', mixed: 'Mixte', gift_card: 'Carte cadeau' };
+
+function printDailyInvoice(detail, date) {
+  const w = window.open('', '_blank', 'width=800,height=900');
+  if (!w) return;
+  const fmt = (n) => (n || 0).toLocaleString('fr-FR') + ' FCFA';
+  const fmtDate = (d) => new Date(d).toLocaleString('fr-FR');
+  const fmtTime = (d) => new Date(d).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+  let body = '';
+  for (const row of detail.detail || []) {
+    const s = row.session;
+    body += `
+      <div class="session">
+        <div class="session-header">
+          <span>Agent : <strong>${s.agent?.firstName} ${s.agent?.lastName}</strong> — Service ${s.service} (${s.sessionNumber})</span>
+          <span class="badge ${s.status === 'open' ? 'open' : 'closed'}">${s.status === 'open' ? 'En cours' : 'Clôturé'}</span>
+        </div>
+        <div class="session-times">
+          Ouverture : ${fmtDate(s.openedAt)}${s.closedAt ? ' | Clôture : ' + fmtDate(s.closedAt) : ''}
+        </div>
+        <div class="pay-row">
+          <span>Espèces : ${fmt(s.totalCash)}</span>
+          <span>Carte : ${fmt(s.totalCard)}</span>
+          <span>Mobile : ${fmt(s.totalMobileMoney)}</span>
+          <span>Transactions : ${s.transactionCount || 0}</span>
+        </div>`;
+
+    if (row.invoices.length > 0) {
+      body += `<table><thead><tr>
+        <th>N° Ticket</th><th>Table</th><th>Heure</th><th>Articles</th><th>Paiement</th><th class="right">Total</th>
+      </tr></thead><tbody>`;
+      for (const inv of row.invoices) {
+        const itemLines = (inv.items || []).map(it =>
+          `<span class="item-line">${it.quantity}x ${it.name}${it.category ? ' <em>[' + it.category + ']</em>' : ''} — ${fmt(it.totalPrice)}</span>`
+        ).join('');
+        body += `<tr>
+          <td>${inv.ticketNumber}</td>
+          <td>${inv.tableNumber || '—'}</td>
+          <td>${fmtTime(inv.createdAt)}</td>
+          <td class="items-cell">${itemLines}</td>
+          <td>${PAYMENT_LABELS[inv.paymentMethod] || inv.paymentMethod || '—'}</td>
+          <td class="right bold">${fmt(inv.total)}</td>
+        </tr>`;
+      }
+      body += `</tbody></table>`;
+    } else {
+      body += `<p class="empty">Aucune facture payée sur cette session.</p>`;
+    }
+
+    body += `<div class="session-total">Sous-total session : <strong>${fmt(row.totalAmount)}</strong> (${row.invoices.length} facture(s))</div>`;
+    body += `</div>`;
+  }
+
+  const dateStr = new Date(detail.date || date).toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Facture Journalière</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:Arial,sans-serif;font-size:12px;color:#111;padding:20px}
+    h1{font-size:18px;text-align:center;margin-bottom:4px}
+    .subtitle{text-align:center;color:#555;font-size:12px;margin-bottom:16px}
+    .summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px}
+    .sum-box{border:1px solid #ddd;border-radius:4px;padding:8px;text-align:center}
+    .sum-box .label{font-size:10px;color:#666;margin-bottom:4px}
+    .sum-box .value{font-size:14px;font-weight:bold}
+    .session{border:1px solid #ccc;border-radius:4px;margin-bottom:16px;overflow:hidden}
+    .session-header{background:#f5f5f5;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;font-size:12px}
+    .session-times{padding:4px 12px;font-size:11px;color:#555;background:#fafafa;border-bottom:1px solid #eee}
+    .pay-row{padding:6px 12px;font-size:11px;display:flex;gap:16px;background:#fff7ed;border-bottom:1px solid #eee}
+    table{width:100%;border-collapse:collapse;font-size:11px}
+    th{background:#f0f0f0;padding:5px 8px;text-align:left;border-bottom:1px solid #ddd;font-size:10px;text-transform:uppercase}
+    td{padding:5px 8px;border-bottom:1px solid #f0f0f0;vertical-align:top}
+    .right{text-align:right}
+    .bold{font-weight:bold}
+    .items-cell{max-width:260px}
+    .item-line{display:block;margin-bottom:2px}
+    .item-line em{color:#888;font-style:normal}
+    .badge{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:bold}
+    .badge.open{background:#dcfce7;color:#166534}
+    .badge.closed{background:#f3f4f6;color:#374151}
+    .session-total{padding:6px 12px;text-align:right;background:#f9fafb;font-size:12px;border-top:1px solid #e5e7eb}
+    .empty{padding:8px 12px;color:#888;font-size:11px;font-style:italic}
+    .grand-total{margin-top:16px;border:2px solid #111;border-radius:4px;padding:12px;background:#f9fafb}
+    .grand-total table{font-size:13px}
+    .grand-total td{padding:4px 8px;border:none}
+    @media print{body{padding:8px}.session{page-break-inside:avoid}}
+  </style></head><body>
+  <h1>FACTURE JOURNALIÈRE</h1>
+  <div class="subtitle">${dateStr} — Généré le ${new Date().toLocaleString('fr-FR')}</div>
+  <div class="summary">
+    <div class="sum-box"><div class="label">Chiffre d'affaires</div><div class="value">${fmt(detail.grandTotal)}</div></div>
+    <div class="sum-box"><div class="label">Factures</div><div class="value">${detail.totalInvoices}</div></div>
+    <div class="sum-box"><div class="label">Sessions</div><div class="value">${detail.sessionCount}</div></div>
+    <div class="sum-box"><div class="label">Espèces / Mobile</div><div class="value">${fmt(detail.grandCash)} / ${fmt(detail.grandMobile)}</div></div>
+  </div>
+  ${body}
+  <div class="grand-total">
+    <table>
+      <tr><td>Espèces</td><td class="right bold">${fmt(detail.grandCash)}</td></tr>
+      <tr><td>Carte bancaire</td><td class="right bold">${fmt(detail.grandCard)}</td></tr>
+      <tr><td>Mobile Money</td><td class="right bold">${fmt(detail.grandMobile)}</td></tr>
+      ${detail.grandGiftCard > 0 ? `<tr><td>Carte cadeau</td><td class="right bold">${fmt(detail.grandGiftCard)}</td></tr>` : ''}
+      <tr style="border-top:2px solid #111;font-size:15px"><td><strong>TOTAL JOURNÉE</strong></td><td class="right bold">${fmt(detail.grandTotal)}</td></tr>
+    </table>
+  </div>
+  </body></html>`);
+  w.document.close();
+  w.focus();
+  setTimeout(() => { w.print(); }, 400);
+}
 
 export default function GlobalReport() {
   const { user } = useAuth();
@@ -20,8 +132,23 @@ export default function GlobalReport() {
   const [service, setService] = useState('all');
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [printing, setPrinting] = useState(false);
 
   const { socket } = useSocket();
+
+  const handlePrint = async () => {
+    setPrinting(true);
+    try {
+      const params = { date };
+      if (service !== 'all') params.service = service;
+      const { data } = await cashRegisterAPI.dailyDetail(params);
+      printDailyInvoice(data.data, date);
+    } catch (err) {
+      console.error('Erreur impression:', err);
+    } finally {
+      setPrinting(false);
+    }
+  };
 
   const loadReport = useCallback(async () => {
     setLoading(true);
@@ -74,10 +201,16 @@ export default function GlobalReport() {
                   </SelectContent>
                 </Select>
               </div>
-              <Button onClick={loadReport} disabled={loading}>
-                {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ClipboardList className="w-4 h-4 mr-2" />}
-                Générer
-              </Button>
+              <div className="flex gap-2">
+                <Button onClick={loadReport} disabled={loading}>
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ClipboardList className="w-4 h-4 mr-2" />}
+                  Générer
+                </Button>
+                <Button variant="outline" onClick={handlePrint} disabled={printing}>
+                  {printing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Printer className="w-4 h-4 mr-2" />}
+                  Imprimer
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>

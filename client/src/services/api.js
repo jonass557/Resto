@@ -233,6 +233,8 @@ export const cashRegisterAPI = {
   agentInvoices: (agentId) => api.get(`/cash-register/agent-invoices/${agentId}`),
   serviceReport: (agentId, params) => api.get(`/cash-register/service-report/${agentId}`, { params }),
   globalReport: (params) => api.get('/cash-register/global-report', { params }),
+  dailyDetail: (params) => api.get('/cash-register/daily-detail', { params }),
+  closeAll: (data) => api.post('/cash-register/close-all', data).then(r => { invalidateCache('/cash-register'); return r; }),
 };
 
 // Clients

@@ -347,6 +347,7 @@ router.patch('/:id/add-items', auth, async (req, res) => {
       if (existing) {
         existing.quantity += item.quantity;
         existing.totalPrice = existing.quantity * existing.unitPrice;
+        if (!existing.category && item.category) existing.category = item.category;
       } else {
         ticket.items.push({ name: item.name, category: item.category || '', quantity: item.quantity, unitPrice: item.unitPrice, totalPrice: item.unitPrice * item.quantity, options: [] });
       }

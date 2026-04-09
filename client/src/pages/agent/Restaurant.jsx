@@ -56,6 +56,7 @@ export default function Restaurant() {
   const [sessionInvoiceId, setSessionInvoiceId] = useState(null);
   // Cumulative total of all items already sent (not in cart)
   const [sessionTotal, setSessionTotal] = useState(0);
+  const [cartRestored, setCartRestored] = useState(false);
 
   // Cash register session guard
   const [cashSession, setCashSession] = useState(null); // null=loading, false=closed, obj=open
@@ -92,6 +93,33 @@ export default function Restaurant() {
       setLoading(false);
     }
   }, [existingInvoiceId]);
+
+  // Restore cart from localStorage (only in normal/new mode — not when editing existing invoice)
+  useEffect(() => {
+    if (!user?._id || cartRestored || existingInvoiceId) { setCartRestored(true); return; }
+    try {
+      const saved = localStorage.getItem(`restaurant_cart_${user._id}`);
+      if (saved) {
+        const d = JSON.parse(saved);
+        if (d.cart?.length)       setCart(d.cart);
+        if (d.tableNumber)        setTableNumber(d.tableNumber);
+        if (d.tableConfirmed)     setTableConfirmed(d.tableConfirmed);
+        if (d.sessionInvoiceId)   setSessionInvoiceId(d.sessionInvoiceId);
+        if (d.sessionTotal)       setSessionTotal(d.sessionTotal);
+      }
+    } catch {}
+    setCartRestored(true);
+  }, [user?._id, cartRestored, existingInvoiceId]);
+
+  // Save cart to localStorage on change
+  useEffect(() => {
+    if (!user?._id || !cartRestored || existingInvoiceId) return;
+    try {
+      localStorage.setItem(`restaurant_cart_${user._id}`, JSON.stringify(
+        { cart, tableNumber, tableConfirmed, sessionInvoiceId, sessionTotal }
+      ));
+    } catch {}
+  }, [cart, tableNumber, tableConfirmed, sessionInvoiceId, sessionTotal, user?._id, cartRestored, existingInvoiceId]);
 
   useEffect(() => { loadData(); }, [loadData]);
   useEffect(() => { checkCashSession(); }, [checkCashSession]);
@@ -256,12 +284,15 @@ export default function Restaurant() {
         if (cart.length > 0) {
           await ticketsAPI.addItems(activeInvoiceId, cart);
         }
+        try { localStorage.removeItem(`restaurant_cart_${user?._id}`); } catch {}
         navigate('/agent/en-cours');
       } else if (cart.length > 0) {
         if (!tableNumber.trim()) { setTableConfirmed(false); setMemoLoading(false); return; }
         await ticketsAPI.directInvoice({ tableNumber: tableNumber.trim(), items: cart });
+        try { localStorage.removeItem(`restaurant_cart_${user?._id}`); } catch {}
         navigate('/agent/en-cours');
       } else {
+        try { localStorage.removeItem(`restaurant_cart_${user?._id}`); } catch {}
         navigate('/agent/en-cours');
       }
     } catch (error) {
@@ -284,6 +315,7 @@ export default function Restaurant() {
         try {
           const printed = await printTicketById(activeInvoiceId);
           if (!printed) toast('Facture — aucune imprimante disponible', { icon: '⚠️' });
+          try { localStorage.removeItem(`restaurant_cart_${user?._id}`); } catch {}
           navigate(`/agent/billing/${activeInvoiceId}`);
         } finally { setSubmitting(false); }
         return;
@@ -307,6 +339,7 @@ export default function Restaurant() {
 
       const printed = await printTicketById(invoiceId);
       if (!printed) toast('Facture créée — aucune imprimante disponible', { icon: '⚠️' });
+      try { localStorage.removeItem(`restaurant_cart_${user?._id}`); } catch {}
       navigate(`/agent/billing/${invoiceId}`);
     } catch (error) {
       toast.error(error.response?.data?.message || 'Erreur création facture');

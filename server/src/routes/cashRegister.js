@@ -319,6 +319,163 @@ router.get('/global-report', auth, caissierOnly, async (req, res) => {
   }
 });
 
+// GET /api/cash-register/daily-detail — données complètes pour impression de la facture journalière
+router.get('/daily-detail', auth, caissierOnly, async (req, res) => {
+  try {
+    const { date } = req.query;
+    const targetDate = date ? new Date(date) : new Date();
+    const dayStart = new Date(targetDate); dayStart.setHours(0, 0, 0, 0);
+    const dayEnd   = new Date(targetDate); dayEnd.setHours(23, 59, 59, 999);
+
+    const sessions = await CashRegister.find({ openedAt: { $gte: dayStart, $lte: dayEnd } })
+      .populate('agent', 'firstName lastName')
+      .populate('openedBy', 'firstName lastName')
+      .populate('closedBy', 'firstName lastName')
+      .sort({ openedAt: 1 });
+
+    let grandTotal = 0, grandCash = 0, grandCard = 0, grandMobile = 0, grandGiftCard = 0;
+    let totalInvoices = 0;
+    const detail = [];
+
+    for (const sess of sessions) {
+      const dateFilter = { $gte: sess.openedAt };
+      if (sess.closedAt) dateFilter.$lte = sess.closedAt;
+
+      const invoices = await Ticket.find({
+        agent: sess.agent._id,
+        type: 'invoice',
+        isPaid: true,
+        createdAt: dateFilter
+      }).populate('payment').sort({ createdAt: 1 });
+
+      const sessionTotal = invoices.reduce((s, i) => s + i.total, 0);
+      grandTotal   += sessionTotal;
+      grandCash    += sess.totalCash    || 0;
+      grandCard    += sess.totalCard    || 0;
+      grandMobile  += sess.totalMobileMoney || 0;
+      grandGiftCard+= sess.totalGiftCard || 0;
+      totalInvoices += invoices.length;
+
+      detail.push({
+        session: {
+          _id: sess._id,
+          sessionNumber: sess.sessionNumber,
+          service: sess.service,
+          agent: sess.agent,
+          openedBy: sess.openedBy,
+          closedBy: sess.closedBy,
+          openedAt: sess.openedAt,
+          closedAt: sess.closedAt,
+          status: sess.status,
+          openingAmount: sess.openingAmount,
+          closingAmount: sess.closingAmount,
+          expectedAmount: sess.expectedAmount,
+          difference: sess.difference,
+          totalSales: sess.totalSales,
+          totalCash: sess.totalCash,
+          totalCard: sess.totalCard,
+          totalMobileMoney: sess.totalMobileMoney,
+          totalGiftCard: sess.totalGiftCard,
+          transactionCount: sess.transactionCount,
+        },
+        invoices: invoices.map(inv => ({
+          _id: inv._id,
+          ticketNumber: inv.ticketNumber,
+          tableNumber: inv.tableNumber || '',
+          orderType: inv.orderType,
+          createdAt: inv.createdAt,
+          items: inv.items,
+          subtotal: inv.subtotal,
+          taxAmount: inv.taxAmount,
+          discount: inv.discount,
+          total: inv.total,
+          paymentMethod: inv.payment?.method || null,
+          amountReceived: inv.payment?.amountReceived || 0,
+          mixedPayments: inv.payment?.mixedPayments || [],
+        })),
+        totalAmount: sessionTotal,
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        date: dayStart,
+        detail,
+        grandTotal,
+        grandCash,
+        grandCard,
+        grandMobile,
+        grandGiftCard,
+        totalInvoices,
+        sessionCount: sessions.length,
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// POST /api/cash-register/close-all — clôturer toutes les caisses ouvertes d'un coup
+router.post('/close-all', auth, caissierOnly, async (req, res) => {
+  try {
+    const openSessions = await CashRegister.find({ status: 'open' })
+      .populate('agent', 'firstName lastName');
+
+    if (openSessions.length === 0) {
+      return res.status(400).json({ success: false, message: 'Aucune caisse ouverte' });
+    }
+
+    // Vérifier les factures impayées sur tous les agents
+    const allUnpaid = [];
+    for (const sess of openSessions) {
+      const unpaid = await Ticket.find({
+        agent: sess.agent._id,
+        type: 'invoice',
+        isPaid: false,
+        createdAt: { $gte: sess.openedAt }
+      });
+      allUnpaid.push(...unpaid);
+    }
+
+    if (allUnpaid.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Clôture impossible — ${allUnpaid.length} facture(s) impayée(s) en attente.`,
+        unpaidCount: allUnpaid.length,
+      });
+    }
+
+    const now = new Date();
+    for (const sess of openSessions) {
+      sess.status = 'closed';
+      sess.closedAt = now;
+      sess.closedBy = req.user._id;
+      sess.difference = (sess.closingAmount || 0) - sess.expectedAmount;
+      await sess.save();
+    }
+
+    const io = req.app.get('io');
+    io.emit('cashRegister:closed', { closedCount: openSessions.length });
+
+    const notif = await Notification.create({
+      type: 'cash_closed',
+      title: 'Clôture journalière',
+      message: `${req.user.firstName} a clôturé ${openSessions.length} caisse(s) — Fin de journée`,
+      data: { closedCount: openSessions.length }
+    });
+    io.emit('notification:new', notif);
+
+    res.json({
+      success: true,
+      message: `${openSessions.length} caisse(s) clôturée(s)`,
+      data: { closedCount: openSessions.length }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // GET /api/cash-register/:id
 router.get('/:id', auth, async (req, res) => {
   try {

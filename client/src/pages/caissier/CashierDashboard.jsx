@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { formatCurrency } from '@/lib/utils';
 import {
   Users, Wallet, Loader2, Calendar, Play, Square, Eye,
-  AlertTriangle, CheckCircle2, Clock, CreditCard, Banknote, Smartphone, ChevronDown, ChevronUp
+  AlertTriangle, CheckCircle2, Clock, CreditCard, Banknote, Smartphone, ChevronDown, ChevronUp, PowerOff
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -43,6 +43,9 @@ export default function CashierDashboard() {
   // Report detail
   const [reportDetail, setReportDetail] = useState(null);
   const [reportLoading, setReportLoading] = useState(null);
+
+  // Close-all
+  const [closeAllLoading, setCloseAllLoading] = useState(false);
 
   const loadAgents = useCallback(async () => {
     try {
@@ -93,6 +96,20 @@ export default function CashierDashboard() {
       toast.error(err.response?.data?.message || 'Erreur ouverture service');
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  const handleCloseAll = async () => {
+    if (!window.confirm('Clôturer TOUTES les caisses ouvertes ? Cette action est irréversible.')) return;
+    setCloseAllLoading(true);
+    try {
+      const { data } = await cashRegisterAPI.closeAll({});
+      toast.success(data.message || 'Toutes les caisses clôturées');
+      loadAgents();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Erreur clôture globale');
+    } finally {
+      setCloseAllLoading(false);
     }
   };
 
@@ -170,10 +187,18 @@ export default function CashierDashboard() {
             <Calendar className="w-4 h-4" />
             <span className="capitalize">{dateStr}</span>
           </div>
-          <Badge variant="outline" className="w-fit">
-            <Users className="w-3 h-3 mr-1" />
-            {openCount} service(s) ouvert(s) / {agents.length} agent(s)
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline">
+              <Users className="w-3 h-3 mr-1" />
+              {openCount} service(s) ouvert(s) / {agents.length} agent(s)
+            </Badge>
+            {openCount > 0 && (
+              <Button size="sm" variant="destructive" onClick={handleCloseAll} disabled={closeAllLoading}>
+                {closeAllLoading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <PowerOff className="w-4 h-4 mr-1" />}
+                Clôturer toutes les caisses
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Agents list */}

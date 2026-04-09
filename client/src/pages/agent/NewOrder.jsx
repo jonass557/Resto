@@ -20,6 +20,8 @@ export default function NewOrder() {
   const { user } = useAuth();
   const { socket } = useSocket();
 
+  const CART_KEY = `neworder_cart_${user?._id}`;
+
   const [orderType, setOrderType] = useState('takeaway');
   const [products, setProducts] = useState(() => readCache('/products', { isAvailable: true })?.data?.data || []);
   const [categories, setCategories] = useState(() => readCache('/categories')?.data?.data || []);
@@ -31,6 +33,7 @@ export default function NewOrder() {
   );
   const [submitting, setSubmitting] = useState(false);
   const [mobileTab, setMobileTab] = useState('products');
+  const [cartRestored, setCartRestored] = useState(false);
 
   // Delivery info
   const [deliveryInfo, setDeliveryInfo] = useState({ clientName: '', phone: '', address: '', notes: '' });
@@ -68,6 +71,30 @@ export default function NewOrder() {
       setLoading(false);
     }
   }, []);
+
+  // Restore cart from localStorage once user is known
+  useEffect(() => {
+    if (!user?._id || cartRestored) return;
+    try {
+      const saved = localStorage.getItem(`neworder_cart_${user._id}`);
+      if (saved) {
+        const d = JSON.parse(saved);
+        if (d.cart?.length)      setCart(d.cart);
+        if (d.orderType)         setOrderType(d.orderType);
+        if (d.deliveryInfo)      setDeliveryInfo(d.deliveryInfo);
+        if (d.sessionOrders?.length) setSessionOrders(d.sessionOrders);
+      }
+    } catch {}
+    setCartRestored(true);
+  }, [user?._id, cartRestored]);
+
+  // Persist cart to localStorage whenever it changes
+  useEffect(() => {
+    if (!user?._id || !cartRestored) return;
+    try {
+      localStorage.setItem(`neworder_cart_${user._id}`, JSON.stringify({ cart, orderType, deliveryInfo, sessionOrders }));
+    } catch {}
+  }, [cart, orderType, deliveryInfo, sessionOrders, user?._id, cartRestored]);
 
   useEffect(() => { loadData(); }, [loadData]);
   useEffect(() => { checkCashSession(); }, [checkCashSession]);
@@ -209,6 +236,7 @@ export default function NewOrder() {
     setSessionOrders([]);
     setCart([]);
     setDeliveryInfo({ clientName: '', phone: '', address: '', notes: '' });
+    try { localStorage.removeItem(`neworder_cart_${user?._id}`); } catch {}
     invalidateCache('/orders');
     toast.success('Paiement confirmé — vous pouvez passer une nouvelle commande', { duration: 3000 });
   };
