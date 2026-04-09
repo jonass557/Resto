@@ -34,6 +34,7 @@ const adminNav = [
 const caissierNav = [
   { to: '/caissier', icon: LayoutDashboard, label: 'Tableau de bord', end: true },
   { to: '/caissier/global-report', icon: ClipboardList, label: 'Rapport global' },
+  { to: '/caissier/settings', icon: Settings, label: 'Paramètres' },
 ];
 
 function useSidebarCounts(isAgent, socket) {

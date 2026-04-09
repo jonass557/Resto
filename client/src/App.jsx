@@ -17,6 +17,7 @@ import Tickets from './pages/agent/Tickets';
 // Lazy-loaded pages — downloaded only when first visited (code splitting)
 const CashierDashboard = lazy(() => import('./pages/caissier/CashierDashboard'));
 const GlobalReport = lazy(() => import('./pages/caissier/GlobalReport'));
+const CaissierSettings = lazy(() => import('./pages/caissier/CaissierSettings'));
 const Clients = lazy(() => import('./pages/agent/Clients'));
 const AgentSettings = lazy(() => import('./pages/agent/AgentSettings'));
 const TransactionHistory = lazy(() => import('./pages/agent/TransactionHistory'));
@@ -129,6 +130,7 @@ export default function App() {
         }>
           <Route index element={<Suspense fallback={<PageLoader />}><CashierDashboard /></Suspense>} />
           <Route path="global-report" element={<Suspense fallback={<PageLoader />}><GlobalReport /></Suspense>} />
+          <Route path="settings" element={<Suspense fallback={<PageLoader />}><CaissierSettings /></Suspense>} />
         </Route>
 
         {/* Default — always show login */}
