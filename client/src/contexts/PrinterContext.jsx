@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
+import { useSocket } from './SocketContext';
 import { settingsAPI, printerAPI, ticketsAPI } from '@/services/api';
 import toast from 'react-hot-toast';
 
@@ -126,6 +127,7 @@ async function writeInChunks(characteristic, data, chunkSize = 100) {
 
 export function PrinterProvider({ children }) {
   const { isAuthenticated } = useAuth();
+  const { socket } = useSocket();
   const [device, setDevice] = useState(null);
   const [characteristic, setCharacteristic] = useState(null);
   const [btConnected, setBtConnected] = useState(false);
@@ -235,6 +237,51 @@ export function PrinterProvider({ children }) {
     toast.success('Imprimante déconnectée');
   }, [device]);
 
+  // ── Socket.IO print-agent registration ──────────────────────────────────
+  // Register this browser as a print-agent when BT printer is connected so
+  // the cloud backend can route print-job events here instead of a local server.
+  useEffect(() => {
+    if (!socket) return;
+    if (btConnected) {
+      socket.emit('register-print-agent');
+    } else {
+      socket.emit('unregister-print-agent');
+    }
+  }, [socket, btConnected]);
+
+  // Handle incoming print-job events (sent by cloud backend when printer is private-IP)
+  useEffect(() => {
+    if (!socket) return;
+    const handlePrintJob = async (job) => {
+      if (!btConnected || !characteristic) return;
+      try {
+        const b64 = job.receiptBuffer;
+        if (!b64) return;
+        const binary = atob(b64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        await writeInChunks(characteristic, bytes);
+        toast.success('Rapport imprimé via Bluetooth');
+      } catch (err) {
+        toast.error('Erreur impression: ' + (err.message || 'Bluetooth'));
+      }
+    };
+    socket.on('print-job', handlePrintJob);
+    return () => socket.off('print-job', handlePrintJob);
+  }, [socket, btConnected, characteristic]);
+
+  // Print a raw ESC/POS buffer directly via Bluetooth (used by GlobalReport etc.)
+  const printRawBuffer = useCallback(async (base64Buffer) => {
+    if (!btConnected || !characteristic) return false;
+    try {
+      const binary = atob(base64Buffer);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      await writeInChunks(characteristic, bytes);
+      return true;
+    } catch { return false; }
+  }, [btConnected, characteristic]);
+
   // Print ticket data via Bluetooth
   const printViaBluetooth = useCallback(async (ticketData) => {
     if (!characteristic || !btConnected) return false;
@@ -319,7 +366,7 @@ export function PrinterProvider({ children }) {
     <PrinterContext.Provider value={{
       btConnected, connecting, device,
       connectBluetooth, disconnectBluetooth,
-      printTicket, printTicketById, printViaBluetooth,
+      printTicket, printTicketById, printViaBluetooth, printRawBuffer,
       printerName: device?.name || localStorage.getItem('bt_printer_name') || null,
     }}>
       {children}
