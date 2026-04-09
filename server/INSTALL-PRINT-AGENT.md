@@ -66,7 +66,11 @@ CLOUDINARY_API_KEY=822762149564633
 CLOUDINARY_API_SECRET=bcOpM_zkDSYScp1-9LsVkYNYuZE
 CLIENT_URL=https://manageresto-tawny.vercel.app,http://localhost:5173
 NODE_ENV=production
+CLOUD_SERVER_URL=https://manageresto-server.onrender.com
 ```
+
+> **Important** : La ligne `CLOUD_SERVER_URL` est obligatoire pour que l'agent reçoive les jobs d'impression depuis le cloud (rapport global, tickets envoyés depuis l'app Vercel).  
+> Remplacer l'URL par celle de ton serveur Render si elle est différente.
 
 ---
 

@@ -198,6 +198,65 @@ async function ensureAdminExists() {
   }
 }
 
+// ── Print-agent client ───────────────────────────────────────────────────────
+// When CLOUD_SERVER_URL is set (local print-agent mode), this server connects
+// to the cloud backend as a Socket.IO CLIENT, registers itself as a print-agent,
+// and handles print-job events by sending ESC/POS data to the WiFi printer.
+function startPrintAgentClient() {
+  const cloudUrl = process.env.CLOUD_SERVER_URL;
+  if (!cloudUrl) return;
+
+  const { io: ioClient } = require('socket.io-client');
+  const net = require('net');
+
+  const cloudSocket = ioClient(cloudUrl, {
+    transports: ['websocket', 'polling'],
+    reconnection: true,
+    reconnectionDelay: 5000,
+    reconnectionAttempts: Infinity,
+  });
+
+  cloudSocket.on('connect', () => {
+    cloudSocket.emit('register-print-agent');
+    console.log(`🖨️  Agent d'impression connecté au cloud: ${cloudUrl}`);
+  });
+
+  cloudSocket.on('disconnect', () => {
+    console.log('🔌 Agent d\'impression déconnecté du cloud, reconnexion en cours...');
+  });
+
+  cloudSocket.on('connect_error', (err) => {
+    console.error('⚠️  Erreur connexion cloud:', err.message);
+  });
+
+  cloudSocket.on('print-job', async (job) => {
+    console.log(`📄 Job d'impression reçu: ${job.id || 'unknown'}`);
+    if (job.type !== 'network' || !job.address || !job.receiptBuffer) {
+      console.warn('⚠️  Job ignoré (type ou adresse manquant)');
+      return;
+    }
+    try {
+      const buffer = Buffer.from(job.receiptBuffer, 'base64');
+      const printerSocket = await new Promise((resolve, reject) => {
+        const s = net.createConnection({ host: job.address, port: job.port || 9100 }, () => resolve(s));
+        s.setTimeout(8000);
+        s.on('error', reject);
+        s.on('timeout', () => { s.destroy(); reject(new Error('Timeout imprimante')); });
+      });
+      await new Promise((resolve, reject) => {
+        printerSocket.on('error', reject);
+        printerSocket.write(buffer, (err) => {
+          if (err) return reject(err);
+          printerSocket.end(resolve);
+        });
+      });
+      console.log(`✅ Imprimé via WiFi: ${job.address}:${job.port || 9100}`);
+    } catch (err) {
+      console.error(`❌ Erreur impression: ${err.message}`);
+    }
+  });
+}
+
 mongoose.connect(process.env.MONGODB_URI, {
   maxPoolSize: 25,        // plan payant → plus de RAM disponible
   minPoolSize: 5,         // connexions pré-établies au démarrage
@@ -241,7 +300,8 @@ mongoose.connect(process.env.MONGODB_URI, {
         localIPs.forEach(ip => console.log(`   http://${ip}:${PORT}`));
       }
 
-      // Railway ne dort jamais (même en free) — pas besoin de self-ping
+      // Start print-agent client if CLOUD_SERVER_URL is configured
+      startPrintAgentClient();
     });
   })
   .catch((err) => {
