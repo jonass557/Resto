@@ -147,29 +147,22 @@ export default function GlobalReport() {
 
   const handlePrint = async () => {
     setPrinting(true);
+    const toastId = 'print-global';
+    toast.loading('Envoi à l\'imprimante...', { id: toastId });
     try {
-      let thermalDone = false;
-      try {
-        const printRes = await printerAPI.printGlobalReport({ date, service });
-        if (printRes.data?.data?.printed) {
-          toast.success('Rapport imprimé sur l\'imprimante thermique');
-          thermalDone = true;
-        } else if (printRes.data?.data?.queued) {
-          toast.success('Rapport envoyé à l\'agent d\'impression');
-          // fall through to browser print as backup
-        }
-      } catch { /* no thermal printer — fall through */ }
-
-      if (!thermalDone) {
-        // Browser print — always guaranteed to work
-        const params = { date };
-        if (service !== 'all') params.service = service;
-        const { data } = await cashRegisterAPI.dailyDetail(params);
-        printDailyInvoice(data.data, date);
+      const { data } = await printerAPI.printGlobalReport({ date, service });
+      const d = data?.data || {};
+      if (d.printed) {
+        toast.success('Rapport imprimé avec succès', { id: toastId });
+      } else if (d.queued) {
+        toast.success('Rapport envoyé à l\'imprimante', { id: toastId });
+      } else if (d.fallback) {
+        toast.error('Aucune imprimante thermique configurée', { id: toastId });
+      } else {
+        toast.dismiss(toastId);
       }
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Erreur impression');
-      console.error('Erreur impression:', err);
+      toast.error(err.response?.data?.message || 'Erreur impression', { id: toastId });
     } finally {
       setPrinting(false);
     }
