@@ -6,6 +6,7 @@ const Payment = require('../models/Payment');
 const Notification = require('../models/Notification');
 const CashRegister = require('../models/CashRegister');
 const User = require('../models/User');
+const Settings = require('../models/Settings');
 const { auth, adminOnly } = require('../middleware/auth');
 const { generateTicketNumber } = require('../utils/helpers');
 
@@ -398,6 +399,8 @@ router.post('/:id/admin-delete', auth, async (req, res) => {
     if (!ticket) return res.status(404).json({ success: false, message: 'Ticket non trouvé' });
 
     // Capture ticket data for printing before deletion
+    const settings = await Settings.findOne();
+    const mmc = settings?.mobileMoneyConfig || {};
     const ticketPrintData = {
       ticketNumber: ticket.ticketNumber,
       type: ticket.type,
@@ -414,6 +417,15 @@ router.post('/:id/admin-delete', auth, async (req, res) => {
       deleted: true,
       adminName: `${admin.firstName} ${admin.lastName}`,
       deletedAt: new Date().toISOString(),
+      restaurantName: settings?.restaurantName || 'Restaurant',
+      address: settings?.address || '',
+      phone: settings?.phone || '',
+      currency: settings?.currencySymbol || 'FCFA',
+      footer: settings?.receiptFooter || 'Merci de votre visite!',
+      orangeMoneyCode: mmc.orangeMoneyEnabled ? mmc.orangeMoneyCode : null,
+      orangeMoneyName: mmc.orangeMoneyEnabled ? mmc.orangeMoneyName : null,
+      mtnMomoCode: mmc.mtnMomoEnabled ? mmc.mtnMomoCode : null,
+      mtnMomoName: mmc.mtnMomoEnabled ? mmc.mtnMomoName : null,
     };
 
     if (ticket.payment) await Payment.findByIdAndDelete(ticket.payment);

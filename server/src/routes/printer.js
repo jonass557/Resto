@@ -65,15 +65,19 @@ function buildEscPosReceipt(ticketData, paperWidth = 80) {
   if (ticketData.address) cmds.push(`${ticketData.address}\n`);
   if (ticketData.phone) cmds.push(`Tel: ${ticketData.phone}\n`);
 
-  // Deleted invoice banner — reverse mode (black bg / white text) = badge rouge thermique
+  // Deleted invoice banner — bold + double size + underline (supported by all thermal printers)
   if (ticketData.deleted) {
-    cmds.push('='.repeat(cols) + '\n');
-    cmds.push(`${ESC}a\x01${ESC}E\x01${GS}!\x11`);
-    cmds.push(`${GS}B\x01`);
+    cmds.push('*'.repeat(cols) + '\n');
+    cmds.push(`${ESC}a\x01`); // center
+    cmds.push(`${ESC}E\x01`); // bold
+    cmds.push(`${GS}!\x11`); // double width+height
+    cmds.push(`${ESC}-\x02`); // underline thick
     cmds.push('FACTURE SUPPRIMEE\n');
-    cmds.push(`${GS}B\x00`);
-    cmds.push(`${GS}!\x00${ESC}E\x00${ESC}a\x00`);
-    cmds.push('='.repeat(cols) + '\n');
+    cmds.push(`${ESC}-\x00`); // underline off
+    cmds.push(`${GS}!\x00`); // normal size
+    cmds.push(`${ESC}E\x00`); // bold off
+    cmds.push(`${ESC}a\x00`); // left
+    cmds.push('*'.repeat(cols) + '\n');
   } else {
     cmds.push('-'.repeat(cols) + '\n');
   }
@@ -115,9 +119,11 @@ function buildEscPosReceipt(ticketData, paperWidth = 80) {
       line = qty + '\n' + ' '.repeat(Math.max(0, cols - price.length)) + price + '\n';
     }
     if (isDeleted) {
-      cmds.push(`${GS}B\x01`); // reverse mode on (black bg, white text)
+      cmds.push(`${ESC}E\x01`); // bold on
+      cmds.push(`${ESC}-\x01`); // underline on
       cmds.push(line);
-      cmds.push(`${GS}B\x00`); // reverse mode off
+      cmds.push(`${ESC}-\x00`); // underline off
+      cmds.push(`${ESC}E\x00`); // bold off
     } else {
       cmds.push(line);
     }
@@ -242,13 +248,17 @@ function buildEscPosReceipt(ticketData, paperWidth = 80) {
 
   // Closing banner for deleted invoices
   if (ticketData.deleted) {
-    cmds.push('='.repeat(cols) + '\n');
-    cmds.push(`${ESC}E\x01${GS}!\x11`);
-    cmds.push(`${GS}B\x01`);
+    cmds.push('*'.repeat(cols) + '\n');
+    cmds.push(`${ESC}a\x01`); // center
+    cmds.push(`${ESC}E\x01`); // bold
+    cmds.push(`${GS}!\x11`); // double width+height
+    cmds.push(`${ESC}-\x02`); // underline thick
     cmds.push('FACTURE SUPPRIMEE\n');
-    cmds.push(`${GS}B\x00`);
-    cmds.push(`${GS}!\x00${ESC}E\x00`);
-    cmds.push('='.repeat(cols) + '\n');
+    cmds.push(`${ESC}-\x00`); // underline off
+    cmds.push(`${GS}!\x00`); // normal size
+    cmds.push(`${ESC}E\x00`); // bold off
+    cmds.push(`${ESC}a\x00`); // left
+    cmds.push('*'.repeat(cols) + '\n');
   }
   cmds.push('\n\n\n');
 
