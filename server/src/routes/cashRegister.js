@@ -338,6 +338,7 @@ router.get('/daily-detail', auth, caissierOnly, async (req, res) => {
     const detail = [];
 
     for (const sess of sessions) {
+      if (!sess.agent) continue; // agent supprimé, ignorer la session
       const dateFilter = { $gte: sess.openedAt };
       if (sess.closedAt) dateFilter.$lte = sess.closedAt;
 

@@ -246,9 +246,9 @@ export default function InvoicesAEncaisser() {
             </p>
             <div>
               <Label className="text-xs">Mot de passe administrateur</Label>
-              <Input type="password" inputMode="numeric" pattern="[0-9]*" placeholder="••••"
+              <Input type="password" placeholder="••••"
                 value={adminPassword} autoFocus
-                onChange={e => setAdminPassword(e.target.value.replace(/\D/g, ''))}
+                onChange={e => setAdminPassword(e.target.value)}
                 className="h-8 text-sm mt-1"
                 onKeyDown={e => e.key === 'Enter' && adminPassword && handleAdminDelete()} />
             </div>
