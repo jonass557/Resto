@@ -18,8 +18,6 @@ import toast from 'react-hot-toast';
 const PAYMENT_LABELS = { cash: 'Espèces', card: 'Carte', mobile_money: 'Mobile Money', mixed: 'Mixte', gift_card: 'Carte cadeau' };
 
 function printDailyInvoice(detail, date) {
-  const w = window.open('', '_blank', 'width=800,height=900');
-  if (!w) return;
   const fmt = (n) => (n || 0).toLocaleString('fr-FR') + ' FCFA';
   const fmtDate = (d) => new Date(d).toLocaleString('fr-FR');
   const fmtTime = (d) => new Date(d).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
@@ -71,7 +69,7 @@ function printDailyInvoice(detail, date) {
 
   const dateStr = new Date(detail.date || date).toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Facture Journalière</title>
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Facture Journalière</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:Arial,sans-serif;font-size:12px;color:#111;padding:20px}
@@ -121,10 +119,20 @@ function printDailyInvoice(detail, date) {
       <tr style="border-top:2px solid #111;font-size:15px"><td><strong>TOTAL JOURNÉE</strong></td><td class="right bold">${fmt(detail.grandTotal)}</td></tr>
     </table>
   </div>
-  </body></html>`);
-  w.document.close();
-  w.focus();
-  setTimeout(() => { w.print(); }, 400);
+  </body></html>`;
+
+  // Use a hidden iframe — never blocked by Chrome popup blocker
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;visibility:hidden';
+  document.body.appendChild(iframe);
+  iframe.contentDocument.open();
+  iframe.contentDocument.write(html);
+  iframe.contentDocument.close();
+  setTimeout(() => {
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+    setTimeout(() => document.body.removeChild(iframe), 2000);
+  }, 300);
 }
 
 export default function GlobalReport() {
