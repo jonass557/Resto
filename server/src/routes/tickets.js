@@ -7,6 +7,7 @@ const Notification = require('../models/Notification');
 const CashRegister = require('../models/CashRegister');
 const User = require('../models/User');
 const Settings = require('../models/Settings');
+const { buildEscPosReceipt, sanitizeIP, isPrivateIP, isCloudHosted, connectNetworkPrinter } = require('./printer');
 const { auth, adminOnly } = require('../middleware/auth');
 const { generateTicketNumber } = require('../utils/helpers');
 
@@ -460,10 +461,60 @@ router.post('/:id/admin-delete', auth, async (req, res) => {
     io.emit('notification:new', notif);
     io.emit('ticket:deleted', { ticketId: req.params.id, ticketNumber });
 
+    // ── Direct server-side print of deleted invoice ──
+    // This runs independently - don't let print errors block the response
+    let printResult = { printed: false };
+    try {
+      const printerConfig = settings?.printerConfig || {};
+      const config = printerConfig || {};
+      console.log('🗑️ Impression facture supprimée:', ticketNumber, '| deleted:', ticketPrintData.deleted, '| printer:', config.type, config.address);
+      const receiptBuffer = buildEscPosReceipt(ticketPrintData, config.paperWidth || 80);
+
+      if (config.type === 'network' && config.address) {
+        const cleanAddr = sanitizeIP(config.address);
+        if (isCloudHosted() && isPrivateIP(cleanAddr)) {
+          // Cloud → envoyer via Socket.IO aux agents d'impression
+          const printJob = {
+            id: `del-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            timestamp: new Date().toISOString(),
+            type: 'network',
+            address: cleanAddr,
+            port: config.port || 9100,
+            ticketData: ticketPrintData,
+            receiptBuffer: receiptBuffer.toString('base64'),
+          };
+          const agentSockets = await io.in('print-agents').fetchSockets();
+          if (agentSockets.length > 0) {
+            agentSockets[0].emit('print-job', printJob);
+            console.log(`📤 Job suppression ${printJob.id} envoyé à l'agent: ${agentSockets[0].id}`);
+          } else {
+            io.emit('print-job', printJob);
+            console.log(`📤 Job suppression ${printJob.id} diffusé (aucun agent)`);
+          }
+          printResult = { printed: false, queued: true };
+        } else {
+          // Local server → imprimer directement via TCP
+          const printerSocket = await connectNetworkPrinter(cleanAddr, config.port || 9100);
+          await new Promise((resolve, reject) => {
+            printerSocket.on('error', reject);
+            printerSocket.write(receiptBuffer, (err) => {
+              if (err) return reject(err);
+              printerSocket.end(resolve);
+            });
+          });
+          printResult = { printed: true };
+          console.log('✅ Facture supprimée imprimée directement:', ticketNumber);
+        }
+      }
+    } catch (printErr) {
+      console.error('❌ Erreur impression facture supprimée:', printErr.message);
+    }
+
     res.json({
       success: true,
       message: `${ticketType === 'invoice' ? 'Facture' : 'Ticket'} ${ticketNumber} supprimé(e)`,
-      ticketData: ticketPrintData
+      ticketData: ticketPrintData,
+      printResult
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });

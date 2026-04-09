@@ -780,3 +780,8 @@ router.get('/status', auth, async (req, res) => {
 });
 
 module.exports = router;
+module.exports.buildEscPosReceipt = buildEscPosReceipt;
+module.exports.sanitizeIP = sanitizeIP;
+module.exports.isPrivateIP = isPrivateIP;
+module.exports.isCloudHosted = isCloudHosted;
+module.exports.connectNetworkPrinter = connectNetworkPrinter;
