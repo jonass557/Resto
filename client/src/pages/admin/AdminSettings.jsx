@@ -98,7 +98,8 @@ export default function AdminSettings() {
 
   const changeOwnPassword = async () => {
     if (passwords.newPassword !== passwords.confirmPassword) { toast.error('Les mots de passe ne correspondent pas'); return; }
-    if (passwords.newPassword.length < 6) { toast.error('Minimum 6 caractères'); return; }
+    if (passwords.newPassword.length < 4) { toast.error('Minimum 4 chiffres'); return; }
+    if (!/^\d+$/.test(passwords.newPassword)) { toast.error('Uniquement des chiffres (0-9)'); return; }
     setSaving(true);
     try {
       await authAPI.changePassword({ currentPassword: passwords.currentPassword, newPassword: passwords.newPassword });
@@ -112,7 +113,8 @@ export default function AdminSettings() {
   };
 
   const changeUserPassword = async () => {
-    if (!selectedUser || newUserPw.length < 6) { toast.error('Minimum 6 caractères'); return; }
+    if (!selectedUser || newUserPw.length < 4) { toast.error('Minimum 4 chiffres'); return; }
+    if (!/^\d+$/.test(newUserPw)) { toast.error('Uniquement des chiffres (0-9)'); return; }
     setSaving(true);
     try {
       const { data } = await authAPI.changeUserPassword(selectedUser._id, newUserPw);
@@ -222,10 +224,10 @@ export default function AdminSettings() {
             <Button onClick={saveProfile} disabled={saving} size="sm">Enregistrer le profil</Button>
             <Separator />
             <p className="text-sm font-medium">Changer mon mot de passe</p>
-            <div><Label>Mot de passe actuel</Label><Input type="password" value={passwords.currentPassword} onChange={e => setPasswords({...passwords, currentPassword: e.target.value})} /></div>
+            <div><Label>Mot de passe actuel</Label><Input type="password" inputMode="numeric" pattern="[0-9]*" value={passwords.currentPassword} onChange={e => setPasswords({...passwords, currentPassword: e.target.value.replace(/\D/g, '')})} /></div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Nouveau</Label><Input type="password" value={passwords.newPassword} onChange={e => setPasswords({...passwords, newPassword: e.target.value})} /></div>
-              <div><Label>Confirmer</Label><Input type="password" value={passwords.confirmPassword} onChange={e => setPasswords({...passwords, confirmPassword: e.target.value})} /></div>
+              <div><Label>Nouveau <span className="text-xs text-muted-foreground">(min. 4 chiffres)</span></Label><Input type="password" inputMode="numeric" pattern="[0-9]*" value={passwords.newPassword} onChange={e => setPasswords({...passwords, newPassword: e.target.value.replace(/\D/g, '')})} /></div>
+              <div><Label>Confirmer</Label><Input type="password" inputMode="numeric" pattern="[0-9]*" value={passwords.confirmPassword} onChange={e => setPasswords({...passwords, confirmPassword: e.target.value.replace(/\D/g, '')})} /></div>
             </div>
             <Button onClick={changeOwnPassword} disabled={saving} size="sm">Changer le mot de passe</Button>
           </CardContent>
@@ -471,13 +473,15 @@ export default function AdminSettings() {
             <DialogTitle>Changer le mot de passe de {selectedUser?.firstName} {selectedUser?.lastName}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <div><Label>Nouveau mot de passe (min. 6 caractères)</Label>
-              <Input type="password" value={newUserPw} onChange={e => setNewUserPw(e.target.value)} placeholder="Nouveau mot de passe" />
+            <div><Label>Nouveau mot de passe <span className="text-xs text-muted-foreground">(min. 4 chiffres, chiffres uniquement)</span></Label>
+              <Input type="password" inputMode="numeric" pattern="[0-9]*" value={newUserPw}
+                onChange={e => setNewUserPw(e.target.value.replace(/\D/g, ''))}
+                placeholder="Ex: 1234" />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setPwDialog(false)}>Annuler</Button>
-            <Button onClick={changeUserPassword} disabled={saving || newUserPw.length < 6}>
+            <Button onClick={changeUserPassword} disabled={saving || newUserPw.length < 4}>
               {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Lock className="w-4 h-4 mr-2" />}
               Confirmer
             </Button>

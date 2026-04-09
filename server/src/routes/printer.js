@@ -495,6 +495,119 @@ router.post('/print-ticket', auth, async (req, res) => {
   }
 });
 
+// POST /api/printer/print-global-report — Impression du rapport journalier
+router.post('/print-global-report', auth, async (req, res) => {
+  try {
+    const { reportData } = req.body; // { date, detail, grandTotal, grandCash, grandCard, grandMobile, grandGiftCard, totalInvoices, sessionCount }
+    if (!reportData) return res.status(400).json({ success: false, message: 'Données du rapport manquantes' });
+
+    const settings = await Settings.findOne();
+    const config = settings?.printerConfig || {};
+    const cols = (config.paperWidth || 80) === 58 ? 32 : 48;
+    const ESC = '\x1B';
+    const GS  = '\x1D';
+    const cur = settings?.currencySymbol || 'FCFA';
+    const fmt = (n) => `${(n || 0).toLocaleString('fr-FR')} ${cur}`;
+    const line = (l, v) => {
+      const s = cols - l.length - v.length;
+      return l + (s > 0 ? ' '.repeat(s) : ' ') + v + '\n';
+    };
+    const sep  = '-'.repeat(cols) + '\n';
+    const dsep = '='.repeat(cols) + '\n';
+
+    const cmds = [];
+    cmds.push(`${ESC}@`);
+    cmds.push(`${ESC}a\x01${ESC}E\x01${GS}!\x11`);
+    cmds.push(`${settings?.restaurantName || 'Restaurant'}\n`);
+    cmds.push(`${GS}!\x00${ESC}E\x00`);
+    cmds.push(`${ESC}a\x01RAPPORT JOURNALIER\n${ESC}a\x00`);
+    const dateStr = new Date(reportData.date).toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    cmds.push(`${dateStr}\n`);
+    cmds.push(`Imprime le: ${new Date().toLocaleString('fr-FR')}\n`);
+    cmds.push(sep);
+
+    for (const row of (reportData.detail || [])) {
+      const s = row.session;
+      const agentName = s.agent ? `${s.agent.firstName} ${s.agent.lastName}` : 'Agent inconnu';
+      cmds.push(`${ESC}E\x01${agentName} - Serv.${s.service}${ESC}E\x00\n`);
+      cmds.push(`Statut: ${s.status === 'open' ? 'En cours' : 'Cloture'}\n`);
+      if (s.openedAt) cmds.push(`Ouverture: ${new Date(s.openedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}\n`);
+      if (s.closedAt) cmds.push(`Cloture: ${new Date(s.closedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}\n`);
+      cmds.push(line('  Transactions', `${s.transactionCount || 0}`));
+      cmds.push(line('  Especes', fmt(s.totalCash)));
+      cmds.push(line('  Carte', fmt(s.totalCard)));
+      cmds.push(line('  Mobile', fmt(s.totalMobileMoney)));
+      cmds.push(`${ESC}E\x01`);
+      cmds.push(line('  SOUS-TOTAL', fmt(row.totalAmount)));
+      cmds.push(`${ESC}E\x00`);
+      cmds.push(sep);
+    }
+
+    cmds.push(dsep);
+    cmds.push(`${ESC}E\x01`);
+    cmds.push(line('TOTAL JOURNEE', fmt(reportData.grandTotal)));
+    cmds.push(`${ESC}E\x00`);
+    cmds.push(line('  Especes', fmt(reportData.grandCash)));
+    cmds.push(line('  Carte', fmt(reportData.grandCard)));
+    cmds.push(line('  Mobile', fmt(reportData.grandMobile)));
+    cmds.push(line('Factures', `${reportData.totalInvoices}`));
+    cmds.push(line('Sessions', `${reportData.sessionCount}`));
+    cmds.push(dsep);
+    cmds.push(`\n${ESC}a\x01${settings?.receiptFooter || 'Merci de votre visite!'}\n\n\n\n`);
+    cmds.push(`${GS}V\x00`);
+
+    const receiptBuffer = Buffer.from(cmds.join(''), 'binary');
+
+    if (config.type === 'network' && config.address) {
+      const cleanAddr = sanitizeIP(config.address);
+      if (isCloudHosted() && isPrivateIP(cleanAddr)) {
+        const io = req.app.get('io');
+        const printJob = {
+          id: `global-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          type: 'network',
+          address: cleanAddr,
+          port: config.port || 9100,
+          receiptBuffer: receiptBuffer.toString('base64'),
+        };
+        const agentSockets = await io.in('print-agents').fetchSockets();
+        if (agentSockets.length > 0) agentSockets[0].emit('print-job', printJob);
+        else io.emit('print-job', printJob);
+        return res.json({ success: true, message: 'Rapport envoyé à l\'agent d\'impression', data: { printed: false, queued: true } });
+      }
+      try {
+        const socket = await connectNetworkPrinter(cleanAddr, config.port || 9100);
+        await new Promise((resolve, reject) => {
+          socket.on('error', reject);
+          socket.write(receiptBuffer, (err) => { if (err) return reject(err); socket.end(resolve); });
+        });
+        return res.json({ success: true, message: 'Rapport journalier imprimé', data: { printed: true } });
+      } catch (err) {
+        return res.status(500).json({ success: false, message: `Erreur impression réseau: ${err.message}`, data: { printed: false } });
+      }
+    }
+
+    if (config.type === 'usb') {
+      try {
+        const escpos = require('escpos');
+        const escposUsb = require('escpos-usb');
+        const device = new escposUsb();
+        await new Promise((resolve, reject) => {
+          device.open((err) => { if (err) return reject(err); device.write(receiptBuffer); device.close(resolve); });
+        });
+        return res.json({ success: true, message: 'Rapport imprimé via USB', data: { printed: true } });
+      } catch (err) {
+        return res.status(500).json({ success: false, message: `Erreur USB: ${err.message}`, data: { printed: false } });
+      }
+    }
+
+    // Fallback: no physical printer
+    res.json({ success: true, message: 'Aucune imprimante configurée — impression navigateur uniquement', data: { printed: false, fallback: true } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // GET /api/printer/status
 router.get('/status', auth, async (req, res) => {
   try {

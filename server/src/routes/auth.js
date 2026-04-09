@@ -104,6 +104,12 @@ router.put('/password', auth, async (req, res) => {
     if (!isMatch) {
       return res.status(400).json({ success: false, message: 'Mot de passe actuel incorrect' });
     }
+    if (!newPassword || newPassword.length < 4) {
+      return res.status(400).json({ success: false, message: 'Le mot de passe doit contenir au moins 4 chiffres' });
+    }
+    if (!/^\d+$/.test(newPassword)) {
+      return res.status(400).json({ success: false, message: 'Le mot de passe doit contenir uniquement des chiffres' });
+    }
 
     user.password = newPassword;
     await user.save();
@@ -122,8 +128,11 @@ router.put('/password/:userId', auth, async (req, res) => {
     }
 
     const { newPassword } = req.body;
-    if (!newPassword || newPassword.length < 6) {
-      return res.status(400).json({ success: false, message: 'Le mot de passe doit contenir au moins 6 caractères' });
+    if (!newPassword || newPassword.length < 4) {
+      return res.status(400).json({ success: false, message: 'Le mot de passe doit contenir au moins 4 chiffres' });
+    }
+    if (!/^\d+$/.test(newPassword)) {
+      return res.status(400).json({ success: false, message: 'Le mot de passe doit contenir uniquement des chiffres' });
     }
 
     const user = await User.findById(req.params.userId);

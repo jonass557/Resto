@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { cashRegisterAPI } from '@/services/api';
+import { cashRegisterAPI, printerAPI } from '@/services/api';
 import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,6 +13,7 @@ import { formatCurrency } from '@/lib/utils';
 import {
   Loader2, Calendar, ClipboardList, Banknote, CreditCard, Smartphone, Wallet, FileText, Printer
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const PAYMENT_LABELS = { cash: 'Espèces', card: 'Carte', mobile_money: 'Mobile Money', mixed: 'Mixte', gift_card: 'Carte cadeau' };
 
@@ -142,8 +143,27 @@ export default function GlobalReport() {
       const params = { date };
       if (service !== 'all') params.service = service;
       const { data } = await cashRegisterAPI.dailyDetail(params);
+      const reportData = { ...data.data, date };
+
+      // Try thermal printer first
+      try {
+        const printRes = await printerAPI.printGlobalReport(reportData);
+        if (printRes.data?.data?.printed) {
+          toast.success('Rapport imprimé sur l\'imprimante thermique');
+          return;
+        }
+        if (printRes.data?.data?.queued) {
+          toast.success('Rapport envoyé à l\'agent d\'impression');
+          return;
+        }
+      } catch {
+        // no printer configured or error — fall through to browser print
+      }
+
+      // Fallback: browser print window
       printDailyInvoice(data.data, date);
     } catch (err) {
+      toast.error('Erreur impression');
       console.error('Erreur impression:', err);
     } finally {
       setPrinting(false);

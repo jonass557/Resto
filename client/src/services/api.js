@@ -347,6 +347,10 @@ export const printerAPI = {
     const local = getLocalPrinterApi();
     return local ? local.get('/printer/status') : api.get('/printer/status');
   },
+  printGlobalReport: (reportData) => {
+    const local = getLocalPrinterApi();
+    return local ? local.post('/printer/print-global-report', { reportData }) : api.post('/printer/print-global-report', { reportData });
+  },
 };
 
 // Settings

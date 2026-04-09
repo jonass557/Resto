@@ -429,6 +429,7 @@ router.post('/close-all', auth, caissierOnly, async (req, res) => {
     // Vérifier les factures impayées sur tous les agents
     const allUnpaid = [];
     for (const sess of openSessions) {
+      if (!sess.agent) continue; // agent supprimé
       const unpaid = await Ticket.find({
         agent: sess.agent._id,
         type: 'invoice',
@@ -448,6 +449,7 @@ router.post('/close-all', auth, caissierOnly, async (req, res) => {
 
     const now = new Date();
     for (const sess of openSessions) {
+      if (!sess.agent) continue; // agent supprimé, ignorer
       sess.status = 'closed';
       sess.closedAt = now;
       sess.closedBy = req.user._id;
