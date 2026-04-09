@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ticketsAPI, invalidateCache, printerAPI } from '@/services/api';
+import { ticketsAPI, invalidateCache } from '@/services/api';
+import { usePrinter } from '@/contexts/PrinterContext';
 import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent } from '@/components/ui/card';
@@ -16,6 +17,7 @@ import toast from 'react-hot-toast';
 export default function InvoicesEnCours() {
   const navigate = useNavigate();
   const { socket } = useSocket();
+  const { printTicket } = usePrinter();
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -48,7 +50,7 @@ export default function InvoicesEnCours() {
       invalidateCache('/tickets');
       if (data.ticketData) {
         try {
-          await printerAPI.printTicket({ ticketData: data.ticketData });
+          await printTicket(data.ticketData);
         } catch { /* printer error non-bloquant */ }
       }
     } catch (err) {

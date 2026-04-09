@@ -31,7 +31,18 @@ function buildReceipt(data, cols = 32) {
 
   if (data.address) c.push(`${data.address}\n`);
   if (data.phone) c.push(`Tel: ${data.phone}\n`);
-  c.push('-'.repeat(cols) + '\n');
+
+  // Deleted invoice banner
+  if (data.deleted) {
+    c.push('*'.repeat(cols) + '\n');
+    c.push(`${ESC}a\x01${ESC}E\x01${GS}!\x11`);
+    c.push(`${ESC}-\x02`);
+    c.push('FACTURE SUPPRIMEE\n');
+    c.push(`${ESC}-\x00${GS}!\x00${ESC}E\x00${ESC}a\x00`);
+    c.push('*'.repeat(cols) + '\n');
+  } else {
+    c.push('-'.repeat(cols) + '\n');
+  }
 
   c.push(`${ESC}a\x00`); // left
   c.push(`Ticket: ${data.ticketNumber}\n`);
@@ -42,13 +53,26 @@ function buildReceipt(data, cols = 32) {
   } else if (data.orderType === 'takeaway') c.push(`A emporter\n`);
   c.push(`Serveur: ${data.agentName || ''}\n`);
   c.push(`Date: ${new Date().toLocaleString('fr-FR')}\n`);
+  if (data.deleted) {
+    c.push(`${ESC}E\x01Supprimee par: ${data.adminName || ''}${ESC}E\x00\n`);
+    if (data.deletedAt) c.push(`Date suppression: ${new Date(data.deletedAt).toLocaleString('fr-FR')}\n`);
+  }
   c.push('-'.repeat(cols) + '\n');
 
+  const isDeleted = !!data.deleted;
   const printItem = (item) => {
-    const qty = `${item.quantity}x ${item.name}`;
+    const qtyPrefix = isDeleted ? '-' : '';
+    const qty = `${qtyPrefix}${item.quantity}x ${item.name}`;
     const price = `${item.totalPrice} ${data.currency || 'FCFA'}`;
     const sp = cols - qty.length - price.length;
-    c.push(sp > 0 ? qty + ' '.repeat(sp) + price + '\n' : qty + '\n' + ' '.repeat(Math.max(0, cols - price.length)) + price + '\n');
+    const line = sp > 0 ? qty + ' '.repeat(sp) + price + '\n' : qty + '\n' + ' '.repeat(Math.max(0, cols - price.length)) + price + '\n';
+    if (isDeleted) {
+      c.push(`${ESC}E\x01${ESC}-\x01`);
+      c.push(line);
+      c.push(`${ESC}-\x00${ESC}E\x00`);
+    } else {
+      c.push(line);
+    }
   };
 
   const allItems = data.items || [];
@@ -108,7 +132,18 @@ function buildReceipt(data, cols = 32) {
     c.push(`${ESC}a\x00`);
   }
 
-  c.push(`\n${ESC}a\x01${data.footer || 'Merci de votre visite!'}\n\n\n\n`);
+  c.push('\n');
+  c.push(`${ESC}a\x01`);
+  if (data.deleted) {
+    c.push('*'.repeat(cols) + '\n');
+    c.push(`${ESC}E\x01${GS}!\x11${ESC}-\x02`);
+    c.push('FACTURE SUPPRIMEE\n');
+    c.push(`${ESC}-\x00${GS}!\x00${ESC}E\x00`);
+    c.push('*'.repeat(cols) + '\n');
+  } else {
+    c.push(`${data.footer || 'Merci de votre visite!'}\n`);
+  }
+  c.push('\n\n\n');
   c.push(`${GS}V\x00`); // cut
 
   const str = c.join('');
