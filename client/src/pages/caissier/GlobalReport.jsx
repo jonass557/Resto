@@ -154,10 +154,12 @@ export default function GlobalReport() {
       const d = data?.data || {};
       if (d.printed) {
         toast.success('Rapport imprimé avec succès', { id: toastId });
-      } else if (d.queued) {
-        toast.success('Rapport envoyé à l\'imprimante', { id: toastId });
+      } else if (d.queued && !d.noAgent) {
+        toast.success('Rapport envoyé à l\'agent d\'impression', { id: toastId });
+      } else if (d.noAgent) {
+        toast.error('Aucun agent d\'impression connecté.\nAllez dans Paramètres pour configurer le serveur local.', { id: toastId, duration: 8000 });
       } else if (d.fallback) {
-        toast.error('Aucune imprimante thermique configurée', { id: toastId });
+        toast.error('Aucune imprimante configurée. Allez dans Paramètres.', { id: toastId, duration: 6000 });
       } else {
         toast.dismiss(toastId);
       }

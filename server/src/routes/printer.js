@@ -697,9 +697,15 @@ router.post('/print-global-report', auth, async (req, res) => {
           receiptBuffer: receiptBuffer.toString('base64'),
         };
         const agentSockets = await io.in('print-agents').fetchSockets();
-        if (agentSockets.length > 0) agentSockets[0].emit('print-job', printJob);
-        else io.emit('print-job', printJob);
-        return res.json({ success: true, message: 'Rapport envoyé à l\'agent d\'impression', data: { printed: false, queued: true } });
+        if (agentSockets.length > 0) {
+          agentSockets[0].emit('print-job', printJob);
+          console.log(`📤 Rapport global envoyé à l'agent: ${agentSockets[0].id}`);
+          return res.json({ success: true, message: 'Rapport envoyé à l\'agent d\'impression', data: { printed: false, queued: true } });
+        }
+        // Broadcast en dernier recours
+        io.emit('print-job', printJob);
+        console.log('📤 Rapport global diffusé (aucun agent enregistré)');
+        return res.json({ success: true, message: 'Rapport diffusé — aucun agent d\'impression enregistré. Configurez le serveur local dans Paramètres.', data: { printed: false, queued: true, noAgent: true } });
       }
       try {
         const socket = await connectNetworkPrinter(cleanAddr, config.port || 9100);
@@ -731,6 +737,36 @@ router.post('/print-global-report', auth, async (req, res) => {
     res.json({ success: true, message: 'Aucune imprimante configurée', data: { printed: false, fallback: true } });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// POST /api/printer/print-raw — Send pre-built ESC/POS buffer directly to network printer
+// Used by browser print agents to forward cloud print-jobs to local WiFi printers
+router.post('/print-raw', auth, async (req, res) => {
+  try {
+    const { receiptBuffer, printerConfig } = req.body;
+    if (!receiptBuffer) return res.status(400).json({ success: false, message: 'receiptBuffer requis' });
+
+    let config = printerConfig || {};
+    if (!config.type || !config.address) {
+      const settings = await Settings.findOne();
+      config = settings?.printerConfig || {};
+    }
+
+    if (config.type === 'network' && config.address) {
+      const cleanAddr = sanitizeIP(config.address);
+      const buffer = Buffer.from(receiptBuffer, 'base64');
+      const socket = await connectNetworkPrinter(cleanAddr, config.port || 9100);
+      await new Promise((resolve, reject) => {
+        socket.on('error', reject);
+        socket.write(buffer, (err) => { if (err) return reject(err); socket.end(resolve); });
+      });
+      return res.json({ success: true, message: 'Imprimé avec succès', data: { printed: true } });
+    }
+
+    res.status(400).json({ success: false, message: 'Aucune imprimante réseau configurée', data: { printed: false } });
+  } catch (error) {
+    res.status(500).json({ success: false, message: `Erreur impression: ${error.message}`, data: { printed: false } });
   }
 });
 
