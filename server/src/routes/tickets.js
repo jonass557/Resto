@@ -5,6 +5,7 @@ const Table = require('../models/Table');
 const Payment = require('../models/Payment');
 const Notification = require('../models/Notification');
 const CashRegister = require('../models/CashRegister');
+const User = require('../models/User');
 const { auth, adminOnly } = require('../middleware/auth');
 const { generateTicketNumber } = require('../utils/helpers');
 
@@ -362,6 +363,64 @@ router.patch('/:id/add-items', auth, async (req, res) => {
     io.emit('invoice:updated', ticket);
 
     res.json({ success: true, data: ticket });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// POST /api/tickets/:id/admin-delete — Agent triggers deletion, server verifies admin credentials
+router.post('/:id/admin-delete', auth, async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ success: false, message: 'Identifiants administrateur requis' });
+    }
+
+    const admin = await User.findOne({ email: email.toLowerCase(), role: 'admin', isActive: true });
+    if (!admin) {
+      return res.status(401).json({ success: false, message: 'Identifiants administrateur invalides' });
+    }
+    const isMatch = await admin.comparePassword(password);
+    if (!isMatch) {
+      return res.status(401).json({ success: false, message: 'Identifiants administrateur invalides' });
+    }
+
+    const ticket = await Ticket.findById(req.params.id).populate('table', 'number name');
+    if (!ticket) return res.status(404).json({ success: false, message: 'Ticket non trouvé' });
+
+    if (ticket.payment) await Payment.findByIdAndDelete(ticket.payment);
+
+    const ticketNumber = ticket.ticketNumber;
+    const ticketType = ticket.type;
+    const tableNumber = ticket.table?.number || null;
+
+    await Ticket.findByIdAndDelete(req.params.id);
+
+    if (!ticket.isPaid && ticket.table) {
+      const tableId = ticket.table._id || ticket.table;
+      if (ticket.orders && ticket.orders.length > 0) {
+        await Table.findByIdAndUpdate(tableId, { $pull: { currentOrders: { $in: ticket.orders } } });
+      }
+      const updatedTable = await Table.findById(tableId).populate('currentOrders');
+      const hasActive = updatedTable?.currentOrders?.some(o => !['cancelled', 'paid'].includes(o.status));
+      if (!hasActive) {
+        await Table.findByIdAndUpdate(tableId, { status: 'available', currentOrders: [] });
+        req.app.get('io').emit('table:updated', { tableId: tableId.toString(), status: 'available' });
+      }
+    }
+
+    const notif = await Notification.create({
+      type: ticketType === 'invoice' ? 'invoice_deleted' : 'ticket_deleted',
+      title: ticketType === 'invoice' ? 'Facture supprimée' : 'Ticket supprimé',
+      message: `Supprimé par l'admin ${admin.firstName} ${admin.lastName} : ${ticketType === 'invoice' ? 'facture' : 'ticket'} ${ticketNumber}${tableNumber ? ' (Table ' + tableNumber + ')' : ''}`,
+      agent: req.user._id,
+      data: { ticketNumber, ticketType, tableNumber }
+    });
+    const io = req.app.get('io');
+    io.emit('notification:new', notif);
+    io.emit('ticket:deleted', { ticketId: req.params.id, ticketNumber });
+
+    res.json({ success: true, message: `${ticketType === 'invoice' ? 'Facture' : 'Ticket'} ${ticketNumber} supprimé(e)` });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

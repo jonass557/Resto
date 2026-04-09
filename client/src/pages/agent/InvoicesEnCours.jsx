@@ -6,8 +6,11 @@ import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
-import { Loader2, UtensilsCrossed, Plus } from 'lucide-react';
+import { Loader2, UtensilsCrossed, Plus, Trash2, ShieldAlert } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function InvoicesEnCours() {
@@ -15,6 +18,33 @@ export default function InvoicesEnCours() {
   const { socket } = useSocket();
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const openDeleteDialog = (inv) => {
+    setDeleteTarget(inv);
+    setAdminEmail('');
+    setAdminPassword('');
+  };
+
+  const handleAdminDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleteLoading(true);
+    try {
+      const { data } = await ticketsAPI.adminDelete(deleteTarget._id, { email: adminEmail, password: adminPassword });
+      toast.success(data.message || 'Facture supprimée');
+      setDeleteTarget(null);
+      invalidateCache('/tickets');
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Erreur suppression');
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -103,10 +133,14 @@ export default function InvoicesEnCours() {
                       <Badge variant="outline" className="text-orange-600 border-orange-300 bg-orange-50 text-xs">
                         En cours
                       </Badge>
-                      <div className="mt-1.5">
+                      <div className="mt-1.5 flex flex-col gap-1">
                         <Button size="sm" variant="outline" className="h-7 text-xs w-full"
                           onClick={() => navigate(`/agent/restaurant?invoiceId=${inv._id}`)}>
                           <Plus className="w-3 h-3 mr-1" /> Ajouter
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-7 text-xs w-full text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => openDeleteDialog(inv)}>
+                          <Trash2 className="w-3 h-3 mr-1" /> Supprimer
                         </Button>
                       </div>
                     </div>
@@ -117,6 +151,44 @@ export default function InvoicesEnCours() {
           </div>
         )}
       </div>
+      {/* Admin delete dialog */}
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <ShieldAlert className="w-5 h-5" />
+              Suppression autorisée par l'admin
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Facture <strong>{deleteTarget?.ticketNumber}</strong> — {formatCurrency(deleteTarget?.total || 0)}
+            </p>
+            <p className="text-xs text-amber-600 bg-amber-50 rounded p-2">
+              Entrez les identifiants de l'administrateur pour confirmer la suppression.
+            </p>
+            <div>
+              <Label className="text-xs">Email administrateur</Label>
+              <Input type="email" placeholder="admin@exemple.com" value={adminEmail}
+                onChange={e => setAdminEmail(e.target.value)} className="h-8 text-sm mt-1" />
+            </div>
+            <div>
+              <Label className="text-xs">Mot de passe</Label>
+              <Input type="password" placeholder="••••••••" value={adminPassword}
+                onChange={e => setAdminPassword(e.target.value)} className="h-8 text-sm mt-1"
+                onKeyDown={e => e.key === 'Enter' && handleAdminDelete()} />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setDeleteTarget(null)}>Annuler</Button>
+            <Button variant="destructive" size="sm" onClick={handleAdminDelete}
+              disabled={deleteLoading || !adminEmail || !adminPassword}>
+              {deleteLoading && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
+              Confirmer la suppression
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

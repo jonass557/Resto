@@ -208,6 +208,7 @@ export const ticketsAPI = {
   markPrinted: (id) => api.patch(`/tickets/${id}/printed`).then(r => { invalidateCache('/tickets'); return r; }),
   markPaid: (id) => api.patch(`/tickets/${id}/mark-paid`).then(r => { invalidateCache('/tickets'); return r; }),
   delete: (id) => api.delete(`/tickets/${id}`).then(r => { invalidateCache('/tickets'); return r; }),
+  adminDelete: (id, credentials) => api.post(`/tickets/${id}/admin-delete`, credentials).then(r => { invalidateCache('/tickets'); return r; }),
   getCounts: () => api.get('/tickets/counts'),
   directInvoice: (data) => api.post('/tickets/direct-invoice', data).then(r => { invalidateCache('/tickets'); return r; }),
   moveToAEncaisser: (id) => api.patch(`/tickets/${id}/a-encaisser`).then(r => { invalidateCache('/tickets'); return r; }),
