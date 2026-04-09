@@ -65,13 +65,15 @@ function buildEscPosReceipt(ticketData, paperWidth = 80) {
   if (ticketData.address) cmds.push(`${ticketData.address}\n`);
   if (ticketData.phone) cmds.push(`Tel: ${ticketData.phone}\n`);
 
-  // Deleted invoice banner
+  // Deleted invoice banner — reverse mode (black bg / white text) = badge rouge thermique
   if (ticketData.deleted) {
-    cmds.push('-'.repeat(cols) + '\n');
+    cmds.push('='.repeat(cols) + '\n');
     cmds.push(`${ESC}a\x01${ESC}E\x01${GS}!\x11`);
-    cmds.push('Annulation BON\n');
+    cmds.push(`${GS}B\x01`);
+    cmds.push('FACTURE SUPPRIMEE\n');
+    cmds.push(`${GS}B\x00`);
     cmds.push(`${GS}!\x00${ESC}E\x00${ESC}a\x00`);
-    cmds.push('-'.repeat(cols) + '\n');
+    cmds.push('='.repeat(cols) + '\n');
   } else {
     cmds.push('-'.repeat(cols) + '\n');
   }
@@ -92,8 +94,8 @@ function buildEscPosReceipt(ticketData, paperWidth = 80) {
   cmds.push(`Serveur: ${ticketData.agentName}\n`);
   cmds.push(`Date: ${new Date().toLocaleString('fr-FR')}\n`);
   if (ticketData.deleted) {
-    cmds.push(`${ESC}E\x01Annulee par: ${ticketData.adminName || ''}${ESC}E\x00\n`);
-    if (ticketData.deletedAt) cmds.push(`Date annulation: ${new Date(ticketData.deletedAt).toLocaleString('fr-FR')}\n`);
+    cmds.push(`${ESC}E\x01Supprimee par: ${ticketData.adminName || ''}${ESC}E\x00\n`);
+    if (ticketData.deletedAt) cmds.push(`Date suppression: ${new Date(ticketData.deletedAt).toLocaleString('fr-FR')}\n`);
     cmds.push('-'.repeat(cols) + '\n');
   } else {
     cmds.push('-'.repeat(cols) + '\n');
@@ -234,7 +236,20 @@ function buildEscPosReceipt(ticketData, paperWidth = 80) {
   // Footer
   cmds.push('\n');
   cmds.push(`${ESC}a\x01`); // center
-  cmds.push(`${ticketData.footer || 'Merci de votre visite!'}\n`);
+  if (!ticketData.deleted) {
+    cmds.push(`${ticketData.footer || 'Merci de votre visite!'}\n`);
+  }
+
+  // Closing banner for deleted invoices
+  if (ticketData.deleted) {
+    cmds.push('='.repeat(cols) + '\n');
+    cmds.push(`${ESC}E\x01${GS}!\x11`);
+    cmds.push(`${GS}B\x01`);
+    cmds.push('FACTURE SUPPRIMEE\n');
+    cmds.push(`${GS}B\x00`);
+    cmds.push(`${GS}!\x00${ESC}E\x00`);
+    cmds.push('='.repeat(cols) + '\n');
+  }
   cmds.push('\n\n\n');
 
   // Cut paper
