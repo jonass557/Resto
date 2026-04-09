@@ -210,22 +210,22 @@ mongoose.connect(process.env.MONGODB_URI, {
     console.log('MongoDB connecté avec succès');
     await ensureAdminExists();
 
-    // Nettoyage automatique : supprimer les sessions caisse fermées depuis plus de 24h
+    // Nettoyage automatique : supprimer les sessions caisse fermées depuis plus de 30 jours
     const cleanCashHistory = async () => {
-      const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const result = await CashRegister.deleteMany({ status: 'closed', closedAt: { $lt: cutoff } });
-      if (result.deletedCount > 0) console.log(`🗑️  ${result.deletedCount} session(s) caisse supprimée(s) (>24h)`);
+      if (result.deletedCount > 0) console.log(`🗑️  ${result.deletedCount} session(s) caisse supprimée(s) (>30j)`);
     };
-    // Nettoyage automatique : supprimer les factures payées depuis plus de 24h
+    // Nettoyage automatique : supprimer les factures payées depuis plus de 30 jours
     const cleanPaidInvoices = async () => {
-      const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const result = await Ticket.deleteMany({ type: 'invoice', isPaid: true, updatedAt: { $lt: cutoff } });
-      if (result.deletedCount > 0) console.log(`🗑️  ${result.deletedCount} facture(s) payée(s) supprimée(s) (>24h)`);
+      if (result.deletedCount > 0) console.log(`🗑️  ${result.deletedCount} facture(s) payée(s) supprimée(s) (>30j)`);
     };
     await cleanCashHistory();
     await cleanPaidInvoices();
-    setInterval(cleanCashHistory, 60 * 60 * 1000); // toutes les heures
-    setInterval(cleanPaidInvoices, 60 * 60 * 1000); // toutes les heures
+    setInterval(cleanCashHistory, 6 * 60 * 60 * 1000); // toutes les 6h
+    setInterval(cleanPaidInvoices, 6 * 60 * 60 * 1000); // toutes les 6h
     server.listen(PORT, '0.0.0.0', () => {
       const os = require('os');
       const ifaces = os.networkInterfaces();

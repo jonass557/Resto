@@ -535,14 +535,15 @@ router.post('/print-global-report', auth, async (req, res) => {
       if (!sess.agent) continue;
       const dateFilter = { $gte: sess.openedAt };
       if (sess.closedAt) dateFilter.$lte = sess.closedAt;
-      const invoices = await Ticket.find({ agent: sess.agent._id, type: 'invoice', isPaid: true, createdAt: dateFilter });
+      const invoices = await Ticket.find({ agent: sess.agent._id, type: 'invoice', isPaid: true, createdAt: dateFilter })
+        .populate('payment').sort({ createdAt: 1 });
       const sessionTotal = invoices.reduce((s, i) => s + i.total, 0);
       grandTotal   += sessionTotal;
       grandCash    += sess.totalCash    || 0;
       grandCard    += sess.totalCard    || 0;
       grandMobile  += sess.totalMobileMoney || 0;
       totalInvoices += invoices.length;
-      detail.push({ session: sess, totalAmount: sessionTotal });
+      detail.push({ session: sess, invoices, totalAmount: sessionTotal });
     }
 
     // --- Build ESC/POS ---
@@ -557,6 +558,8 @@ router.post('/print-global-report', auth, async (req, res) => {
       const s = cols - l.length - v.length;
       return l + (s > 0 ? ' '.repeat(s) : ' ') + v + '\n';
     };
+    const truncate = (str, max) => str && str.length > max ? str.slice(0, max - 1) + '.' : (str || '');
+    const PAYMENT_FR = { cash: 'Especes', card: 'Carte', mobile_money: 'Mobile', mixed: 'Mixte', gift_card: 'Cadeau' };
     const sep  = '-'.repeat(cols) + '\n';
     const dsep = '='.repeat(cols) + '\n';
 
@@ -574,16 +577,59 @@ router.post('/print-global-report', auth, async (req, res) => {
     for (const row of detail) {
       const s = row.session;
       const agentName = `${s.agent.firstName} ${s.agent.lastName}`;
+      // Session header
       cmds.push(`${ESC}E\x01${agentName} - Serv.${s.service}${ESC}E\x00\n`);
       cmds.push(`Statut: ${s.status === 'open' ? 'En cours' : 'Cloture'}\n`);
       if (s.openedAt) cmds.push(`Ouverture: ${new Date(s.openedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}\n`);
       if (s.closedAt) cmds.push(`Cloture: ${new Date(s.closedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}\n`);
-      cmds.push(padLine('  Transactions', `${s.transactionCount || 0}`));
+      cmds.push(sep);
+
+      // Each invoice with full detail
+      for (const inv of row.invoices) {
+        const time = new Date(inv.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        const payMethod = PAYMENT_FR[inv.payment?.method] || inv.payment?.method || '?';
+        cmds.push(`${ESC}E\x01`);
+        cmds.push(`#${inv.ticketNumber}  ${time}${inv.tableNumber ? '  T.' + inv.tableNumber : ''}\n`);
+        cmds.push(`${ESC}E\x00`);
+
+        // Items grouped by category
+        const items = inv.items || [];
+        const groups = {};
+        const ungrouped = [];
+        for (const it of items) {
+          if (it.category) {
+            if (!groups[it.category]) groups[it.category] = [];
+            groups[it.category].push(it);
+          } else {
+            ungrouped.push(it);
+          }
+        }
+        const printItem = (it) => {
+          const label = `  ${it.quantity}x ${truncate(it.name, cols - 14)}`;
+          const price = fmt(it.totalPrice || it.unitPrice * it.quantity);
+          const sp = cols - label.length - price.length;
+          cmds.push(label + (sp > 0 ? ' '.repeat(sp) : ' ') + price + '\n');
+        };
+        for (const it of ungrouped) printItem(it);
+        for (const [cat, catItems] of Object.entries(groups)) {
+          const label = `  [${cat.toUpperCase()}]`;
+          cmds.push(`${ESC}E\x01${truncate(label, cols)}${ESC}E\x00\n`);
+          for (const it of catItems) printItem(it);
+        }
+
+        // Invoice total + payment
+        cmds.push(padLine(`  Paiement: ${payMethod}`, fmt(inv.total)));
+      }
+
+      if (row.invoices.length === 0) cmds.push(`  Aucune facture payee\n`);
+      cmds.push(sep);
+
+      // Session totals
       cmds.push(padLine('  Especes', fmt(s.totalCash)));
       cmds.push(padLine('  Carte', fmt(s.totalCard)));
       cmds.push(padLine('  Mobile', fmt(s.totalMobileMoney)));
       cmds.push(`${ESC}E\x01`);
-      cmds.push(padLine('  SOUS-TOTAL', fmt(row.totalAmount)));
+      cmds.push(padLine(`  SOUS-TOTAL (${row.invoices.length} fac.)`, fmt(row.totalAmount)));
       cmds.push(`${ESC}E\x00`);
       cmds.push(sep);
     }

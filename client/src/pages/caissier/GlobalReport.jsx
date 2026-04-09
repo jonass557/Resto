@@ -140,20 +140,25 @@ export default function GlobalReport() {
   const handlePrint = async () => {
     setPrinting(true);
     try {
-      const printRes = await printerAPI.printGlobalReport({ date, service });
-      if (printRes.data?.data?.printed) {
-        toast.success('Rapport imprimé sur l\'imprimante thermique');
-        return;
+      let thermalDone = false;
+      try {
+        const printRes = await printerAPI.printGlobalReport({ date, service });
+        if (printRes.data?.data?.printed) {
+          toast.success('Rapport imprimé sur l\'imprimante thermique');
+          thermalDone = true;
+        } else if (printRes.data?.data?.queued) {
+          toast.success('Rapport envoyé à l\'agent d\'impression');
+          // fall through to browser print as backup
+        }
+      } catch { /* no thermal printer — fall through */ }
+
+      if (!thermalDone) {
+        // Browser print — always guaranteed to work
+        const params = { date };
+        if (service !== 'all') params.service = service;
+        const { data } = await cashRegisterAPI.dailyDetail(params);
+        printDailyInvoice(data.data, date);
       }
-      if (printRes.data?.data?.queued) {
-        toast.success('Rapport envoyé à l\'agent d\'impression');
-        return;
-      }
-      // Fallback: browser print window
-      const params = { date };
-      if (service !== 'all') params.service = service;
-      const { data } = await cashRegisterAPI.dailyDetail(params);
-      printDailyInvoice(data.data, date);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Erreur impression');
       console.error('Erreur impression:', err);

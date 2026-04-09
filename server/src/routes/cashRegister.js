@@ -289,6 +289,7 @@ router.get('/global-report', auth, caissierOnly, async (req, res) => {
     // For each session, get paid invoices
     const report = [];
     for (const sess of sessions) {
+      if (!sess.agent) continue; // agent supprimé, ignorer
       const dateFilter = { $gte: sess.openedAt };
       if (sess.closedAt) dateFilter.$lte = sess.closedAt;
 
