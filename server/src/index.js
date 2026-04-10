@@ -255,6 +255,30 @@ function startPrintAgentClient() {
       console.error(`❌ Erreur impression: ${err.message}`);
     }
   });
+
+  // Rapport global : le cloud délègue à l'agent local (même schéma que ticket:auto-print)
+  cloudSocket.on('report:print', async ({ date, service }) => {
+    console.log(`📊 Impression rapport global reçue: ${date} service=${service}`);
+    const axios = require('axios');
+    const localPort = process.env.PORT || 5000;
+    try {
+      const resp = await axios.post(
+        `http://localhost:${localPort}/api/printer/print-global-report`,
+        { date, service },
+        {
+          headers: { 'X-Internal-Key': process.env.JWT_SECRET },
+          timeout: 20000
+        }
+      );
+      if (resp.data?.data?.printed) {
+        console.log('✅ Rapport global imprimé localement');
+      } else {
+        console.warn('⚠️  Rapport global: réponse inattendue', resp.data?.message);
+      }
+    } catch (err) {
+      console.error(`❌ Erreur impression rapport global: ${err.message}`);
+    }
+  });
 }
 
 mongoose.connect(process.env.MONGODB_URI, {

@@ -111,6 +111,37 @@ export function PrintAgentProvider({ children }) {
       await handlePrintJob(job);
     });
 
+    // Impression du rapport global déclenchée depuis le cloud (même schéma que ticket:auto-print)
+    newSocket.on('report:print', async ({ date, service }) => {
+      const jobId = `report-${date}-${service}`;
+      if (processedJobIds.has(jobId)) return;
+      processedJobIds.add(jobId);
+      setTimeout(() => processedJobIds.delete(jobId), 300000);
+
+      console.log('📊 Impression rapport global reçue:', date, service);
+      const token = localStorage.getItem('token');
+      const localApi = axios.create({
+        baseURL: `${getLocalServerUrl()}/api`,
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        timeout: 20000,
+      });
+      try {
+        await localApi.post('/printer/print-global-report', { date, service });
+        setJobsProcessed(prev => prev + 1);
+        setLastJobTime(new Date().toISOString());
+        toast.success('✅ Rapport global imprimé');
+      } catch (error) {
+        console.error('❌ Erreur impression rapport global:', error);
+        const isNetworkError = !error.response || error.code === 'ERR_NETWORK' || error.message === 'Network Error';
+        if (isNetworkError) {
+          setLocalServerAvailable(false);
+          toast.error('❌ Serveur local introuvable. Vérifiez la connexion dans Paramètres.', { duration: 6000 });
+        } else {
+          toast.error(`❌ Rapport: ${error.response?.data?.message || error.message}`);
+        }
+      }
+    });
+
     // Impression automatique déclenchée par le serveur lors de la création d'une commande
     newSocket.on('ticket:auto-print', async ({ ticket }) => {
       if (!ticket?._id) return;

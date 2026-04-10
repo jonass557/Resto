@@ -687,25 +687,20 @@ router.post('/print-global-report', auth, async (req, res) => {
     if (config.type === 'network' && config.address) {
       const cleanAddr = sanitizeIP(config.address);
       if (isCloudHosted() && isPrivateIP(cleanAddr)) {
+        // Même schéma que ticket:auto-print : émettre un événement léger avec les paramètres,
+        // l'agent local reconstruit et imprime lui-même (pas de buffer à sérialiser)
         const io = req.app.get('io');
-        const printJob = {
-          id: `global-${Date.now()}`,
-          timestamp: new Date().toISOString(),
-          type: 'network',
-          address: cleanAddr,
-          port: config.port || 9100,
-          receiptBuffer: receiptBuffer.toString('base64'),
-        };
         const agentSockets = await io.in('print-agents').fetchSockets();
+        const reportEvent = { date: date || new Date().toISOString().split('T')[0], service: service || 'all' };
         if (agentSockets.length > 0) {
-          agentSockets[0].emit('print-job', printJob);
-          console.log(`📤 Rapport global envoyé à l'agent: ${agentSockets[0].id}`);
+          agentSockets[0].emit('report:print', reportEvent);
+          console.log(`📤 report:print envoyé à l'agent: ${agentSockets[0].id}`);
           return res.json({ success: true, message: 'Rapport envoyé à l\'agent d\'impression', data: { printed: false, queued: true } });
         }
-        // Broadcast en dernier recours
-        io.emit('print-job', printJob);
-        console.log('📤 Rapport global diffusé (aucun agent enregistré)');
-        return res.json({ success: true, message: 'Rapport diffusé — aucun agent d\'impression enregistré. Configurez le serveur local dans Paramètres.', data: { printed: false, queued: true, noAgent: true } });
+        // Broadcast si aucun agent enregistré
+        io.emit('report:print', reportEvent);
+        console.log('📤 report:print diffusé (aucun agent enregistré)');
+        return res.json({ success: true, message: 'Aucun agent d\'impression connecté. Activez l\'agent dans Paramètres.', data: { printed: false, queued: true, noAgent: true } });
       }
       try {
         const socket = await connectNetworkPrinter(cleanAddr, config.port || 9100);

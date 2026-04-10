@@ -3,6 +3,14 @@ const User = require('../models/User');
 
 const auth = async (req, res, next) => {
   try {
+    // Internal bypass: local server calling its own endpoints (e.g. print agent)
+    const internalKey = req.header('X-Internal-Key');
+    const fromLocalhost = req.ip === '127.0.0.1' || req.ip === '::1' || req.ip === '::ffff:127.0.0.1';
+    if (fromLocalhost && internalKey && internalKey === process.env.JWT_SECRET) {
+      req.user = { _id: 'internal', role: 'admin', firstName: 'Agent', lastName: 'Impression', isActive: true };
+      return next();
+    }
+
     const token = req.header('Authorization')?.replace('Bearer ', '');
     if (!token) {
       return res.status(401).json({ success: false, message: 'Accès non autorisé' });
