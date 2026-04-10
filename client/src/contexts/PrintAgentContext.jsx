@@ -111,6 +111,38 @@ export function PrintAgentProvider({ children }) {
       await handlePrintJob(job);
     });
 
+    // Facture supprimée : l'admin a supprimé → le cloud délègue l'impression à l'agent local
+    newSocket.on('ticket:deleted-print', async ({ ticketData }) => {
+      if (!ticketData?.ticketNumber) return;
+      const jobId = `deleted-${ticketData.ticketNumber}`;
+      if (processedJobIds.has(jobId)) return;
+      processedJobIds.add(jobId);
+      setTimeout(() => processedJobIds.delete(jobId), 300000);
+
+      console.log('🗑️ Impression facture supprimée:', ticketData.ticketNumber);
+      const token = localStorage.getItem('token');
+      const localApi = axios.create({
+        baseURL: `${getLocalServerUrl()}/api`,
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        timeout: 15000,
+      });
+      try {
+        await localApi.post('/printer/print-ticket', { ticketData });
+        setJobsProcessed(prev => prev + 1);
+        setLastJobTime(new Date().toISOString());
+        toast.success(`✅ Facture supprimée imprimée: ${ticketData.ticketNumber}`);
+      } catch (error) {
+        console.error('❌ Erreur impression facture supprimée:', error);
+        const isNetworkError = !error.response || error.code === 'ERR_NETWORK' || error.message === 'Network Error';
+        if (isNetworkError) {
+          setLocalServerAvailable(false);
+          toast.error('❌ Serveur local introuvable. Vérifiez la connexion dans Paramètres.', { duration: 6000 });
+        } else {
+          toast.error(`❌ Impression: ${error.response?.data?.message || error.message}`);
+        }
+      }
+    });
+
     // Impression du rapport global déclenchée depuis le cloud (même schéma que ticket:auto-print)
     newSocket.on('report:print', async ({ date, service }) => {
       const jobId = `report-${date}-${service}`;

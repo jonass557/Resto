@@ -256,6 +256,31 @@ function startPrintAgentClient() {
     }
   });
 
+  // Facture supprimée : le cloud délègue l'impression à l'agent local
+  cloudSocket.on('ticket:deleted-print', async ({ ticketData }) => {
+    if (!ticketData?.ticketNumber) return;
+    console.log(`🗑️ Impression facture supprimée: ${ticketData.ticketNumber}`);
+    const axios = require('axios');
+    const localPort = process.env.PORT || 5000;
+    try {
+      const resp = await axios.post(
+        `http://localhost:${localPort}/api/printer/print-ticket`,
+        { ticketData },
+        {
+          headers: { 'X-Internal-Key': process.env.JWT_SECRET },
+          timeout: 15000
+        }
+      );
+      if (resp.data?.data?.printed) {
+        console.log('✅ Facture supprimée imprimée localement:', ticketData.ticketNumber);
+      } else {
+        console.warn('⚠️  Facture supprimée: réponse inattendue', resp.data?.message);
+      }
+    } catch (err) {
+      console.error(`❌ Erreur impression facture supprimée: ${err.message}`);
+    }
+  });
+
   // Rapport global : le cloud délègue à l'agent local (même schéma que ticket:auto-print)
   cloudSocket.on('report:print', async ({ date, service }) => {
     console.log(`📊 Impression rapport global reçue: ${date} service=${service}`);

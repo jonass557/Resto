@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ticketsAPI, invalidateCache } from '@/services/api';
-import { usePrinter } from '@/contexts/PrinterContext';
 import { useSocket } from '@/contexts/SocketContext';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent } from '@/components/ui/card';
@@ -17,7 +16,6 @@ import toast from 'react-hot-toast';
 export default function InvoicesAEncaisser() {
   const navigate = useNavigate();
   const { socket } = useSocket();
-  const { printTicket } = usePrinter();
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -47,9 +45,6 @@ export default function InvoicesAEncaisser() {
       markDeleted(deleteTarget._id);
       setDeleteTarget(null);
       invalidateCache('/tickets');
-      if (data.ticketData) {
-        try { await printTicket(data.ticketData); } catch { /* non-bloquant */ }
-      }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Erreur suppression');
     } finally {

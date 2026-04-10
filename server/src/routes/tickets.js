@@ -461,39 +461,30 @@ router.post('/:id/admin-delete', auth, async (req, res) => {
     io.emit('notification:new', notif);
     io.emit('ticket:deleted', { ticketId: req.params.id, ticketNumber });
 
-    // ── Direct server-side print of deleted invoice ──
-    // This runs independently - don't let print errors block the response
+    // ── Impression de la facture supprimée ──
     let printResult = { printed: false };
     try {
       const printerConfig = settings?.printerConfig || {};
       const config = printerConfig || {};
-      console.log('🗑️ Impression facture supprimée:', ticketNumber, '| deleted:', ticketPrintData.deleted, '| printer:', config.type, config.address);
-      const receiptBuffer = buildEscPosReceipt(ticketPrintData, config.paperWidth || 80);
+      console.log('🗑️ Impression facture supprimée:', ticketNumber, '| printer:', config.type, config.address);
 
       if (config.type === 'network' && config.address) {
         const cleanAddr = sanitizeIP(config.address);
         if (isCloudHosted() && isPrivateIP(cleanAddr)) {
-          // Cloud → envoyer via Socket.IO aux agents d'impression
-          const printJob = {
-            id: `del-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            timestamp: new Date().toISOString(),
-            type: 'network',
-            address: cleanAddr,
-            port: config.port || 9100,
-            ticketData: ticketPrintData,
-            receiptBuffer: receiptBuffer.toString('base64'),
-          };
+          // Cloud + IP privée : même schéma que ticket:auto-print — déléguer à l'agent local
+          // L'agent reconstruit le ticket avec deleted:true directement depuis ses données locales
           const agentSockets = await io.in('print-agents').fetchSockets();
           if (agentSockets.length > 0) {
-            agentSockets[0].emit('print-job', printJob);
-            console.log(`📤 Job suppression ${printJob.id} envoyé à l'agent: ${agentSockets[0].id}`);
+            agentSockets[0].emit('ticket:deleted-print', { ticketData: ticketPrintData });
+            console.log(`📤 ticket:deleted-print envoyé à l'agent: ${agentSockets[0].id}`);
           } else {
-            io.emit('print-job', printJob);
-            console.log(`📤 Job suppression ${printJob.id} diffusé (aucun agent)`);
+            io.emit('ticket:deleted-print', { ticketData: ticketPrintData });
+            console.log('📤 ticket:deleted-print diffusé (aucun agent enregistré)');
           }
           printResult = { printed: false, queued: true };
         } else {
-          // Local server → imprimer directement via TCP
+          // Serveur local → impression TCP directe
+          const receiptBuffer = buildEscPosReceipt(ticketPrintData, config.paperWidth || 80);
           const printerSocket = await connectNetworkPrinter(cleanAddr, config.port || 9100);
           await new Promise((resolve, reject) => {
             printerSocket.on('error', reject);
