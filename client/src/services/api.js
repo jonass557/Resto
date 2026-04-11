@@ -2,7 +2,9 @@ import axios from 'axios';
 import { queueOfflineAction } from '@/lib/offlineStorage';
 
 const _rawApiUrl = import.meta.env.VITE_API_URL || '/api';
-const API_URL = _rawApiUrl.startsWith('http') ? _rawApiUrl : `https://${_rawApiUrl}`;
+const API_URL = (_rawApiUrl.startsWith('http') || _rawApiUrl.startsWith('/'))
+  ? _rawApiUrl
+  : `https://${_rawApiUrl}`;
 
 const api = axios.create({
   baseURL: API_URL,

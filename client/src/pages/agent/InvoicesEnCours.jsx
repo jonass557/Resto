@@ -19,7 +19,6 @@ export default function InvoicesEnCours() {
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const [deletedIds, setDeletedIds] = useState(new Set());
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [adminPassword, setAdminPassword] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -30,11 +29,7 @@ export default function InvoicesEnCours() {
   };
 
   const markDeleted = (id) => {
-    setDeletedIds(prev => new Set([...prev, id]));
-    setTimeout(() => {
-      setDeletedIds(prev => { const n = new Set(prev); n.delete(id); return n; });
-      setInvoices(prev => prev.filter(i => i._id !== id));
-    }, 10000);
+    setInvoices(prev => prev.filter(i => i._id !== id));
   };
 
   const handleAdminDelete = async () => {
@@ -111,30 +106,24 @@ export default function InvoicesEnCours() {
         ) : (
           <div className="grid gap-3">
             {invoices.map((inv, idx) => {
-              const isDeleted = deletedIds.has(inv._id);
               return (
-                <Card key={inv._id} className={`transition-all ${isDeleted ? 'opacity-60 border-destructive/50 bg-red-50/40' : 'hover:shadow-md'}`}>
+                <Card key={inv._id} className="transition-all hover:shadow-md">
                   <CardContent className="p-3 sm:p-4">
-                    {isDeleted && (
-                      <div className="flex items-center gap-1.5 mb-2 px-2 py-1 bg-red-100 rounded text-red-700 text-xs font-semibold">
-                        <Ban className="w-3.5 h-3.5" /> FACTURE SUPPRIMÉE
-                      </div>
-                    )}
                     <div className="flex items-start justify-between gap-2 sm:gap-3">
                       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                         <div className="relative shrink-0">
-                          <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center ${isDeleted ? 'bg-red-100' : 'bg-orange-50'}`}>
-                            <UtensilsCrossed className={`w-4 h-4 sm:w-5 sm:h-5 ${isDeleted ? 'text-red-400' : 'text-orange-500'}`} />
+                          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center bg-orange-50">
+                            <UtensilsCrossed className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500" />
                           </div>
                           <span className="absolute -top-1.5 -right-1.5 bg-orange-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">{idx + 1}</span>
                         </div>
                         <div className="min-w-0">
-                          <p className={`font-bold text-sm truncate ${isDeleted ? 'line-through text-muted-foreground' : ''}`}>{inv.ticketNumber}</p>
+                          <p className="font-bold text-sm truncate">{inv.ticketNumber}</p>
                           <p className="text-xs text-muted-foreground">Table {inv.tableNumber || inv.table?.number || '—'}</p>
                           <p className="text-xs text-muted-foreground">{formatDateTime(inv.createdAt)}</p>
                           <div className="mt-1 space-y-0.5">
                             {inv.items?.slice(0, 3).map((item, i) => (
-                              <p key={i} className={`text-xs text-muted-foreground truncate ${isDeleted ? 'line-through' : ''}`}>
+                              <p key={i} className="text-xs text-muted-foreground truncate">
                                 {item.quantity}× {item.name}
                               </p>
                             ))}
@@ -145,26 +134,18 @@ export default function InvoicesEnCours() {
                         </div>
                       </div>
                       <div className="text-right shrink-0 space-y-1.5">
-                        <p className={`font-bold text-sm ${isDeleted ? 'text-red-500 line-through' : 'text-primary'}`}>{formatCurrency(inv.total)}</p>
-                        {isDeleted ? (
-                          <Badge variant="outline" className="text-red-600 border-red-300 bg-red-50 text-xs">
-                            Supprimée
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-orange-600 border-orange-300 bg-orange-50 text-xs">En cours</Badge>
-                        )}
-                        {!isDeleted && (
-                          <div className="mt-1.5 flex flex-col gap-1">
-                            <Button size="sm" variant="outline" className="h-7 text-xs w-full"
-                              onClick={() => navigate(`/agent/restaurant?invoiceId=${inv._id}`)}>
-                              <Plus className="w-3 h-3 mr-1" /> Ajouter
-                            </Button>
-                            <Button size="sm" variant="ghost" className="h-7 text-xs w-full text-destructive hover:text-destructive hover:bg-destructive/10"
-                              onClick={() => openDeleteDialog(inv)}>
-                              <Trash2 className="w-3 h-3 mr-1" /> Supprimer
-                            </Button>
-                          </div>
-                        )}
+                        <p className="font-bold text-sm text-primary">{formatCurrency(inv.total)}</p>
+                        <Badge variant="outline" className="text-orange-600 border-orange-300 bg-orange-50 text-xs">En cours</Badge>
+                        <div className="mt-1.5 flex flex-col gap-1">
+                          <Button size="sm" variant="outline" className="h-7 text-xs w-full"
+                            onClick={() => navigate(`/agent/restaurant?invoiceId=${inv._id}`)}>
+                            <Plus className="w-3 h-3 mr-1" /> Ajouter
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 text-xs w-full text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => openDeleteDialog(inv)}>
+                            <Trash2 className="w-3 h-3 mr-1" /> Supprimer
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </CardContent>
