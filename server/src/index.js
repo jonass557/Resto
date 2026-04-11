@@ -1,6 +1,7 @@
 const express = require('express');
 const http = require('http');
 const path = require('path');
+const axios = require('axios');
 const { Server } = require('socket.io');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -260,7 +261,6 @@ function startPrintAgentClient() {
   cloudSocket.on('ticket:deleted-print', async ({ ticketData }) => {
     if (!ticketData?.ticketNumber) return;
     console.log(`🗑️ Impression facture supprimée: ${ticketData.ticketNumber}`);
-    const axios = require('axios');
     const localPort = process.env.PORT || 5000;
     try {
       const resp = await axios.post(
@@ -284,7 +284,6 @@ function startPrintAgentClient() {
   // Rapport global : le cloud délègue à l'agent local (même schéma que ticket:auto-print)
   cloudSocket.on('report:print', async ({ date, service }) => {
     console.log(`📊 Impression rapport global reçue: ${date} service=${service}`);
-    const axios = require('axios');
     const localPort = process.env.PORT || 5000;
     try {
       const resp = await axios.post(
@@ -336,30 +335,8 @@ mongoose.connect(process.env.MONGODB_URI, {
     setInterval(cleanPaidInvoices, 6 * 60 * 60 * 1000); // toutes les 6h
     server.on('error', (err) => {
       if (err.code === 'EADDRINUSE') {
-        console.warn(`⚠️  Port ${PORT} occupé — libération en cours...`);
-        const { execSync } = require('child_process');
-        try {
-          if (process.platform === 'win32') {
-            const out = execSync(`netstat -ano | findstr :${PORT}`, { encoding: 'utf8' });
-            const pids = new Set();
-            for (const line of out.trim().split('\n')) {
-              const pid = line.trim().split(/\s+/).pop();
-              if (pid && /^\d+$/.test(pid) && pid !== String(process.pid)) pids.add(pid);
-            }
-            for (const pid of pids) {
-              try { execSync(`taskkill /PID ${pid} /F`, { encoding: 'utf8' }); console.log(`✅ PID ${pid} terminé`); }
-              catch (e) { console.warn(`⚠️  Impossible de terminer PID ${pid}: ${e.message}`); }
-            }
-          } else {
-            try { execSync(`fuser -k ${PORT}/tcp`); } catch { /* ignore */ }
-          }
-        } catch (e) {
-          console.error('❌ Impossible de libérer le port:', e.message);
-        }
-        setTimeout(() => {
-          server.close();
-          server.listen(PORT, '0.0.0.0');
-        }, 1500);
+        console.warn(`⚠️  Port ${PORT} occupé — nouvelle tentative dans 2s...`);
+        setTimeout(() => server.listen(PORT, '0.0.0.0'), 2000);
       } else {
         console.error('❌ Erreur serveur:', err);
         process.exit(1);
