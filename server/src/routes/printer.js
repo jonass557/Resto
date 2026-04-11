@@ -694,6 +694,7 @@ router.post('/print-global-report', auth, async (req, res) => {
         const reportEvent = { date: date || new Date().toISOString().split('T')[0], service: service || 'all' };
         if (agentSockets.length > 0) {
           agentSockets[0].emit('report:print', reportEvent);
+          io.emit('report:cleared');
           console.log(`📤 report:print envoyé à l'agent: ${agentSockets[0].id}`);
           return res.json({ success: true, message: 'Rapport envoyé à l\'agent d\'impression', data: { printed: false, queued: true } });
         }
@@ -708,6 +709,7 @@ router.post('/print-global-report', auth, async (req, res) => {
           socket.on('error', reject);
           socket.write(receiptBuffer, (err) => { if (err) return reject(err); socket.end(resolve); });
         });
+        req.app.get('io').emit('report:cleared');
         return res.json({ success: true, message: 'Rapport journalier imprimé', data: { printed: true } });
       } catch (err) {
         return res.status(500).json({ success: false, message: `Erreur impression réseau: ${err.message}`, data: { printed: false } });

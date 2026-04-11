@@ -190,13 +190,16 @@ export default function GlobalReport() {
 
   useEffect(() => {
     if (!socket) return;
+    const clearReport = () => setReport(null);
     socket.on('payment:created', loadReport);
     socket.on('ticket:paid', loadReport);
     socket.on('cashRegister:closed', loadReport);
+    socket.on('report:cleared', clearReport);
     return () => {
       socket.off('payment:created', loadReport);
       socket.off('ticket:paid', loadReport);
       socket.off('cashRegister:closed', loadReport);
+      socket.off('report:cleared', clearReport);
     };
   }, [socket, loadReport]);
 

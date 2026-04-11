@@ -49,6 +49,7 @@ export default function InvoicesEnCours() {
   };
 
   const load = useCallback(async () => {
+    invalidateCache('/tickets');
     try {
       const { data } = await ticketsAPI.getAll({ type: 'invoice', isPaid: false, limit: 100 });
       setInvoices((data.data || []).filter(t => t.memoStatus === 'en_cours'));
