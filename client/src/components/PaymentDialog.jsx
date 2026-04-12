@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { paymentsAPI } from '@/services/api';
+import { paymentsAPI, ticketsAPI } from '@/services/api';
 import { usePrinter } from '@/contexts/PrinterContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { formatCurrency } from '@/lib/utils';
-import { CreditCard, Plus, Trash2, Loader2, Banknote, Smartphone, CreditCard as CardIcon, AlertCircle, CheckCircle } from 'lucide-react';
+import { CreditCard, Plus, Trash2, Loader2, Banknote, Smartphone, CreditCard as CardIcon, AlertCircle, CheckCircle, BookMarked } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const METHOD_OPTIONS = [
@@ -23,9 +23,10 @@ const MOBILE_PROVIDERS = [
   { value: 'orange_money', label: 'Orange Money' },
 ];
 
-export default function PaymentDialog({ open, onOpenChange, invoice, onSuccess, deliveryInfo }) {
+export default function PaymentDialog({ open, onOpenChange, invoice, onSuccess, onMemo, deliveryInfo }) {
   const [paymentLines, setPaymentLines] = useState([{ method: 'cash', amount: '', provider: 'mtn_momo', phone: '', ref: '' }]);
   const [submitting, setSubmitting] = useState(false);
+  const [memoLoading, setMemoLoading] = useState(false);
   const { printTicketById } = usePrinter();
 
   const total = invoice?.total || 0;
@@ -65,6 +66,21 @@ export default function PaymentDialog({ open, onOpenChange, invoice, onSuccess, 
   const handleClose = (val) => {
     if (!val) resetState();
     onOpenChange(val);
+  };
+
+  const handleMemoInDialog = async () => {
+    if (!invoice) return;
+    setMemoLoading(true);
+    try {
+      await ticketsAPI.moveToAEncaisser(invoice._id);
+      resetState();
+      onOpenChange(false);
+      onMemo?.();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Erreur mémo');
+    } finally {
+      setMemoLoading(false);
+    }
   };
 
   const processPayment = async () => {
@@ -281,9 +297,16 @@ export default function PaymentDialog({ open, onOpenChange, invoice, onSuccess, 
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => handleClose(false)}>Annuler</Button>
-          <Button onClick={processPayment} disabled={submitting || !isValid}>
+        <DialogFooter className="flex-col sm:flex-row gap-2">
+          <Button variant="outline" onClick={() => handleClose(false)} className="sm:mr-auto">Annuler</Button>
+          {onMemo && (
+            <Button variant="outline" onClick={handleMemoInDialog} disabled={memoLoading || submitting}
+              className="border-amber-400 text-amber-700 hover:bg-amber-50">
+              {memoLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <BookMarked className="w-4 h-4 mr-2" />}
+              Mémo — À encaisser
+            </Button>
+          )}
+          <Button onClick={processPayment} disabled={submitting || !isValid || memoLoading}>
             {submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CreditCard className="w-4 h-4 mr-2" />}
             Valider le paiement
           </Button>

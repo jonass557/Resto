@@ -529,6 +529,15 @@ export default function NewOrder() {
         onOpenChange={setPaymentDialog}
         invoice={currentInvoice}
         onSuccess={onPaymentSuccess}
+        onMemo={() => {
+          setPaymentDialog(false);
+          setCurrentInvoice(null);
+          setSessionOrders([]);
+          setCart([]);
+          setDeliveryInfo({ clientName: '', phone: '', address: '', notes: '' });
+          try { localStorage.removeItem(`neworder_cart_${user?._id}`); } catch {}
+          toast.success('Facture sauvegardée dans À encaisser');
+        }}
         deliveryInfo={orderType === 'delivery' ? deliveryInfo : null}
       />
     </div>
