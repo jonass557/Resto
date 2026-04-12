@@ -23,8 +23,8 @@ export default function Supervision() {
   const loadData = useCallback(async () => {
     try {
       const [ordersRes, ticketsRes, agentsRes] = await Promise.all([
-        ordersAPI.getAll({ limit: 50 }),
-        ticketsAPI.getAll({ limit: 50 }),
+        ordersAPI.getAll({ limit: 50, activeSession: true }),
+        ticketsAPI.getAll({ limit: 50, activeSession: true }),
         statsAPI.getAgents({ period: 'today' })
       ]);
       setOrders(ordersRes.data.data);
@@ -55,6 +55,7 @@ export default function Supervision() {
     socket.on('ticket:invoice-created', onInvoiceCreated);
     socket.on('payment:created', refresh);
     socket.on('ticket:deleted', refresh);
+    socket.on('cashRegister:closed', refresh);
     return () => {
       socket.off('order:created', refresh);
       socket.off('order:status-changed', refresh);
@@ -62,6 +63,7 @@ export default function Supervision() {
       socket.off('ticket:invoice-created', onInvoiceCreated);
       socket.off('payment:created', refresh);
       socket.off('ticket:deleted', refresh);
+      socket.off('cashRegister:closed', refresh);
     };
   }, [socket, loadData]);
 

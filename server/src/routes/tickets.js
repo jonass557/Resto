@@ -16,7 +16,7 @@ const router = express.Router();
 // GET /api/tickets
 router.get('/', auth, async (req, res) => {
   try {
-    const { type, table, agent, isPaid, memoStatus, startDate, endDate, page = 1, limit = 50 } = req.query;
+    const { type, table, agent, isPaid, memoStatus, startDate, endDate, activeSession, page = 1, limit = 50 } = req.query;
     const filter = {};
     if (type) filter.type = type;
     if (table) filter.table = table;
@@ -27,6 +27,13 @@ router.get('/', auth, async (req, res) => {
       filter.createdAt = {};
       if (startDate) filter.createdAt.$gte = new Date(startDate);
       if (endDate) filter.createdAt.$lte = new Date(endDate);
+    }
+    if (activeSession === 'true') {
+      const openSessions = await CashRegister.find({ status: 'open' });
+      if (openSessions.length === 0) {
+        return res.json({ success: true, data: [], pagination: { total: 0, page: 1, limit: parseInt(limit), pages: 0 } });
+      }
+      filter.$or = openSessions.map(s => ({ agent: s.agent, createdAt: { $gte: s.openedAt } }));
     }
 
     const total = await Ticket.countDocuments(filter);

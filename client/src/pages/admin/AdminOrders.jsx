@@ -21,8 +21,9 @@ export default function AdminOrders() {
   const { socket } = useSocket();
 
   const loadOrders = useCallback(async () => {
+    invalidateCache('/orders');
     try {
-      const { data } = await ordersAPI.getAll({ limit: 200 });
+      const { data } = await ordersAPI.getAll({ limit: 200, activeSession: true });
       setOrders(data.data);
     } catch (error) {
       toast.error('Erreur chargement commandes');
@@ -40,11 +41,13 @@ export default function AdminOrders() {
     socket.on('order:status-changed', reload);
     socket.on('order:deleted', reload);
     socket.on('ticket:paid', reload);
+    socket.on('cashRegister:closed', reload);
     return () => {
       socket.off('order:created', reload);
       socket.off('order:status-changed', reload);
       socket.off('order:deleted', reload);
       socket.off('ticket:paid', reload);
+      socket.off('cashRegister:closed', reload);
     };
   }, [socket, loadOrders]);
 

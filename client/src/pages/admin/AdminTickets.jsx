@@ -24,8 +24,9 @@ export default function AdminTickets() {
   const { printTicketById } = usePrinter();
 
   const loadTickets = useCallback(async () => {
+    invalidateCache('/tickets');
     try {
-      const { data } = await ticketsAPI.getAll({ type: 'invoice', limit: 200 });
+      const { data } = await ticketsAPI.getAll({ type: 'invoice', limit: 200, activeSession: true });
       setTickets(data.data);
     } catch (error) {
       toast.error('Erreur chargement tickets');
@@ -43,11 +44,13 @@ export default function AdminTickets() {
     socket.on('ticket:invoice-created', reload);
     socket.on('ticket:paid', reload);
     socket.on('ticket:deleted', reload);
+    socket.on('cashRegister:closed', reload);
     return () => {
       socket.off('ticket:created', reload);
       socket.off('ticket:invoice-created', reload);
       socket.off('ticket:paid', reload);
       socket.off('ticket:deleted', reload);
+      socket.off('cashRegister:closed', reload);
     };
   }, [socket, loadTickets]);
 
