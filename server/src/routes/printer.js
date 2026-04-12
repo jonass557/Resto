@@ -554,7 +554,7 @@ router.post('/print-global-report', auth, async (req, res) => {
     const dayStart = new Date(targetDate); dayStart.setHours(0, 0, 0, 0);
     const dayEnd   = new Date(targetDate); dayEnd.setHours(23, 59, 59, 999);
 
-    const sessionQuery = { openedAt: { $gte: dayStart, $lte: dayEnd } };
+    const sessionQuery = { openedAt: { $gte: dayStart, $lte: dayEnd }, status: 'closed' };
     if (service && service !== 'all') sessionQuery.service = Number(service);
 
     const sessions = await CashRegister.find(sessionQuery)

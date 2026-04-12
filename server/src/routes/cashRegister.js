@@ -5,6 +5,7 @@ const User = require('../models/User');
 const Notification = require('../models/Notification');
 const { auth, caissierOnly, caissierOrAdmin } = require('../middleware/auth');
 const { generateSessionNumber } = require('../utils/helpers');
+const { invalidateStats } = require('../utils/statsCache');
 
 const router = express.Router();
 
@@ -217,6 +218,7 @@ router.post('/close-service', auth, caissierOnly, async (req, res) => {
     await session.populate('closedBy', 'firstName lastName');
 
     const io = req.app.get('io');
+    invalidateStats();
     io.emit('cashRegister:closed', session);
 
     const agent = await User.findById(agentId);
@@ -276,7 +278,8 @@ router.get('/global-report', auth, caissierOnly, async (req, res) => {
     const dayEnd = new Date(targetDate.setHours(23, 59, 59, 999));
 
     const filter = {
-      openedAt: { $gte: dayStart, $lte: dayEnd }
+      openedAt: { $gte: dayStart, $lte: dayEnd },
+      status: 'closed'
     };
     if (service) filter.service = parseInt(service);
 
@@ -328,7 +331,7 @@ router.get('/daily-detail', auth, caissierOnly, async (req, res) => {
     const dayStart = new Date(targetDate); dayStart.setHours(0, 0, 0, 0);
     const dayEnd   = new Date(targetDate); dayEnd.setHours(23, 59, 59, 999);
 
-    const sessions = await CashRegister.find({ openedAt: { $gte: dayStart, $lte: dayEnd } })
+    const sessions = await CashRegister.find({ openedAt: { $gte: dayStart, $lte: dayEnd }, status: 'closed' })
       .populate('agent', 'firstName lastName')
       .populate('openedBy', 'firstName lastName')
       .populate('closedBy', 'firstName lastName')

@@ -5,6 +5,7 @@ const Ticket = require('../models/Ticket');
 const User = require('../models/User');
 const Product = require('../models/Product');
 const Client = require('../models/Client');
+const CashRegister = require('../models/CashRegister');
 const { auth, adminOnly } = require('../middleware/auth');
 const { getDateRange } = require('../utils/helpers');
 const { statsCache } = require('../utils/statsCache');
@@ -132,16 +133,34 @@ router.get('/agents', auth, adminOnly, SC, async (req, res) => {
 router.get('/agent/:id', auth, SC, async (req, res) => {
   try {
     const { period = 'today' } = req.query;
-    const { start, end } = getDateRange(period);
     const agentId = req.params.id;
+    const mongoose = require('mongoose');
+
+    let start, end;
+
+    if (period === 'today') {
+      // Pour aujourd'hui : compter uniquement depuis la session ouverte en cours.
+      // Si aucune session ouverte (service clôturé), le CA est 0.
+      const openSession = await CashRegister.findOne({ agent: agentId, status: 'open' });
+      if (!openSession) {
+        return res.json({
+          success: true,
+          data: { totalOrders: 0, totalRevenue: 0, totalTickets: 0, avgOrderValue: 0 }
+        });
+      }
+      start = openSession.openedAt;
+      end = new Date();
+    } else {
+      ({ start, end } = getDateRange(period));
+    }
 
     const [orderAgg, paymentAgg, ticketCount] = await Promise.all([
       Order.aggregate([
-        { $match: { agent: new (require('mongoose').Types.ObjectId)(agentId), createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' } } },
+        { $match: { agent: new mongoose.Types.ObjectId(agentId), createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' } } },
         { $group: { _id: null, count: { $sum: 1 } } }
       ]),
       Payment.aggregate([
-        { $match: { agent: new (require('mongoose').Types.ObjectId)(agentId), createdAt: { $gte: start, $lt: end }, status: 'completed' } },
+        { $match: { agent: new mongoose.Types.ObjectId(agentId), createdAt: { $gte: start, $lt: end }, status: 'completed' } },
         { $group: { _id: null, revenue: { $sum: '$amount' }, count: { $sum: 1 } } }
       ]),
       Ticket.countDocuments({ agent: agentId, createdAt: { $gte: start, $lt: end } })
