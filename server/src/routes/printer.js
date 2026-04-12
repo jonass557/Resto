@@ -587,7 +587,7 @@ router.post('/print-global-report', auth, async (req, res) => {
     const ESC = '\x1B';
     const GS  = '\x1D';
     const cur = settings?.currencySymbol || 'FCFA';
-    const fmt = (n) => `${(n || 0).toLocaleString('fr-FR')} ${cur}`;
+    const fmt = (n) => `${Math.round(n || 0)} ${cur}`;
     const padLine = (l, v) => {
       const s = cols - l.length - v.length;
       return l + (s > 0 ? ' '.repeat(s) : ' ') + v + '\n';
