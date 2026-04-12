@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatCurrency } from '@/lib/utils';
-import { ArrowLeft, Plus, Minus, Trash2, Send, Search, Receipt, Loader2, Truck, ShoppingBag, MapPin, Phone, User, LockKeyhole } from 'lucide-react';
+import { ArrowLeft, Plus, Minus, Trash2, Send, Search, Receipt, Loader2, Truck, ShoppingBag, MapPin, Phone, User, LockKeyhole, ChevronLeft, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function NewOrder() {
@@ -33,6 +33,7 @@ export default function NewOrder() {
   );
   const [submitting, setSubmitting] = useState(false);
   const [mobileTab, setMobileTab] = useState('products');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [cartRestored, setCartRestored] = useState(false);
 
   // Delivery info
@@ -283,59 +284,85 @@ export default function NewOrder() {
   }
 
   return (
-    <div className="flex flex-col" style={{ height: 'var(--vvh, 100dvh)', overflow: 'hidden' }}>
+    <div className="flex flex-col" style={{ height: 'var(--vvh, 100dvh)' }}>
       <TopBar title="Nouvelle commande" />
-      <div className="p-2 sm:p-4 flex flex-col lg:flex-row gap-3 lg:gap-4 flex-1 overflow-hidden">
-        {/* Mobile Tab Switcher */}
-        <div className="flex lg:hidden gap-2 shrink-0">
-          <Button variant={mobileTab === 'products' ? 'default' : 'outline'} className="flex-1" onClick={() => setMobileTab('products')}>
-            Produits
-          </Button>
-          <Button variant={mobileTab === 'cart' ? 'default' : 'outline'} className="flex-1" onClick={() => setMobileTab('cart')}>
-            Panier {cart.length > 0 && <Badge className="ml-1.5">{cart.length}</Badge>}
-            {sessionOrders.length > 0 && <Badge variant="outline" className="ml-1">{sessionOrders.length} cmd</Badge>}
-          </Button>
-        </div>
-        {/* Left: Products */}
-        <div className={`flex-1 flex flex-col min-w-0 ${mobileTab === 'cart' ? 'hidden lg:flex' : 'flex'}`}>
-          <div className="flex items-center gap-2 mb-3">
-            <Button variant="ghost" size="sm" onClick={() => navigate('/agent')}>
+
+      {/* Mobile Tab Switcher */}
+      <div className="flex lg:hidden gap-2 p-2 shrink-0">
+        <Button variant={mobileTab === 'products' ? 'default' : 'outline'} className="flex-1 h-9" onClick={() => setMobileTab('products')}>
+          Produits
+        </Button>
+        <Button variant={mobileTab === 'cart' ? 'default' : 'outline'} className="flex-1 h-9" onClick={() => setMobileTab('cart')}>
+          Panier {cart.length > 0 && <Badge className="ml-1.5 h-5 px-1.5">{cart.length}</Badge>}
+          {sessionOrders.length > 0 && <Badge variant="outline" className="ml-1">{sessionOrders.length} cmd</Badge>}
+        </Button>
+      </div>
+
+      <div className="flex flex-1 overflow-hidden">
+
+        {/* ── Category sidebar ── */}
+        <aside className={`hidden lg:flex flex-col border-r bg-card transition-all duration-200 shrink-0 ${sidebarOpen ? 'w-48' : 'w-12'}`}>
+          <div className="flex items-center justify-between p-2 border-b">
+            {sidebarOpen && <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Catégories</span>}
+            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-1.5 rounded hover:bg-accent transition-colors ml-auto">
+              {sidebarOpen ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-1.5 space-y-1">
+            {[{ _id: 'all', name: 'Tout', color: '' }, ...categories].map(cat => (
+              <button key={cat._id} onClick={() => setSelectedCategory(cat._id)} title={cat.name}
+                className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  selectedCategory === cat._id ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent'
+                }`}
+              >
+                {cat.color && <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />}
+                {sidebarOpen && <span className="truncate">{cat.name}</span>}
+              </button>
+            ))}
+          </div>
+        </aside>
+
+        {/* ── Product grid ── */}
+        <div className={`flex-1 flex flex-col overflow-hidden ${mobileTab === 'cart' ? 'hidden lg:flex' : 'flex'}`}>
+          <div className="p-2 border-b flex items-center gap-2 shrink-0">
+            <Button variant="ghost" size="icon" className="shrink-0 h-9 w-9" onClick={() => navigate('/agent')}>
               <ArrowLeft className="w-4 h-4" />
             </Button>
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Rechercher un produit..." className="pl-9 h-9" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+              <Input placeholder="Rechercher..." className="pl-9 h-9" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+            </div>
+            <div className="flex lg:hidden gap-1 overflow-x-auto">
+              {categories.slice(0, 3).map(cat => (
+                <Button key={cat._id} size="sm" variant={selectedCategory === cat._id ? 'default' : 'outline'}
+                  className="shrink-0 h-9 px-2 text-xs"
+                  onClick={() => setSelectedCategory(selectedCategory === cat._id ? 'all' : cat._id)}>
+                  {cat.name}
+                </Button>
+              ))}
             </div>
           </div>
 
-          {/* Category filter */}
-          <div className="flex gap-1 mb-3 flex-wrap">
-            <Button size="sm" variant={selectedCategory === 'all' ? 'default' : 'outline'} onClick={() => setSelectedCategory('all')}>Tout</Button>
-            {categories.map(cat => (
-              <Button key={cat._id} size="sm" variant={selectedCategory === cat._id ? 'default' : 'outline'}
-                onClick={() => setSelectedCategory(cat._id)}
-                style={selectedCategory === cat._id ? { backgroundColor: cat.color } : {}}>
-                {cat.name}
-              </Button>
-            ))}
-          </div>
-
-          {/* Product grid */}
-          <div className="flex-1 overflow-y-auto grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 content-start">
-            {filteredProducts.map(product => (
-              <Card key={product._id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => addToCart(product)}>
-                <CardContent className="p-3 text-center">
+          <div className="flex-1 overflow-y-auto p-2 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2 content-start">
+            {filteredProducts.length === 0 ? (
+              <div className="col-span-full flex items-center justify-center py-16 text-muted-foreground text-sm">Aucun produit trouvé</div>
+            ) : filteredProducts.map(product => (
+              <Card key={product._id} className="cursor-pointer hover:shadow-md hover:border-primary/50 active:scale-95 transition-all select-none" onClick={() => addToCart(product)}>
+                <CardContent className="p-3">
+                  {product.image && <img src={product.image} alt={product.name} className="w-full h-16 object-cover rounded mb-2" />}
                   <p className="font-medium text-sm truncate">{product.name}</p>
-                  <p className="text-primary font-bold mt-1">{formatCurrency(product.price)}</p>
-                  {product.stock !== -1 && <p className="text-xs text-muted-foreground">Stock: {product.stock}</p>}
+                  <p className="text-primary font-bold text-sm mt-0.5">{formatCurrency(product.price)}</p>
+                  {product.category?.color && (
+                    <span className="inline-block w-2 h-2 rounded-full mt-1" style={{ backgroundColor: product.category.color }} />
+                  )}
                 </CardContent>
               </Card>
             ))}
           </div>
         </div>
 
-        {/* Right: Order Type + Cart + Session Orders */}
-        <div className={`lg:w-96 flex flex-col bg-card rounded-lg border overflow-hidden ${mobileTab === 'products' ? 'hidden lg:flex' : 'flex flex-1'}`}>
+        {/* ── Cart panel ── */}
+        <div className={`lg:w-96 flex flex-col border-l bg-card ${mobileTab === 'products' ? 'hidden lg:flex' : 'flex flex-1'}`}>
           {/* Order Type Selector */}
           <div className="p-3 border-b">
             <Tabs value={orderType} onValueChange={setOrderType}>
@@ -449,7 +476,7 @@ export default function NewOrder() {
         </div>
       </div>
 
-      {/* Split Payment Dialog */}
+      {/* Payment Dialog */}
       <PaymentDialog
         open={paymentDialog}
         onOpenChange={setPaymentDialog}
