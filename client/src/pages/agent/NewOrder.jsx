@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatCurrency } from '@/lib/utils';
-import { ArrowLeft, Plus, Minus, Trash2, Send, Search, Receipt, Loader2, Truck, ShoppingBag, MapPin, Phone, User, LockKeyhole, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Plus, Minus, Trash2, Send, Search, Receipt, Loader2, Truck, ShoppingBag, MapPin, Phone, User, LockKeyhole, ChevronLeft, ChevronRight, BookMarked } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function NewOrder() {
@@ -32,6 +32,7 @@ export default function NewOrder() {
     !readCache('/products', { isAvailable: true }) || !readCache('/categories')
   );
   const [submitting, setSubmitting] = useState(false);
+  const [memoLoading, setMemoLoading] = useState(false);
   const [mobileTab, setMobileTab] = useState('products');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [cartRestored, setCartRestored] = useState(false);
@@ -228,6 +229,45 @@ export default function NewOrder() {
       toast(`🖨️ Facture ${data.data.ticketNumber} envoyée à l'impression`, { icon: '🧾', duration: 4000 });
     } catch (error) {
       toast.error(error.response?.data?.message || 'Erreur génération facture');
+    }
+  };
+
+  const handleMemo = async () => {
+    if (!cashSession) { toast.error('Votre caisse n\'est pas ouverte'); return; }
+    if (cart.length === 0 && sessionOrders.length === 0) { toast.error('Aucune commande à sauvegarder'); return; }
+    setMemoLoading(true);
+    try {
+      let allOrders = [...sessionOrders];
+
+      // If cart has items, submit as order first
+      if (cart.length > 0) {
+        const payload = {
+          orderType,
+          items: cart.map(item => ({ productId: item.productId, quantity: item.quantity, notes: item.notes }))
+        };
+        if (orderType === 'delivery') payload.deliveryInfo = deliveryInfo;
+        const { data: orderData } = await ordersAPI.create(payload);
+        allOrders = [...allOrders, orderData.data.order];
+        setCart([]);
+      }
+
+      // Create consolidated invoice from all orders
+      const orderIds = allOrders.map(o => o._id);
+      const { data } = await ticketsAPI.createInvoiceFromOrders(orderIds);
+      const invoiceId = data.data._id;
+
+      // Move invoice to À encaisser
+      await ticketsAPI.moveToAEncaisser(invoiceId);
+
+      // Clear session
+      setSessionOrders([]);
+      setDeliveryInfo({ clientName: '', phone: '', address: '', notes: '' });
+      try { localStorage.removeItem(`neworder_cart_${user?._id}`); } catch {}
+      toast.success('Facture sauvegardée dans À encaisser');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Erreur mémo');
+    } finally {
+      setMemoLoading(false);
     }
   };
 
@@ -454,21 +494,28 @@ export default function NewOrder() {
           </div>
 
           {/* Bottom Actions */}
-          <div className="border-t p-3 space-y-2">
+          <div className={`border-t p-3 space-y-2 ${(memoLoading || submitting) ? 'pointer-events-none opacity-80' : ''}`}>
             {sessionOrders.length > 0 && (
               <div className="flex justify-between text-sm font-bold p-2 bg-muted rounded-lg">
-                <span>Total session ({sessionOrders.length} commandes)</span>
-                <span>{formatCurrency(sessionTotal)}</span>
+                <span>Total session ({sessionOrders.length} cmd)</span>
+                <span>{formatCurrency(sessionTotal + cartTotal)}</span>
               </div>
             )}
 
-            <Button className="w-full" onClick={submitOrder} disabled={cart.length === 0 || submitting}>
+            <Button className="w-full" onClick={submitOrder} disabled={cart.length === 0 || submitting || memoLoading}>
               {submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
               Passer la commande ({formatCurrency(cartTotal)})
             </Button>
 
+            {(sessionOrders.length > 0 || cart.length > 0) && (
+              <Button className="w-full" variant="outline" onClick={handleMemo} disabled={memoLoading || submitting}>
+                {memoLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <BookMarked className="w-4 h-4 mr-2" />}
+                Mémo — Garder dans À encaisser
+              </Button>
+            )}
+
             {sessionOrders.length > 0 && (
-              <Button className="w-full" variant="secondary" onClick={generateConsolidatedInvoice}>
+              <Button className="w-full" variant="secondary" onClick={generateConsolidatedInvoice} disabled={memoLoading}>
                 <Receipt className="w-4 h-4 mr-2" /> Facture globale & Paiement ({formatCurrency(sessionTotal)})
               </Button>
             )}
