@@ -101,7 +101,7 @@ export default function ProductManagement() {
         stock: -1,
         taxRate: parseFloat(productForm.taxRate) || 0
       };
-      if (!data.category) data.category = null;
+      if (!data.category || data.category === '__none__') data.category = null;
       if (editingProduct) {
         await productsAPI.update(editingProduct._id, data);
         toast.success('Produit mis à jour');
@@ -273,10 +273,10 @@ export default function ProductManagement() {
             <div><Label>Nom *</Label><Input value={productForm.name} onChange={e => setProductForm({...productForm, name: e.target.value})} /></div>
             <div><Label>Prix de vente *</Label><Input type="number" value={productForm.price} onChange={e => setProductForm({...productForm, price: e.target.value})} /></div>
             <div><Label>Catégorie <span className="text-muted-foreground text-xs font-normal">(optionnel)</span></Label>
-              <Select value={productForm.category} onValueChange={v => setProductForm({...productForm, category: v})}>
+              <Select value={productForm.category || '__none__'} onValueChange={v => setProductForm({...productForm, category: v === '__none__' ? '' : v})}>
                 <SelectTrigger><SelectValue placeholder="Sans catégorie" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Sans catégorie</SelectItem>
+                  <SelectItem value="__none__">Sans catégorie</SelectItem>
                   {categories.map(cat => <SelectItem key={cat._id} value={cat._id}>{cat.name}</SelectItem>)}
                 </SelectContent>
               </Select>
