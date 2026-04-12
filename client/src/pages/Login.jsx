@@ -104,7 +104,7 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!email || !password) { toast.error('Veuillez remplir tous les champs'); return; }
+    if (!password) { toast.error('Mot de passe requis'); return; }
     setLoading(true);
     const result = await doLogin(email, password);
     if (result === 'network') startWakePolling(email, password);
@@ -189,12 +189,12 @@ export default function Login() {
 
             <form onSubmit={handleSubmit} className="space-y-5">
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-sm font-medium">Email</Label>
+                <Label htmlFor="email" className="text-sm font-medium">Email <span className="text-gray-400 font-normal text-xs">(optionnel)</span></Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <Input
                     id="email"
-                    type="email"
+                    type="text"
                     placeholder="votre@email.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}

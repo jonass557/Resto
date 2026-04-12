@@ -10,22 +10,35 @@ const router = express.Router();
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ success: false, message: 'Email et mot de passe requis' });
+    if (!password) {
+      return res.status(400).json({ success: false, message: 'Mot de passe requis' });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() });
-    if (!user) {
-      return res.status(401).json({ success: false, message: 'Identifiants invalides' });
-    }
+    let user = null;
 
-    if (!user.isActive) {
-      return res.status(403).json({ success: false, message: 'Compte désactivé' });
-    }
-
-    const isMatch = await user.comparePassword(password);
-    if (!isMatch) {
-      return res.status(401).json({ success: false, message: 'Identifiants invalides' });
+    if (email && email.trim()) {
+      // Login par email
+      user = await User.findOne({ email: email.toLowerCase().trim() });
+      if (!user) {
+        return res.status(401).json({ success: false, message: 'Identifiants invalides' });
+      }
+      if (!user.isActive) {
+        return res.status(403).json({ success: false, message: 'Compte désactivé' });
+      }
+      const isMatch = await user.comparePassword(password);
+      if (!isMatch) {
+        return res.status(401).json({ success: false, message: 'Identifiants invalides' });
+      }
+    } else {
+      // Login par mot de passe seul — parcourir les utilisateurs actifs
+      const activeUsers = await User.find({ isActive: true });
+      for (const u of activeUsers) {
+        const matches = await u.comparePassword(password);
+        if (matches) { user = u; break; }
+      }
+      if (!user) {
+        return res.status(401).json({ success: false, message: 'Identifiants invalides' });
+      }
     }
 
     // Use updateOne to bypass bcrypt pre-save hook (avoids ~800ms re-hash)

@@ -48,7 +48,7 @@ export default function UserManagement() {
   };
 
   const handleSubmit = async () => {
-    if (!form.firstName || !form.lastName || !form.email) { toast.error('Veuillez remplir les champs obligatoires'); return; }
+    if (!form.firstName || !form.lastName) { toast.error('Veuillez remplir les champs obligatoires'); return; }
     if (!editingUser && !form.password) { toast.error('Mot de passe requis'); return; }
     setSubmitting(true);
     try {
@@ -148,7 +148,7 @@ export default function UserManagement() {
               <div><Label>Prénom *</Label><Input value={form.firstName} onChange={e => setForm({...form, firstName: e.target.value})} /></div>
               <div><Label>Nom *</Label><Input value={form.lastName} onChange={e => setForm({...form, lastName: e.target.value})} /></div>
             </div>
-            <div><Label>Email *</Label><Input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} /></div>
+            <div><Label>Email <span className="text-muted-foreground text-xs font-normal">(optionnel)</span></Label><Input type="text" placeholder="ex: agent@resto.com" value={form.email} onChange={e => setForm({...form, email: e.target.value})} /></div>
             <div><Label>{editingUser ? 'Nouveau mot de passe (laisser vide pour ne pas changer)' : 'Mot de passe *'}</Label><Input type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} /></div>
             <div><Label>Téléphone</Label><Input value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} /></div>
             <div><Label>Rôle</Label>

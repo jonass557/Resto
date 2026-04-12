@@ -31,12 +31,16 @@ router.post('/', auth, adminOnly, async (req, res) => {
   try {
     const { firstName, lastName, email, password, role, phone } = req.body;
 
-    const existing = await User.findOne({ email: email.toLowerCase() });
-    if (existing) {
-      return res.status(400).json({ success: false, message: 'Cet email est déjà utilisé' });
+    if (email && email.trim()) {
+      const existing = await User.findOne({ email: email.toLowerCase().trim() });
+      if (existing) {
+        return res.status(400).json({ success: false, message: 'Cet email est déjà utilisé' });
+      }
     }
 
-    const user = new User({ firstName, lastName, email, password, role: role || 'agent', phone });
+    const userData = { firstName, lastName, password, role: role || 'agent', phone };
+    if (email && email.trim()) userData.email = email.toLowerCase().trim();
+    const user = new User(userData);
     await user.save();
 
     const io = req.app.get('io');
