@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { paymentsAPI } from '@/services/api';
+import { usePrinter } from '@/contexts/PrinterContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,6 +26,7 @@ const MOBILE_PROVIDERS = [
 export default function PaymentDialog({ open, onOpenChange, invoice, onSuccess, deliveryInfo }) {
   const [paymentLines, setPaymentLines] = useState([{ method: 'cash', amount: '', provider: 'mtn_momo', phone: '', ref: '' }]);
   const [submitting, setSubmitting] = useState(false);
+  const { printTicketById } = usePrinter();
 
   const total = invoice?.total || 0;
 
@@ -102,6 +104,8 @@ export default function PaymentDialog({ open, onOpenChange, invoice, onSuccess, 
       toast.success('Paiement effectué !');
       resetState();
       onSuccess?.();
+      // Auto-print invoice after payment
+      try { await printTicketById(invoice._id); } catch { /* printer unavailable */ }
     } catch (error) {
       toast.error(error.response?.data?.message || 'Erreur paiement');
     } finally {
