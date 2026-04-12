@@ -94,6 +94,16 @@ export default function Restaurant() {
     }
   }, [existingInvoiceId]);
 
+  // Helper: reset session state + clear localStorage
+  const clearSession = useCallback(() => {
+    setSessionInvoiceId(null);
+    setSessionTotal(0);
+    setCart([]);
+    setTableConfirmed(false);
+    setTableNumber('');
+    try { localStorage.removeItem(`restaurant_cart_${user?._id}`); } catch {}
+  }, [user?._id]);
+
   // Restore cart from localStorage (only in normal/new mode — not when editing existing invoice)
   useEffect(() => {
     if (!user?._id || cartRestored || existingInvoiceId) { setCartRestored(true); return; }
@@ -110,6 +120,19 @@ export default function Restaurant() {
     } catch {}
     setCartRestored(true);
   }, [user?._id, cartRestored, existingInvoiceId]);
+
+  // Validate sessionInvoiceId after restoration — clear if invoice is paid, à encaisser or deleted
+  useEffect(() => {
+    if (!cartRestored || !sessionInvoiceId || existingInvoiceId) return;
+    ticketsAPI.getById(sessionInvoiceId)
+      .then(res => {
+        const inv = res.data.data;
+        if (inv.isPaid || inv.memoStatus === 'a_encaisser') {
+          clearSession();
+        }
+      })
+      .catch(() => { clearSession(); }); // 404 = deleted
+  }, [cartRestored, sessionInvoiceId, existingInvoiceId, clearSession]);
 
   // Save cart to localStorage on change
   useEffect(() => {
@@ -134,6 +157,23 @@ export default function Restaurant() {
       socket.off('cashRegister:closed', checkCashSession);
     };
   }, [socket, checkCashSession]);
+
+  // Clear session if current invoice is paid, deleted or moved to à encaisser externally
+  useEffect(() => {
+    if (!socket || !sessionInvoiceId) return;
+    const handleInvalidated = (data) => {
+      const id = data?.ticketId || data?._id;
+      if (id && id.toString() === sessionInvoiceId.toString()) clearSession();
+    };
+    socket.on('ticket:paid', handleInvalidated);
+    socket.on('ticket:deleted', handleInvalidated);
+    socket.on('invoice:memo', handleInvalidated);
+    return () => {
+      socket.off('ticket:paid', handleInvalidated);
+      socket.off('ticket:deleted', handleInvalidated);
+      socket.off('invoice:memo', handleInvalidated);
+    };
+  }, [socket, sessionInvoiceId, clearSession]);
 
   // Refresh products/categories when admin adds/updates/deletes
   useEffect(() => {
