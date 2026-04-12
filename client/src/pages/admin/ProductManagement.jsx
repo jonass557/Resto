@@ -76,7 +76,7 @@ export default function ProductManagement() {
   // Product handlers
   const openCreateProduct = () => {
     setEditingProduct(null);
-    setProductForm({ name: '', price: '', category: categories[0]?._id || '', description: '', taxRate: '0', isAvailable: true });
+    setProductForm({ name: '', price: '', category: '', description: '', taxRate: '0', isAvailable: true });
     setProductDialog(true);
   };
 
@@ -91,7 +91,7 @@ export default function ProductManagement() {
   };
 
   const handleProductSubmit = async () => {
-    if (!productForm.name || !productForm.price || !productForm.category) { toast.error('Champs obligatoires manquants'); return; }
+    if (!productForm.name || !productForm.price) { toast.error('Nom et prix requis'); return; }
     setSubmitting(true);
     try {
       const data = {
@@ -101,6 +101,7 @@ export default function ProductManagement() {
         stock: -1,
         taxRate: parseFloat(productForm.taxRate) || 0
       };
+      if (!data.category) data.category = null;
       if (editingProduct) {
         await productsAPI.update(editingProduct._id, data);
         toast.success('Produit mis à jour');
@@ -271,10 +272,13 @@ export default function ProductManagement() {
           <div className="space-y-3 max-h-96 overflow-y-auto">
             <div><Label>Nom *</Label><Input value={productForm.name} onChange={e => setProductForm({...productForm, name: e.target.value})} /></div>
             <div><Label>Prix de vente *</Label><Input type="number" value={productForm.price} onChange={e => setProductForm({...productForm, price: e.target.value})} /></div>
-            <div><Label>Catégorie *</Label>
+            <div><Label>Catégorie <span className="text-muted-foreground text-xs font-normal">(optionnel)</span></Label>
               <Select value={productForm.category} onValueChange={v => setProductForm({...productForm, category: v})}>
-                <SelectTrigger><SelectValue placeholder="Choisir" /></SelectTrigger>
-                <SelectContent>{categories.map(cat => <SelectItem key={cat._id} value={cat._id}>{cat.name}</SelectItem>)}</SelectContent>
+                <SelectTrigger><SelectValue placeholder="Sans catégorie" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Sans catégorie</SelectItem>
+                  {categories.map(cat => <SelectItem key={cat._id} value={cat._id}>{cat.name}</SelectItem>)}
+                </SelectContent>
               </Select>
             </div>
             <div><Label>Description</Label><Input value={productForm.description} onChange={e => setProductForm({...productForm, description: e.target.value})} /></div>
