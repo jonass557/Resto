@@ -97,6 +97,19 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// ── Serve built React frontend (local/offline mode) ──────────────────────────
+// After building the client (cd client && npm run build), the tablet
+// accesses http://localhost:5000 or http://<IP>:5000 — no Vercel needed.
+const clientBuildPath = path.join(__dirname, '../../client/dist');
+if (require('fs').existsSync(clientBuildPath)) {
+  app.use(express.static(clientBuildPath));
+  // SPA fallback — all non-API routes serve index.html
+  app.get(/^\/(?!api|socket\.io).*/, (req, res) => {
+    res.sendFile(path.join(clientBuildPath, 'index.html'));
+  });
+  console.log('📦 Frontend servi depuis client/dist');
+}
+
 // Print-server discovery — allows clients to detect a local print server
 app.get('/api/print-server/ping', (req, res) => {
   const os = require('os');
