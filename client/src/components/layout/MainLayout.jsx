@@ -25,7 +25,7 @@ export default function MainLayout() {
           <Menu className="w-5 h-5" />
         </button>
         <span className="font-semibold text-sm flex-1">Restaurant Manager</span>
-        <SyncStatusBar />
+        <SyncStatusBar compact />
       </div>
 
       {/* Mobile overlay */}

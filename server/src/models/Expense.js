@@ -13,7 +13,8 @@ const expenseSchema = new mongoose.Schema({
   paymentMethod: { type: String, enum: ['cash', 'card', 'transfer', 'other'], default: 'cash' },
   agent: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   receipt: { type: String, default: '' },
-  notes: { type: String, default: '' }
+  notes: { type: String, default: '' },
+  syncedToCloud: { type: Boolean, default: false }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Expense', expenseSchema);

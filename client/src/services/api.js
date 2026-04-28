@@ -355,6 +355,12 @@ export const printerAPI = {
   },
 };
 
+// Cloud Sync (tablet → cloud)
+export const cloudSyncAPI = {
+  getStatus: () => api.get('/sync/status'),
+  push: () => api.post('/sync/push'),
+};
+
 // Settings
 export const settingsAPI = {
   get: () => cachedGet('/settings'),

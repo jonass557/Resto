@@ -49,7 +49,8 @@ const orderSchema = new mongoose.Schema({
   },
   notes: { type: String, default: '' },
   ticketPrinted: { type: Boolean, default: false },
-  ticketNumber: { type: String, default: '' }
+  ticketNumber: { type: String, default: '' },
+  syncedToCloud: { type: Boolean, default: false }
 }, { timestamps: true });
 
 orderSchema.index({ table: 1, status: 1 });

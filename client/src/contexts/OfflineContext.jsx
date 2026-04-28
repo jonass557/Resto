@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { getPendingActions, removePendingAction, getPendingCount, queueOfflineAction, clearPendingActions } from '@/lib/offlineStorage';
 import api from '@/services/api';
+import { cloudSyncAPI } from '@/services/api';
 import toast from 'react-hot-toast';
 
 const OfflineContext = createContext();
@@ -173,6 +174,56 @@ export function OfflineProvider({ children }) {
     await refreshPendingCount();
   };
 
+  // ── Cloud sync (tablet DB → Render cloud) ─────────────────────────────────
+  const [cloudPendingCount, setCloudPendingCount] = useState(0);
+  const [cloudSyncing, setCloudSyncing] = useState(false);
+  const [lastCloudSyncAt, setLastCloudSyncAt] = useState(null);
+  const [lastCloudSyncError, setLastCloudSyncError] = useState(null);
+
+  // Refresh how many documents need to be synced to cloud
+  const refreshCloudStatus = useCallback(async () => {
+    try {
+      const { data } = await cloudSyncAPI.getStatus();
+      setCloudPendingCount(data.data?.total || 0);
+      return data.data?.total || 0;
+    } catch { return 0; }
+  }, []);
+
+  // Refresh cloud status on mount and periodically
+  useEffect(() => {
+    refreshCloudStatus();
+    const interval = setInterval(refreshCloudStatus, 60000);
+    return () => clearInterval(interval);
+  }, [refreshCloudStatus]);
+
+  // Push all unsynced data to cloud
+  const syncToCloud = useCallback(async () => {
+    if (cloudSyncing) return;
+    setCloudSyncing(true);
+    setLastCloudSyncError(null);
+
+    try {
+      const { data } = await cloudSyncAPI.push();
+      setLastCloudSyncAt(new Date());
+      await refreshCloudStatus();
+
+      if (data.success) {
+        toast.success(data.message, { icon: '☁️', duration: 5000 });
+      } else {
+        setLastCloudSyncError(data.message);
+        toast.error(data.message, { duration: 5000 });
+      }
+      return data;
+    } catch (error) {
+      const msg = error.response?.data?.message || error.message;
+      setLastCloudSyncError(msg);
+      toast.error(`Erreur sync cloud: ${msg}`, { duration: 5000 });
+      return null;
+    } finally {
+      setCloudSyncing(false);
+    }
+  }, [cloudSyncing, refreshCloudStatus]);
+
   // Derived status for UI
   const syncStatus = syncing
     ? 'syncing'
@@ -195,7 +246,13 @@ export function OfflineProvider({ children }) {
       syncPendingActions,
       clearAllPending,
       refreshPendingCount,
-      checkServerReachable
+      checkServerReachable,
+      cloudPendingCount,
+      cloudSyncing,
+      lastCloudSyncAt,
+      lastCloudSyncError,
+      syncToCloud,
+      refreshCloudStatus
     }}>
       {children}
     </OfflineContext.Provider>

@@ -32,7 +32,8 @@ const paymentSchema = new mongoose.Schema({
     enum: ['pending', 'completed', 'refunded', 'cancelled'],
     default: 'completed'
   },
-  notes: { type: String, default: '' }
+  notes: { type: String, default: '' },
+  syncedToCloud: { type: Boolean, default: false }
 }, { timestamps: true });
 
 paymentSchema.index({ agent: 1, createdAt: -1 });

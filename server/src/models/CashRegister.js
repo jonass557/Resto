@@ -25,7 +25,8 @@ const cashRegisterSchema = new mongoose.Schema({
   },
   openedAt: { type: Date, default: Date.now },
   closedAt: { type: Date },
-  notes: { type: String, default: '' }
+  notes: { type: String, default: '' },
+  syncedToCloud: { type: Boolean, default: false }
 }, { timestamps: true });
 
 cashRegisterSchema.index({ agent: 1, status: 1 });

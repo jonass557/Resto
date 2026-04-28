@@ -39,7 +39,8 @@ const ticketSchema = new mongoose.Schema({
   printedAt: { type: Date },
   tableNumber: { type: String, default: '' },
   memoStatus: { type: String, enum: ['en_cours', 'a_encaisser'], default: 'en_cours' },
-  notes: { type: String, default: '' }
+  notes: { type: String, default: '' },
+  syncedToCloud: { type: Boolean, default: false }
 }, { timestamps: true });
 
 ticketSchema.index({ table: 1, type: 1 });
