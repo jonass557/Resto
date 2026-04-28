@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
+import SyncStatusBar from '@/components/SyncStatusBar';
 import { Menu } from 'lucide-react';
 
 export default function MainLayout() {
@@ -23,7 +24,8 @@ export default function MainLayout() {
         >
           <Menu className="w-5 h-5" />
         </button>
-        <span className="font-semibold text-sm">Restaurant Manager</span>
+        <span className="font-semibold text-sm flex-1">Restaurant Manager</span>
+        <SyncStatusBar />
       </div>
 
       {/* Mobile overlay */}

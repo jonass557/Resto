@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import SyncStatusBar from '@/components/SyncStatusBar';
 
 const adminNav = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true },
@@ -176,6 +177,13 @@ export default function Sidebar({ onNavigate, collapsed, onToggleCollapse }) {
       </nav>
 
       <Separator />
+
+      {/* Sync status — desktop */}
+      {!collapsed && (
+        <div className="hidden lg:block px-2 pt-2">
+          <SyncStatusBar />
+        </div>
+      )}
 
       <div className={cn('p-2 space-y-1', collapsed && 'items-center')}>
         {!collapsed && (

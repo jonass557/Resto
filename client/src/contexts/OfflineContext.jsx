@@ -1,14 +1,21 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { getPendingActions, removePendingAction, getPendingCount, queueOfflineAction, clearPendingActions } from '@/lib/offlineStorage';
 import api from '@/services/api';
 import toast from 'react-hot-toast';
 
 const OfflineContext = createContext();
 
+// Sync retry interval when pending actions exist (30s)
+const RETRY_INTERVAL = 30000;
+
 export function OfflineProvider({ children }) {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [isServerReachable, setIsServerReachable] = useState(true);
   const [pendingCount, setPendingCount] = useState(0);
   const [syncing, setSyncing] = useState(false);
+  const [lastSyncAt, setLastSyncAt] = useState(null);
+  const [lastSyncError, setLastSyncError] = useState(null);
+  const retryTimer = useRef(null);
 
   // Listen to online/offline events
   useEffect(() => {
@@ -18,6 +25,7 @@ export function OfflineProvider({ children }) {
     };
     const goOffline = () => {
       setIsOnline(false);
+      setIsServerReachable(false);
       toast('Mode hors-ligne activé', { icon: '🔴', duration: 4000 });
     };
 
@@ -29,24 +37,37 @@ export function OfflineProvider({ children }) {
     };
   }, []);
 
+  // Ping server to check real connectivity (not just WiFi link)
+  const checkServerReachable = useCallback(async () => {
+    try {
+      await api.get('/health', { timeout: 5000 });
+      setIsServerReachable(true);
+      return true;
+    } catch {
+      setIsServerReachable(false);
+      return false;
+    }
+  }, []);
+
+  // Check server when navigator goes online
+  useEffect(() => {
+    if (isOnline) {
+      checkServerReachable();
+    }
+  }, [isOnline, checkServerReachable]);
+
   // Refresh pending count
   const refreshPendingCount = useCallback(async () => {
     try {
       const count = await getPendingCount();
       setPendingCount(count);
-    } catch { /* ignore */ }
+      return count;
+    } catch { return 0; }
   }, []);
 
   useEffect(() => {
     refreshPendingCount();
   }, [refreshPendingCount]);
-
-  // Auto-sync when coming back online
-  useEffect(() => {
-    if (isOnline && pendingCount > 0) {
-      syncPendingActions();
-    }
-  }, [isOnline]);
 
   // Queue an action for offline sync
   const addOfflineAction = async (action) => {
@@ -55,15 +76,24 @@ export function OfflineProvider({ children }) {
   };
 
   // Sync all pending actions to server
-  const syncPendingActions = async () => {
-    if (syncing || !isOnline) return;
+  const syncPendingActions = useCallback(async (silent = false) => {
+    if (syncing) return { success: 0, failed: 0 };
     setSyncing(true);
+    setLastSyncError(null);
 
     try {
+      const reachable = await checkServerReachable();
+      if (!reachable) {
+        if (!silent) toast.error('Serveur inaccessible — synchronisation impossible');
+        setLastSyncError('Serveur inaccessible');
+        return { success: 0, failed: 0 };
+      }
+
       const actions = await getPendingActions();
       if (actions.length === 0) {
-        setSyncing(false);
-        return;
+        setLastSyncAt(new Date());
+        if (!silent) toast.success('Tout est synchronisé', { icon: '✅', duration: 2000 });
+        return { success: 0, failed: 0 };
       }
 
       let successCount = 0;
@@ -90,20 +120,52 @@ export function OfflineProvider({ children }) {
       }
 
       await refreshPendingCount();
+      setLastSyncAt(new Date());
 
-      if (successCount > 0) {
+      if (successCount > 0 && !silent) {
         toast.success(`${successCount} action(s) synchronisée(s)`, { icon: '🔄', duration: 4000 });
       }
       if (failCount > 0) {
-        toast.error(`${failCount} action(s) échouée(s) lors de la synchronisation`);
+        const msg = `${failCount} action(s) échouée(s)`;
+        setLastSyncError(msg);
+        if (!silent) toast.error(msg);
       }
+
+      return { success: successCount, failed: failCount };
     } catch (error) {
       console.error('Sync error:', error);
-      toast.error('Erreur de synchronisation');
+      setLastSyncError(error.message);
+      if (!silent) toast.error('Erreur de synchronisation');
+      return { success: 0, failed: 0 };
     } finally {
       setSyncing(false);
     }
-  };
+  }, [syncing, checkServerReachable, refreshPendingCount]);
+
+  // Auto-sync when coming back online
+  useEffect(() => {
+    if (isOnline && pendingCount > 0) {
+      const timer = setTimeout(() => syncPendingActions(true), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [isOnline]);
+
+  // Periodic retry when pending actions exist
+  useEffect(() => {
+    if (retryTimer.current) clearInterval(retryTimer.current);
+
+    if (pendingCount > 0) {
+      retryTimer.current = setInterval(async () => {
+        if (!syncing && navigator.onLine) {
+          await syncPendingActions(true);
+        }
+      }, RETRY_INTERVAL);
+    }
+
+    return () => {
+      if (retryTimer.current) clearInterval(retryTimer.current);
+    };
+  }, [pendingCount, syncing]);
 
   // Force clear all pending
   const clearAllPending = async () => {
@@ -111,15 +173,29 @@ export function OfflineProvider({ children }) {
     await refreshPendingCount();
   };
 
+  // Derived status for UI
+  const syncStatus = syncing
+    ? 'syncing'
+    : pendingCount > 0
+      ? 'pending'
+      : isOnline && isServerReachable
+        ? 'synced'
+        : 'offline';
+
   return (
     <OfflineContext.Provider value={{
       isOnline,
+      isServerReachable,
       pendingCount,
       syncing,
+      lastSyncAt,
+      lastSyncError,
+      syncStatus,
       addOfflineAction,
       syncPendingActions,
       clearAllPending,
-      refreshPendingCount
+      refreshPendingCount,
+      checkServerReachable
     }}>
       {children}
     </OfflineContext.Provider>
