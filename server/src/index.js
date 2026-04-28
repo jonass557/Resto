@@ -164,18 +164,8 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Serve built client (for local print-server mode)
-const clientBuildPath = path.join(__dirname, '../../client/dist');
-const fs = require('fs');
-if (fs.existsSync(clientBuildPath)) {
-  app.use(express.static(clientBuildPath));
-  // SPA fallback — serve index.html for all non-API routes
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(clientBuildPath, 'index.html'));
-  });
-  console.log('📂 Serving client build from', clientBuildPath);
-} else {
-  // 404 handler (no client build available)
+// 404 handler (when no client build and route not matched)
+if (!require('fs').existsSync(path.join(__dirname, '../../client/dist'))) {
   app.use((req, res) => {
     res.status(404).json({ success: false, message: 'Route non trouvée' });
   });
