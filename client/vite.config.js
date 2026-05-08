@@ -9,6 +9,9 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       workbox: {
+        // Force new SW to activate immediately (no stale cache)
+        skipWaiting: true,
+        clientsClaim: true,
         // Cache all static assets (JS, CSS, images, fonts)
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         // Cache API responses for offline use

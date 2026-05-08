@@ -48,6 +48,9 @@ export default function Login() {
   const navigate = useNavigate();
   const pollRef = useRef(null);
   const apiBase = import.meta.env.VITE_API_URL || '/api';
+  // Detect if we're served from the same origin (local/offline mode)
+  // In that case the server is already up — no need for wake polling
+  const isLocalMode = !import.meta.env.VITE_API_URL || import.meta.env.VITE_API_URL === '/api';
 
   const stopPoll = () => {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
@@ -73,13 +76,20 @@ export default function Login() {
   const startWakePolling = useCallback((emailVal, passVal) => {
     setServerWaking(true);
     let elapsed = 0;
+    // In local mode, use shorter intervals and shorter max wait
+    const interval = isLocalMode ? 3000 : 12000;
+    const maxWait = isLocalMode ? 15 : 180;
     pollRef.current = setInterval(async () => {
-      elapsed += 12;
-      if (elapsed > 180) {
+      elapsed += interval / 1000;
+      if (elapsed > maxWait) {
         stopPoll();
         setLoading(false);
         setServerWaking(false);
-        toast.error('Le serveur met trop de temps à démarrer. Réessayez dans quelques secondes.');
+        if (isLocalMode) {
+          toast.error('Serveur local inaccessible. Vérifiez que le serveur est bien lancé.');
+        } else {
+          toast.error('Le serveur met trop de temps à démarrer. Réessayez dans quelques secondes.');
+        }
         return;
       }
       // Tenter directement le login (plus fiable que /health seul)
@@ -93,8 +103,8 @@ export default function Login() {
         setServerWaking(false);
       }
       // Si 'network' → serveur encore en démarrage, on continue
-    }, 12000);
-  }, [doLogin]);
+    }, interval);
+  }, [doLogin, isLocalMode]);
 
   useEffect(() => {
     logout();

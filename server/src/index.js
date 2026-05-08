@@ -337,16 +337,19 @@ mongoose.connect(process.env.MONGODB_URI, mongoOpts)
       const result = await CashRegister.deleteMany({ status: 'closed', closedAt: { $lt: cutoff } });
       if (result.deletedCount > 0) console.log(`🗑️  ${result.deletedCount} session(s) caisse supprimée(s) (>30j)`);
     };
-    // Nettoyage automatique : supprimer les factures payées depuis plus de 30 jours
+    // Nettoyage automatique : supprimer les factures payées depuis plus de 24h
     const cleanPaidInvoices = async () => {
-      const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
       const result = await Ticket.deleteMany({ type: 'invoice', isPaid: true, updatedAt: { $lt: cutoff } });
-      if (result.deletedCount > 0) console.log(`🗑️  ${result.deletedCount} facture(s) payée(s) supprimée(s) (>30j)`);
+      if (result.deletedCount > 0) {
+        console.log(`🗑️  ${result.deletedCount} facture(s) payée(s) supprimée(s) (>24h)`);
+        io.emit('ticket:deleted', { reason: 'auto-cleanup-24h', count: result.deletedCount });
+      }
     };
     await cleanCashHistory();
     await cleanPaidInvoices();
-    setInterval(cleanCashHistory, 6 * 60 * 60 * 1000); // toutes les 6h
-    setInterval(cleanPaidInvoices, 6 * 60 * 60 * 1000); // toutes les 6h
+    setInterval(cleanCashHistory, 6 * 60 * 60 * 1000);  // toutes les 6h
+    setInterval(cleanPaidInvoices, 60 * 60 * 1000);      // toutes les heures
     server.on('error', (err) => {
       if (err.code === 'EADDRINUSE') {
         console.warn(`⚠️  Port ${PORT} occupé — nouvelle tentative dans 2s...`);

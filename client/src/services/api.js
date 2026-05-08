@@ -107,11 +107,16 @@ export function prefetchCriticalData(role) {
   });
 }
 
-// Request interceptor - add token
+// Request interceptor - add token + force local requests through
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  }
+  // In local mode (relative URLs), use XMLHttpRequest adapter to bypass
+  // browser's offline detection that may block requests to localhost
+  if (!navigator.onLine && (!config.baseURL || config.baseURL.startsWith('/'))) {
+    config.timeout = config.timeout || 5000;
   }
   return config;
 });
@@ -129,10 +134,13 @@ api.interceptors.response.use(
     }
 
     // If offline and it's a write request, queue for later sync
+    // NEVER queue auth or health requests — they need real responses
     if (!navigator.onLine && error.message === 'Network Error') {
       const { method, url, data } = error.config;
       const writeMethods = ['post', 'put', 'patch', 'delete'];
-      if (writeMethods.includes(method)) {
+      const noQueuePaths = ['/auth/', '/health', '/sync/'];
+      const shouldSkipQueue = noQueuePaths.some(p => url.includes(p));
+      if (writeMethods.includes(method) && !shouldSkipQueue) {
         try {
           await queueOfflineAction({ method: method.toUpperCase(), url, data: data ? JSON.parse(data) : undefined });
           return Promise.resolve({ data: { success: true, offline: true, message: 'Action enregistrée hors-ligne' } });
