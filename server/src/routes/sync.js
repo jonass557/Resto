@@ -22,6 +22,10 @@ const SYNC_COLLECTIONS = [
 
 // ── GET /api/sync/status — How many documents are pending sync ──────────────
 router.get('/status', auth, async (req, res) => {
+  // On the cloud server, there's nothing to push — we ARE the cloud
+  if (!process.env.CLOUD_API_URL) {
+    return res.json({ success: true, data: { counts: {}, total: 0, isCloud: true } });
+  }
   try {
     const counts = {};
     let total = 0;
@@ -41,9 +45,11 @@ router.get('/status', auth, async (req, res) => {
 router.post('/push', auth, async (req, res) => {
   const cloudUrl = process.env.CLOUD_API_URL;
   if (!cloudUrl) {
-    return res.status(400).json({
-      success: false,
-      message: 'CLOUD_API_URL non configuré dans .env — impossible de synchroniser'
+    // We ARE the cloud — nothing to push
+    return res.json({
+      success: true,
+      message: 'Ce serveur est le serveur cloud — rien à synchroniser',
+      data: { synced: {}, errors: {}, totalSynced: 0, totalErrors: 0, isCloud: true },
     });
   }
 
