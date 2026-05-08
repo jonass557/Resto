@@ -319,14 +319,28 @@ function startPrintAgentClient() {
 
 const isLocal = process.env.LOCAL_MODE === 'true' || process.env.MONGODB_URI?.startsWith('mongodb://localhost');
 const mongoOpts = {
-  serverSelectionTimeoutMS: 5000,
+  serverSelectionTimeoutMS: isLocal ? 15000 : 5000,
   socketTimeoutMS: 45000,
   heartbeatFrequencyMS: 10000,
   ...(isLocal
     ? { maxPoolSize: 5, minPoolSize: 1 }
     : { maxPoolSize: 25, minPoolSize: 5, compressors: 'zlib' })
 };
-mongoose.connect(process.env.MONGODB_URI, mongoOpts)
+
+async function connectWithRetry(retries = 5, delay = 3000) {
+  for (let i = 1; i <= retries; i++) {
+    try {
+      await mongoose.connect(process.env.MONGODB_URI, mongoOpts);
+      return;
+    } catch (err) {
+      if (i === retries) throw err;
+      console.warn(`⚠️  MongoDB non disponible, tentative ${i}/${retries} dans ${delay/1000}s...`);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+}
+
+connectWithRetry()
   .then(async () => {
     console.log('MongoDB connecté avec succès');
     await ensureAdminExists();
