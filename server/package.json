@@ -6,6 +6,10 @@
   "scripts": {
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
+    "start:local": "node src/index.js --local",
+    "start:cloud": "node src/index.js --cloud",
+    "dev:local": "nodemon src/index.js -- --local",
+    "dev:cloud": "nodemon src/index.js -- --cloud",
     "seed": "node src/seeds/seed.js",
     "admin:create": "node scripts/createAdmin.js --create",
     "admin:promote": "node scripts/createAdmin.js"

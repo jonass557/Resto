@@ -7,7 +7,13 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const morgan = require('morgan');
 const compression = require('compression');
-require('dotenv').config();
+// Pick .env file: --local → .env.local, --cloud → .env.cloud, default → .env
+const envFlag = process.argv.find(a => a === '--local' || a === '--cloud');
+const envFile = envFlag === '--local' ? '.env.local'
+              : envFlag === '--cloud' ? '.env.cloud'
+              : process.env.ENV_FILE || '.env';
+require('dotenv').config({ path: path.join(__dirname, '..', envFile) });
+console.log(`⚙️  Config chargée: ${envFile}`);
 
 const User = require('./models/User');
 const CashRegister = require('./models/CashRegister');

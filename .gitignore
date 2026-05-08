@@ -2,6 +2,8 @@ node_modules/
 dist/
 build/
 .env
+.env.cloud
+.env.local
 *.log
 .DS_Store
 Thumbs.db
