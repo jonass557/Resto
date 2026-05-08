@@ -39,6 +39,8 @@ export function OfflineProvider({ children }) {
   }, []);
 
   // Ping server to check real connectivity (not just WiFi link)
+  // On local WiFi without internet, navigator.onLine is often false
+  // but the local server IS reachable — this ping is the source of truth
   const checkServerReachable = useCallback(async () => {
     try {
       await api.get('/health', { timeout: 5000 });
@@ -50,12 +52,13 @@ export function OfflineProvider({ children }) {
     }
   }, []);
 
-  // Check server when navigator goes online
+  // Check server when navigator goes online AND periodically
+  // (handles local WiFi where navigator.onLine stays false)
   useEffect(() => {
-    if (isOnline) {
-      checkServerReachable();
-    }
-  }, [isOnline, checkServerReachable]);
+    checkServerReachable();
+    const interval = setInterval(checkServerReachable, 15000);
+    return () => clearInterval(interval);
+  }, [checkServerReachable]);
 
   // Refresh pending count
   const refreshPendingCount = useCallback(async () => {
@@ -225,11 +228,12 @@ export function OfflineProvider({ children }) {
   }, [cloudSyncing, refreshCloudStatus]);
 
   // Derived status for UI
+  // Use isServerReachable as primary indicator (works even when navigator.onLine is false on local WiFi)
   const syncStatus = syncing
     ? 'syncing'
     : pendingCount > 0
       ? 'pending'
-      : isOnline && isServerReachable
+      : isServerReachable
         ? 'synced'
         : 'offline';
 

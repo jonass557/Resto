@@ -100,6 +100,8 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/sync', syncRoutes);
 
+const PORT = process.env.PORT || 5000;
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -180,7 +182,6 @@ if (!require('fs').existsSync(path.join(__dirname, '../../client/dist'))) {
 }
 
 // Connect to MongoDB and start server
-const PORT = process.env.PORT || 5000;
 
 async function ensureAdminExists() {
   try {
@@ -316,14 +317,16 @@ function startPrintAgentClient() {
   });
 }
 
-mongoose.connect(process.env.MONGODB_URI, {
-  maxPoolSize: 25,        // plan payant → plus de RAM disponible
-  minPoolSize: 5,         // connexions pré-établies au démarrage
+const isLocal = process.env.LOCAL_MODE === 'true' || process.env.MONGODB_URI?.startsWith('mongodb://localhost');
+const mongoOpts = {
   serverSelectionTimeoutMS: 5000,
   socketTimeoutMS: 45000,
   heartbeatFrequencyMS: 10000,
-  compressors: 'zlib'
-})
+  ...(isLocal
+    ? { maxPoolSize: 5, minPoolSize: 1 }
+    : { maxPoolSize: 25, minPoolSize: 5, compressors: 'zlib' })
+};
+mongoose.connect(process.env.MONGODB_URI, mongoOpts)
   .then(async () => {
     console.log('MongoDB connecté avec succès');
     await ensureAdminExists();
