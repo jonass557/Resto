@@ -35,8 +35,20 @@ if ($mongoRunning) {
 } else {
     Write-Host "[...] Demarrage de MongoDB..." -ForegroundColor Yellow
     Start-Process -FilePath $mongoBin -ArgumentList "--dbpath", $dataDir, "--port", "27017" -WindowStyle Minimized
-    Start-Sleep -Seconds 3
-    Write-Host "[OK] MongoDB demarre sur le port 27017" -ForegroundColor Green
+    # Attendre que MongoDB soit pret (jusqu'a 20 secondes)
+    $ready = $false
+    for ($i = 0; $i -lt 10; $i++) {
+        Start-Sleep -Seconds 2
+        try {
+            $t = New-Object System.Net.Sockets.TcpClient; $t.Connect("127.0.0.1", 27017); $t.Close()
+            $ready = $true; break
+        } catch {}
+    }
+    if ($ready) {
+        Write-Host "[OK] MongoDB demarre sur le port 27017" -ForegroundColor Green
+    } else {
+        Write-Host "[WARN] MongoDB lent a demarrer - le serveur va reessayer automatiquement" -ForegroundColor Yellow
+    }
 }
 
 # Lancer le serveur Node.js
