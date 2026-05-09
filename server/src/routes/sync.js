@@ -7,11 +7,13 @@ const Payment = require('../models/Payment');
 const CashRegister = require('../models/CashRegister');
 const Expense = require('../models/Expense');
 const Client = require('../models/Client');
+const User = require('../models/User');
 
 const router = express.Router();
 
-// Collections to sync — order matters (clients first, then orders, tickets, payments…)
+// Collections to sync — order matters (users first so FKs resolve)
 const SYNC_COLLECTIONS = [
+  { name: 'users',         Model: User },
   { name: 'clients',       Model: Client },
   { name: 'orders',        Model: Order },
   { name: 'tickets',       Model: Ticket },
@@ -50,6 +52,17 @@ router.post('/push', auth, async (req, res) => {
       success: true,
       message: 'Ce serveur est le serveur cloud — rien à synchroniser',
       data: { synced: {}, errors: {}, totalSynced: 0, totalErrors: 0, isCloud: true },
+    });
+  }
+
+  // Vérifier la connectivité vers le cloud avant de tenter le push
+  try {
+    await axios.get(`${cloudUrl}/api/health`, { timeout: 5000 });
+  } catch {
+    return res.status(503).json({
+      success: false,
+      message: 'Pas de connexion internet — synchronisation cloud impossible. Réessayez quand vous êtes connecté.',
+      data: { synced: {}, errors: {}, totalSynced: 0, totalErrors: 0, noInternet: true },
     });
   }
 
@@ -151,7 +164,8 @@ router.post('/receive', auth, async (req, res) => {
             updated++;
           }
         } else {
-          await Model.create(doc);
+          // Use raw insertOne to bypass pre-save hooks (avoids double-hashing passwords)
+          await Model.collection.insertOne(doc);
           inserted++;
         }
       } catch (err) {
@@ -168,6 +182,80 @@ router.post('/receive', auth, async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ── GET /api/sync/export-users — Cloud exports users for local pull ──────────
+// Only callable on cloud server (no CLOUD_API_URL = we ARE the cloud)
+router.get('/export-users', auth, async (req, res) => {
+  try {
+    // Return all users WITH hashed passwords so local can authenticate them
+    const users = await User.find({}).lean();
+    res.json({ success: true, data: users });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ── POST /api/sync/pull-users — Local pulls users from cloud ─────────────────
+// Called from local server to fetch users created on cloud
+router.post('/pull-users', auth, async (req, res) => {
+  const cloudUrl = process.env.CLOUD_API_URL;
+  if (!cloudUrl) {
+    return res.json({ success: true, message: 'Ce serveur est le cloud — rien à tirer', data: { upserted: 0 } });
+  }
+
+  const token = req.headers.authorization;
+  try {
+    const response = await axios.get(`${cloudUrl}/api/sync/export-users`, {
+      headers: { Authorization: token },
+      timeout: 15000,
+    });
+
+    const cloudUsers = response.data?.data || [];
+    let upserted = 0;
+    let errors = 0;
+
+    for (const doc of cloudUsers) {
+      try {
+        const existing = await User.findById(doc._id);
+        if (existing) {
+          // Mettre à jour seulement si la version cloud est plus récente
+          if (!existing.updatedAt || new Date(doc.updatedAt) >= existing.updatedAt) {
+            // Ne pas écraser le mot de passe local si inchangé côté cloud
+            const update = { ...doc, syncedToCloud: true };
+            delete update.__v;
+            await User.findByIdAndUpdate(doc._id, { $set: update }, { upsert: false });
+            upserted++;
+          }
+        } else {
+          // Nouvel utilisateur du cloud — insérer directement (mot de passe déjà hashé)
+          const newUser = new User({ ...doc, syncedToCloud: true });
+          newUser.isNew = true;
+          // Bypass pre-save hook (password already hashed)
+          await User.collection.insertOne({ ...doc, syncedToCloud: true });
+          upserted++;
+        }
+      } catch (err) {
+        console.error('pull-users upsert error:', err.message);
+        errors++;
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `${upserted} utilisateur(s) synchronisé(s) depuis le cloud`,
+      data: { upserted, errors, total: cloudUsers.length },
+    });
+  } catch (error) {
+    const noInternet = !error.response;
+    res.status(noInternet ? 503 : 500).json({
+      success: false,
+      message: noInternet
+        ? 'Pas de connexion internet — impossible de tirer les utilisateurs du cloud'
+        : error.response?.data?.message || error.message,
+      data: { noInternet },
+    });
   }
 });
 

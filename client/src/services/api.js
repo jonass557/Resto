@@ -363,10 +363,11 @@ export const printerAPI = {
   },
 };
 
-// Cloud Sync (tablet → cloud)
+// Cloud Sync (tablet ↔ cloud)
 export const cloudSyncAPI = {
   getStatus: () => api.get('/sync/status'),
   push: () => api.post('/sync/push'),
+  pullUsers: () => api.post('/sync/pull-users'),
 };
 
 // Settings

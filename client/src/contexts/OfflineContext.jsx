@@ -199,9 +199,42 @@ export function OfflineProvider({ children }) {
     return () => clearInterval(interval);
   }, [refreshCloudStatus]);
 
+  // Pull users from cloud (cloud → local)
+  const pullUsersFromCloud = useCallback(async () => {
+    try {
+      const { data } = await cloudSyncAPI.pullUsers();
+      if (data.success) {
+        if (data.data?.upserted > 0) {
+          toast.success(`${data.data.upserted} utilisateur(s) récupéré(s) du cloud`, { icon: '👥', duration: 4000 });
+        }
+        return data;
+      } else if (data.data?.noInternet) {
+        toast('Sync utilisateurs impossible sans internet', { icon: '📡', duration: 4000 });
+      } else {
+        toast.error(data.message || 'Erreur sync utilisateurs');
+      }
+    } catch (error) {
+      const msg = error.response?.data?.message || error.message;
+      if (!error.response) {
+        toast('Sync utilisateurs impossible sans internet', { icon: '📡', duration: 4000 });
+      } else {
+        toast.error(`Erreur: ${msg}`);
+      }
+    }
+    return null;
+  }, []);
+
   // Push all unsynced data to cloud
   const syncToCloud = useCallback(async () => {
     if (cloudSyncing) return;
+
+    // Vérifier la connectivité locale d'abord
+    const reachable = await checkServerReachable();
+    if (!reachable) {
+      toast.error('Serveur local inaccessible', { duration: 4000 });
+      return null;
+    }
+
     setCloudSyncing(true);
     setLastCloudSyncError(null);
 
@@ -212,6 +245,10 @@ export function OfflineProvider({ children }) {
 
       if (data.success) {
         toast.success(data.message, { icon: '☁️', duration: 5000 });
+      } else if (data.data?.noInternet) {
+        const msg = 'Pas de connexion internet — sync cloud impossible';
+        setLastCloudSyncError(msg);
+        toast('Sync cloud impossible sans internet', { icon: '📡', duration: 5000 });
       } else {
         setLastCloudSyncError(data.message);
         toast.error(data.message, { duration: 5000 });
@@ -219,13 +256,18 @@ export function OfflineProvider({ children }) {
       return data;
     } catch (error) {
       const msg = error.response?.data?.message || error.message;
-      setLastCloudSyncError(msg);
-      toast.error(`Erreur sync cloud: ${msg}`, { duration: 5000 });
+      const isNetworkErr = !error.response || msg.includes('internet') || msg.includes('503');
+      setLastCloudSyncError(isNetworkErr ? 'Pas de connexion internet' : msg);
+      if (isNetworkErr) {
+        toast('Sync cloud impossible sans internet', { icon: '📡', duration: 5000 });
+      } else {
+        toast.error(`Erreur sync cloud: ${msg}`, { duration: 5000 });
+      }
       return null;
     } finally {
       setCloudSyncing(false);
     }
-  }, [cloudSyncing, refreshCloudStatus]);
+  }, [cloudSyncing, checkServerReachable, refreshCloudStatus]);
 
   // Derived status for UI
   // Use isServerReachable as primary indicator (works even when navigator.onLine is false on local WiFi)
@@ -256,6 +298,7 @@ export function OfflineProvider({ children }) {
       lastCloudSyncAt,
       lastCloudSyncError,
       syncToCloud,
+      pullUsersFromCloud,
       refreshCloudStatus
     }}>
       {children}

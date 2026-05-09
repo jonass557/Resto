@@ -15,6 +15,7 @@ const envFile = envFlag === '--local' ? '.env.local'
 require('dotenv').config({ path: path.join(__dirname, '..', envFile) });
 console.log(`⚙️  Config chargée: ${envFile}`);
 
+const jwt = require('jsonwebtoken');
 const User = require('./models/User');
 const CashRegister = require('./models/CashRegister');
 const Ticket = require('./models/Ticket');
@@ -364,6 +365,53 @@ connectWithRetry()
     await cleanPaidInvoices();
     setInterval(cleanCashHistory, 6 * 60 * 60 * 1000);  // toutes les 6h
     setInterval(cleanPaidInvoices, 60 * 60 * 1000);      // toutes les heures
+
+    // Sync utilisateurs depuis le cloud au démarrage (si internet disponible)
+    if (process.env.CLOUD_API_URL) {
+      const autoSyncUsers = async () => {
+        try {
+          await axios.get(`${process.env.CLOUD_API_URL}/api/health`, { timeout: 5000 });
+          // Cloud accessible — tirer les utilisateurs
+          // Générer un token JWT temporaire admin pour l'appel de sync
+          const adminUser = await User.findOne({ role: 'admin', isActive: true }).lean();
+          if (!adminUser) return;
+          const syncToken = jwt.sign(
+            { id: adminUser._id, role: 'admin' },
+            process.env.JWT_SECRET,
+            { expiresIn: '5m' }
+          );
+          const cloudRes = await axios.get(`${process.env.CLOUD_API_URL}/api/sync/export-users`, {
+            headers: { Authorization: `Bearer ${syncToken}` },
+            timeout: 15000,
+          });
+          const cloudUsers = cloudRes.data?.data || [];
+          let upserted = 0;
+          for (const doc of cloudUsers) {
+            try {
+              const existing = await User.findById(doc._id);
+              if (existing) {
+                if (!existing.updatedAt || new Date(doc.updatedAt) >= existing.updatedAt) {
+                  const upd = { ...doc, syncedToCloud: true };
+                  delete upd.__v;
+                  await User.findByIdAndUpdate(doc._id, { $set: upd });
+                  upserted++;
+                }
+              } else {
+                await User.collection.insertOne({ ...doc, syncedToCloud: true });
+                upserted++;
+              }
+            } catch { /* duplicate ou erreur individuelle ignorée */ }
+          }
+          if (upserted > 0) console.log(`👥 ${upserted} utilisateur(s) synchronisé(s) depuis le cloud`);
+        } catch {
+          console.log('ℹ️  Sync utilisateurs cloud ignoré (pas d\'internet au démarrage)');
+        }
+      };
+      // Délai de 5s pour laisser le serveur s'initialiser
+      setTimeout(autoSyncUsers, 5000);
+      // Re-sync toutes les heures si internet disponible
+      setInterval(autoSyncUsers, 60 * 60 * 1000);
+    }
     server.on('error', (err) => {
       if (err.code === 'EADDRINUSE') {
         console.warn(`⚠️  Port ${PORT} occupé — nouvelle tentative dans 2s...`);

@@ -11,6 +11,7 @@ const userSchema = new mongoose.Schema({
   phone: { type: String, default: '' },
   isActive: { type: Boolean, default: true },
   lastLogin: { type: Date },
+  syncedToCloud: { type: Boolean, default: false },
   settings: {
     language: { type: String, enum: ['fr', 'en'], default: 'fr' },
     theme: { type: String, enum: ['light', 'dark'], default: 'light' },
