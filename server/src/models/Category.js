@@ -8,7 +8,8 @@ const categorySchema = new mongoose.Schema({
   icon: { type: String, default: '' },
   parent: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', default: null },
   order: { type: Number, default: 0 },
-  isActive: { type: Boolean, default: true }
+  isActive: { type: Boolean, default: true },
+  syncedToCloud: { type: Boolean, default: false }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Category', categorySchema);

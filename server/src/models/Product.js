@@ -36,7 +36,8 @@ const productSchema = new mongoose.Schema({
     quantity: { type: Number, default: 1 }
   }],
   preparationTime: { type: Number, default: 0 },
-  order: { type: Number, default: 0 }
+  order: { type: Number, default: 0 },
+  syncedToCloud: { type: Boolean, default: false }
 }, { timestamps: true });
 
 productSchema.index({ name: 'text', description: 'text' });

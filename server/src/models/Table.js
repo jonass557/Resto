@@ -11,7 +11,8 @@ const tableSchema = new mongoose.Schema({
     default: 'available'
   },
   currentOrders: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Order' }],
-  isActive: { type: Boolean, default: true }
+  isActive: { type: Boolean, default: true },
+  syncedToCloud: { type: Boolean, default: false }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Table', tableSchema);

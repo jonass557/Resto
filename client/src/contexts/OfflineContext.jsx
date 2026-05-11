@@ -199,30 +199,37 @@ export function OfflineProvider({ children }) {
     return () => clearInterval(interval);
   }, [refreshCloudStatus]);
 
-  // Pull users from cloud (cloud → local)
-  const pullUsersFromCloud = useCallback(async () => {
+  // Pull all reference data from cloud (users, products, categories, tables, settings)
+  const pullFromCloud = useCallback(async () => {
     try {
-      const { data } = await cloudSyncAPI.pullUsers();
+      const { data } = await cloudSyncAPI.pullAll();
       if (data.success) {
-        if (data.data?.upserted > 0) {
-          toast.success(`${data.data.upserted} utilisateur(s) récupéré(s) du cloud`, { icon: '👥', duration: 4000 });
+        const total = data.data?.totalUpserted || 0;
+        if (total > 0) {
+          toast.success(`${total} élément(s) récupéré(s) du cloud`, { icon: '☁️', duration: 4000 });
+        } else {
+          toast('Tout est déjà à jour', { icon: '✅', duration: 2500 });
         }
         return data;
       } else if (data.data?.noInternet) {
-        toast('Sync utilisateurs impossible sans internet', { icon: '📡', duration: 4000 });
+        toast('Sync impossible sans internet', { icon: '📡', duration: 4000 });
       } else {
-        toast.error(data.message || 'Erreur sync utilisateurs');
+        toast.error(data.message || 'Erreur sync cloud');
       }
     } catch (error) {
       const msg = error.response?.data?.message || error.message;
-      if (!error.response) {
-        toast('Sync utilisateurs impossible sans internet', { icon: '📡', duration: 4000 });
+      const isNoInternet = !error.response || error.response?.status === 503;
+      if (isNoInternet) {
+        toast('Sync impossible sans internet', { icon: '📡', duration: 4000 });
       } else {
         toast.error(`Erreur: ${msg}`);
       }
     }
     return null;
   }, []);
+
+  // Alias legacy
+  const pullUsersFromCloud = pullFromCloud;
 
   // Push all unsynced data to cloud
   const syncToCloud = useCallback(async () => {
@@ -298,6 +305,7 @@ export function OfflineProvider({ children }) {
       lastCloudSyncAt,
       lastCloudSyncError,
       syncToCloud,
+      pullFromCloud,
       pullUsersFromCloud,
       refreshCloudStatus
     }}>

@@ -367,7 +367,8 @@ export const printerAPI = {
 export const cloudSyncAPI = {
   getStatus: () => api.get('/sync/status'),
   push: () => api.post('/sync/push'),
-  pullUsers: () => api.post('/sync/pull-users'),
+  pullAll: () => api.post('/sync/pull-all'),
+  pullUsers: () => api.post('/sync/pull-users'), // legacy alias
 };
 
 // Settings

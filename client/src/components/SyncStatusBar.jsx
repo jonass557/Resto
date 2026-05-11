@@ -1,5 +1,5 @@
 import { useOffline } from '@/contexts/OfflineContext';
-import { RefreshCw, WifiOff, CheckCircle2, AlertCircle, Loader2, Cloud, UploadCloud, Users } from 'lucide-react';
+import { RefreshCw, WifiOff, CheckCircle2, AlertCircle, Loader2, Cloud, UploadCloud, DownloadCloud } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 
@@ -44,14 +44,14 @@ export default function SyncStatusBar({ compact = false }) {
     lastCloudSyncAt,
     lastCloudSyncError,
     syncToCloud,
-    pullUsersFromCloud,
+    pullFromCloud,
   } = useOffline();
-  const [pullingUsers, setPullingUsers] = useState(false);
+  const [pulling, setPulling] = useState(false);
 
-  const handlePullUsers = async () => {
-    setPullingUsers(true);
-    await pullUsersFromCloud();
-    setPullingUsers(false);
+  const handlePull = async () => {
+    setPulling(true);
+    await pullFromCloud();
+    setPulling(false);
   };
 
   const config = STATUS_CONFIG[syncStatus] || STATUS_CONFIG.offline;
@@ -163,11 +163,11 @@ export default function SyncStatusBar({ compact = false }) {
           size="sm"
           variant="ghost"
           className="h-5 px-1.5 text-xs text-purple-600"
-          onClick={handlePullUsers}
-          disabled={pullingUsers}
-          title="Récupérer utilisateurs du cloud"
+          onClick={handlePull}
+          disabled={pulling}
+          title="Récupérer données du cloud (menu, utilisateurs, settings)"
         >
-          <Users className={`w-3 h-3 ${pullingUsers ? 'animate-pulse' : ''}`} />
+          <DownloadCloud className={`w-3 h-3 ${pulling ? 'animate-pulse' : ''}`} />
         </Button>
       </div>
     </div>
