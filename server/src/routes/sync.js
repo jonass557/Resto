@@ -266,19 +266,40 @@ async function getCloudToken() {
 }
 
 // Helper: upsert a document into a collection, bypassing hooks (for sync)
+// Handles unique-field collisions (email for User, number for Table, name for Category):
+// if a local doc with the same unique field exists but different _id (e.g. local default admin),
+// it gets replaced by the cloud version so cloud is the source of truth.
 async function upsertSyncedDoc(Model, doc) {
   delete doc.__v;
   doc.syncedToCloud = true;
-  const existing = await Model.findById(doc._id);
-  if (existing) {
-    if (!existing.updatedAt || new Date(doc.updatedAt) >= existing.updatedAt) {
-      await Model.collection.updateOne({ _id: existing._id }, { $set: doc });
-      return 'updated';
+
+  // 1) Match by _id (normal case)
+  let existing = await Model.findById(doc._id);
+
+  // 2) If not found by _id, look for a document with the same unique field and delete it
+  //    so the cloud version can be inserted with its original _id.
+  if (!existing) {
+    const collectionName = Model.modelName;
+    let conflictQuery = null;
+    if (collectionName === 'User' && doc.email) conflictQuery = { email: doc.email };
+    else if (collectionName === 'Table' && typeof doc.number === 'number') conflictQuery = { number: doc.number };
+    else if (collectionName === 'Category' && doc.name) conflictQuery = { name: doc.name };
+
+    if (conflictQuery) {
+      const conflict = await Model.findOne(conflictQuery);
+      if (conflict) {
+        await Model.collection.deleteOne({ _id: conflict._id });
+      }
     }
-    return 'skipped';
+    await Model.collection.insertOne(doc);
+    return 'inserted';
   }
-  await Model.collection.insertOne(doc);
-  return 'inserted';
+
+  if (!existing.updatedAt || new Date(doc.updatedAt) >= existing.updatedAt) {
+    await Model.collection.updateOne({ _id: existing._id }, { $set: doc });
+    return 'updated';
+  }
+  return 'skipped';
 }
 
 // ── POST /api/sync/pull-all — Local pulls all reference data from cloud ──────
