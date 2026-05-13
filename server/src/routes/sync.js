@@ -81,7 +81,18 @@ router.post('/push', auth, async (req, res) => {
     });
   }
 
-  const token = req.headers.authorization;
+  // Authentifier au cloud avec les identifiants admin du cloud (pas le token local)
+  let cloudToken;
+  try {
+    cloudToken = await getCloudToken();
+  } catch (err) {
+    return res.status(401).json({
+      success: false,
+      message: `Authentification cloud impossible: ${err.message}`,
+      data: { synced: {}, errors: {}, totalSynced: 0, totalErrors: 0 },
+    });
+  }
+  const token = `Bearer ${cloudToken}`;
   const results = { synced: {}, errors: {}, totalSynced: 0, totalErrors: 0 };
 
   for (const { name, Model } of SYNC_COLLECTIONS) {
@@ -226,6 +237,34 @@ router.get('/export-settings', auth, async (req, res) => {
   }
 });
 
+// Cache du token cloud (re-login si expiré ou absent)
+let cachedCloudToken = null;
+let cachedCloudTokenExpiry = 0;
+
+async function getCloudToken() {
+  const now = Date.now();
+  if (cachedCloudToken && now < cachedCloudTokenExpiry) {
+    return cachedCloudToken;
+  }
+  const cloudUrl = process.env.CLOUD_API_URL;
+  const email = process.env.CLOUD_ADMIN_EMAIL;
+  const password = process.env.CLOUD_ADMIN_PASSWORD;
+  if (!cloudUrl || !email || !password) {
+    throw new Error('CLOUD_API_URL, CLOUD_ADMIN_EMAIL et CLOUD_ADMIN_PASSWORD doivent être définis dans .env.local');
+  }
+  const response = await axios.post(
+    `${cloudUrl}/api/auth/login`,
+    { email, password },
+    { timeout: 15000 }
+  );
+  const token = response.data?.data?.token;
+  if (!token) throw new Error('Login cloud échoué : pas de token reçu');
+  cachedCloudToken = token;
+  // Re-login chaque 6 jours (tokens valides 7j)
+  cachedCloudTokenExpiry = now + 6 * 24 * 60 * 60 * 1000;
+  return token;
+}
+
 // Helper: upsert a document into a collection, bypassing hooks (for sync)
 async function upsertSyncedDoc(Model, doc) {
   delete doc.__v;
@@ -250,7 +289,18 @@ router.post('/pull-all', auth, async (req, res) => {
     return res.json({ success: true, message: 'Ce serveur est le cloud — rien à tirer', data: {} });
   }
 
-  const token = req.headers.authorization;
+  // Authentifier au cloud (token JWT cloud-valide)
+  let cloudToken;
+  try {
+    cloudToken = await getCloudToken();
+  } catch (err) {
+    return res.status(401).json({
+      success: false,
+      message: `Authentification cloud impossible: ${err.message}`,
+      data: {},
+    });
+  }
+  const token = `Bearer ${cloudToken}`;
   const summary = {};
   let totalUpserted = 0;
 
