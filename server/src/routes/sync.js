@@ -176,21 +176,24 @@ router.post('/receive', auth, async (req, res) => {
 
     for (const doc of documents) {
       try {
-        const localId = doc._id;
         // Remove fields that shouldn't be overwritten on the cloud
         delete doc.__v;
         doc.syncedToCloud = true;
+        // Cast _id, references and dates from JSON strings → proper BSON types.
+        // Without this, Model.collection.insertOne stores strings → Mongoose's
+        // findById/populate/sort on the cloud admin side fails to match them.
+        castSyncedDocIds(Model, doc);
 
         // Upsert: if _id exists, update; otherwise insert
-        const existing = await Model.findById(localId);
+        const existing = await Model.findById(doc._id);
         if (existing) {
           // Update only if cloud version is older
           if (!existing.updatedAt || new Date(doc.updatedAt) >= existing.updatedAt) {
-            await Model.findByIdAndUpdate(localId, { $set: doc }, { upsert: true });
+            await Model.collection.updateOne({ _id: doc._id }, { $set: doc });
             updated++;
           }
         } else {
-          // Use raw insertOne to bypass pre-save hooks (avoids double-hashing passwords)
+          // Raw insertOne to bypass pre-save hooks (avoids double-hashing passwords)
           await Model.collection.insertOne(doc);
           inserted++;
         }
@@ -265,6 +268,51 @@ async function getCloudToken() {
   return token;
 }
 
+// Per-model reference fields that arrive as strings over JSON and must be
+// cast back to ObjectId before raw insert/update — otherwise Mongoose's
+// auto-cast on read won't match them (e.g. findById(stringId) returns null).
+const REF_FIELDS_BY_MODEL = {
+  Product:      ['category'],
+  CashRegister: ['agent', 'openedBy', 'closedBy', 'payments'],
+  Order:        ['agent', 'table', 'user', 'client'],
+  Ticket:      ['agent', 'order', 'cashRegister', 'client'],
+  Payment:      ['agent', 'user', 'order', 'ticket', 'cashRegister'],
+  Notification: ['agent'],
+  Expense:      ['createdBy', 'user'],
+  Client:       [],
+};
+
+// Date fields arrive as ISO strings over JSON. Raw insert/update bypasses
+// Mongoose's auto-cast → they stay as strings, breaking date sorting and
+// $gte/$lte queries on the receiving DB.
+const DATE_FIELDS = ['createdAt', 'updatedAt', 'openedAt', 'closedAt', 'lastLogin', 'date', 'paidAt'];
+
+function castSyncedDocIds(Model, doc) {
+  const { Types } = require('mongoose');
+  // Cast _id (arrives as 24-hex string from JSON)
+  if (typeof doc._id === 'string' && /^[0-9a-f]{24}$/i.test(doc._id)) {
+    doc._id = new Types.ObjectId(doc._id);
+  }
+  const refs = REF_FIELDS_BY_MODEL[Model.modelName] || [];
+  for (const f of refs) {
+    const v = doc[f];
+    if (typeof v === 'string' && /^[0-9a-f]{24}$/i.test(v)) {
+      doc[f] = new Types.ObjectId(v);
+    } else if (Array.isArray(v)) {
+      doc[f] = v.map(x =>
+        typeof x === 'string' && /^[0-9a-f]{24}$/i.test(x) ? new Types.ObjectId(x) : x
+      );
+    }
+  }
+  // Cast date fields
+  for (const f of DATE_FIELDS) {
+    if (typeof doc[f] === 'string') {
+      const d = new Date(doc[f]);
+      if (!isNaN(d.getTime())) doc[f] = d;
+    }
+  }
+}
+
 // Helper: upsert a document into a collection, bypassing hooks (for sync)
 // Handles unique-field collisions (email for User, number for Table, name for Category):
 // if a local doc with the same unique field exists but different _id (e.g. local default admin),
@@ -272,6 +320,7 @@ async function getCloudToken() {
 async function upsertSyncedDoc(Model, doc) {
   delete doc.__v;
   doc.syncedToCloud = true;
+  castSyncedDocIds(Model, doc);
 
   // 1) Match by _id (normal case)
   let existing = await Model.findById(doc._id);
