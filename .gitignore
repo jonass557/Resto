@@ -9,3 +9,5 @@ build/
 Thumbs.db
 .vscode/
 *.local
+vite.config.js.timestamp-*.mjs
+vite.config.ts.timestamp-*.mjs

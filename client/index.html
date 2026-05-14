@@ -8,6 +8,28 @@
     <meta name="description" content="Système de gestion de restaurant" />
     <link rel="manifest" href="/manifest.json" />
     <title>Restaurant Manager</title>
+    <script>
+      // Defensive: on every load, unregister any Service Worker whose script URL
+      // does NOT carry the current build cache-buster. This guarantees that a
+      // stale SW (e.g. one that still routes API calls to a previous cloud URL)
+      // cannot keep serving outdated bundles indefinitely.
+      // Build-stamp is injected by the build script and changes on every build.
+      window.__BUILD_STAMP__ = '__BUILD_STAMP_PLACEHOLDER__';
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(regs => {
+          regs.forEach(reg => {
+            const swUrl = (reg.active && reg.active.scriptURL) || (reg.installing && reg.installing.scriptURL) || '';
+            if (!swUrl.includes(window.__BUILD_STAMP__)) {
+              console.log('[SW] Unregistering stale SW:', swUrl);
+              reg.unregister().then(() => {
+                // Clear all caches so next load fetches fresh assets
+                if (window.caches) caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
+              });
+            }
+          });
+        }).catch(() => {});
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

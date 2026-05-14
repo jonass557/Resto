@@ -113,7 +113,22 @@ app.get('/api/health', (req, res) => {
 // accesses http://localhost:5000 or http://<IP>:5000 — no Vercel needed.
 const clientBuildPath = path.join(__dirname, '../../client/dist');
 if (require('fs').existsSync(clientBuildPath)) {
-  app.use(express.static(clientBuildPath));
+  // Force no-cache on Service Worker files — browsers cache sw.js up to 24h
+  // by default, which prevents updates from taking effect.
+  app.use(express.static(clientBuildPath, {
+    setHeaders: (res, filePath) => {
+      if (
+        filePath.endsWith('sw.js') ||
+        filePath.includes('workbox-') ||
+        filePath.endsWith('index.html') ||
+        filePath.endsWith('registerSW.js')
+      ) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+      }
+    }
+  }));
   // SPA fallback — all non-API routes serve index.html
   app.get(/^\/(?!api|socket\.io).*/, (req, res) => {
     res.sendFile(path.join(clientBuildPath, 'index.html'));

@@ -15,6 +15,11 @@ export default defineConfig({
         // Cache all static assets (JS, CSS, images, fonts)
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         // Cache API responses for offline use
+        // NOTE: do NOT add a catch-all NetworkOnly rule for /api/* —
+        // Workbox short-circuits with a network error when navigator.onLine === false,
+        // even though the local server (localhost:5000) is still reachable.
+        // Letting unmatched /api/* requests bypass the SW means the browser fetches
+        // directly, which works on localhost even when the OS reports "offline".
         runtimeCaching: [
           {
             urlPattern: /^\/api\/(products|categories|settings|users)/,
@@ -24,10 +29,6 @@ export default defineConfig({
               expiration: { maxEntries: 100, maxAgeSeconds: 86400 },
               networkTimeoutSeconds: 3,
             },
-          },
-          {
-            urlPattern: /^\/api\//,
-            handler: 'NetworkOnly',
           },
         ],
       },

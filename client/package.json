@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node -e \"const fs=require('fs');const stamp=String(Date.now());const sw='dist/registerSW.js';fs.writeFileSync(sw,fs.readFileSync(sw,'utf8').replace('/sw.js','/sw.js?v='+stamp));const html='dist/index.html';fs.writeFileSync(html,fs.readFileSync(html,'utf8').replace('__BUILD_STAMP_PLACEHOLDER__',stamp));console.log('Build stamp:',stamp)\"",
     "preview": "vite preview"
   },
   "dependencies": {
