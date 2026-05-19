@@ -19,6 +19,7 @@ export default function CaissierSettings() {
   const [netConfig, setNetConfig] = useState({ address: '', port: 9100 });
   const [netStatus, setNetStatus] = useState(null);
   const [testingNetwork, setTestingNetwork] = useState(false);
+  const [savingNetwork, setSavingNetwork] = useState(false);
   const [localServerUrl, setLocalServerUrlState] = useState(getLocalPrintServerUrl());
   const [localServerStatus, setLocalServerStatus] = useState(null);
   const [testingLocal, setTestingLocal] = useState(false);
@@ -82,6 +83,49 @@ export default function CaissierSettings() {
       setNetStatus({ ...(errData || {}), connected: false, type: 'network' });
       toast.error(err.response?.data?.message || `Impossible de joindre ${netConfig.address}:${netConfig.port}`);
     } finally { setTestingNetwork(false); }
+  };
+
+  const connectNetworkPrinter = async () => {
+    const cleanAddress = sanitizeIP(netConfig.address);
+    if (!cleanAddress) { toast.error('Entrez l\'adresse IP de l\'imprimante'); return; }
+    if (cleanAddress !== netConfig.address) setNetConfig(prev => ({ ...prev, address: cleanAddress }));
+    setSavingNetwork(true);
+    try {
+      const { data: testData } = await printerAPI.test({ type: 'network', address: cleanAddress, port: netConfig.port });
+      if (!testData.data?.connected) {
+        setNetStatus(testData.data);
+        toast.error(testData.data?.message || 'Imprimante non joignable — vérifiez le WiFi');
+        return;
+      }
+      const newPrinterConfig = {
+        ...(settings?.printerConfig || {}),
+        type: 'network',
+        address: cleanAddress,
+        port: netConfig.port || 9100,
+        paperWidth: settings?.printerConfig?.paperWidth || 80,
+        autoPrint: settings?.printerConfig?.autoPrint !== false,
+      };
+      const { data: savedRes } = await settingsAPI.update({ ...(settings || {}), printerConfig: newPrinterConfig });
+      setSettings(savedRes.data || { ...(settings || {}), printerConfig: newPrinterConfig });
+      setNetStatus(testData.data);
+      toast.success(`Imprimante connectée et sauvegardée (${cleanAddress})`);
+    } catch (err) {
+      toast.error(err.response?.data?.message || `Erreur connexion: ${err.message}`);
+    } finally { setSavingNetwork(false); }
+  };
+
+  const disconnectNetworkPrinter = async () => {
+    setSavingNetwork(true);
+    try {
+      const newPrinterConfig = { ...(settings?.printerConfig || {}), type: 'none', address: '', port: 9100 };
+      const { data: savedRes } = await settingsAPI.update({ ...(settings || {}), printerConfig: newPrinterConfig });
+      setSettings(savedRes.data || { ...(settings || {}), printerConfig: newPrinterConfig });
+      setNetStatus(null);
+      setNetConfig({ address: '', port: 9100 });
+      toast.success('Imprimante déconnectée');
+    } catch (err) {
+      toast.error(`Erreur: ${err.message}`);
+    } finally { setSavingNetwork(false); }
   };
 
   if (loading) {
@@ -260,16 +304,33 @@ export default function CaissierSettings() {
                   <Input type="number" value={netConfig.port} onChange={e => setNetConfig({ ...netConfig, port: parseInt(e.target.value) || 9100 })} />
                 </div>
               </div>
-              {netStatus?.connected && netStatus.type === 'network' && (
+              {settings?.printerConfig?.type === 'network' && settings?.printerConfig?.address && (
+                <div className="p-2 rounded-lg bg-green-50 border border-green-200 text-sm text-green-800 flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 shrink-0" />
+                  <span>Imprimante sauvegardée : <strong>{settings.printerConfig.address}:{settings.printerConfig.port || 9100}</strong> — impression automatique active</span>
+                </div>
+              )}
+              {netStatus?.connected && netStatus.type === 'network' && settings?.printerConfig?.type !== 'network' && (
                 <div className="p-2 rounded-lg bg-green-50 border border-green-200 text-sm text-green-800 flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 shrink-0" />
                   <span>{netStatus.message || 'Imprimante réseau connectée'}</span>
                 </div>
               )}
-              <Button variant="outline" size="sm" onClick={testNetworkPrinter} disabled={!netConfig.address || testingNetwork}>
-                {testingNetwork ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-2" />}
-                Tester la connexion réseau
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" onClick={testNetworkPrinter} disabled={!netConfig.address || testingNetwork || savingNetwork}>
+                  {testingNetwork ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-2" />}
+                  Tester
+                </Button>
+                <Button size="sm" onClick={connectNetworkPrinter} disabled={!netConfig.address || testingNetwork || savingNetwork} className="bg-purple-600 hover:bg-purple-700">
+                  {savingNetwork ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wifi className="w-4 h-4 mr-2" />}
+                  {settings?.printerConfig?.type === 'network' ? 'Mettre à jour' : 'Connecter'}
+                </Button>
+                {settings?.printerConfig?.type === 'network' && settings?.printerConfig?.address && (
+                  <Button variant="destructive" size="sm" onClick={disconnectNetworkPrinter} disabled={savingNetwork}>
+                    <Unplug className="w-4 h-4 mr-2" /> Déconnecter
+                  </Button>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
