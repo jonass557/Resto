@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
+    <meta name="theme-color" content="#1e40af" />
+    <meta name="description" content="Système de gestion de restaurant" />
+    <link rel="manifest" href="/manifest.json" />
+    <title>Restaurant Manager</title>
+    <script>
+      // Defensive: on every load, unregister any Service Worker whose script URL
+      // does NOT carry the current build cache-buster. This guarantees that a
+      // stale SW (e.g. one that still routes API calls to a previous cloud URL)
+      // cannot keep serving outdated bundles indefinitely.
+      // Build-stamp is injected by the build script and changes on every build.
+      window.__BUILD_STAMP__ = '1779212576157';
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(regs => {
+          regs.forEach(reg => {
+            const swUrl = (reg.active && reg.active.scriptURL) || (reg.installing && reg.installing.scriptURL) || '';
+            if (!swUrl.includes(window.__BUILD_STAMP__)) {
+              console.log('[SW] Unregistering stale SW:', swUrl);
+              reg.unregister().then(() => {
+                // Clear all caches so next load fetches fresh assets
+                if (window.caches) caches.keys().then(keys => keys.forEach(k => caches.delete(k)));
+              });
+            }
+          });
+        }).catch(() => {});
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-jgECmC87.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/vendor-react-DjnZl2g2.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-ui-D4DRF-ki.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-charts-CrkdT_3S.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-Cpf7mehF.css">
+  <script id="vite-plugin-pwa:register-sw" src="/registerSW.js"></script></head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

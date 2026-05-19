@@ -1,5 +1,5 @@
 node_modules/
-dist/
+# dist/ (temporairement inclus pour tablette)
 build/
 .env
 .env.cloud
