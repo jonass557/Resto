@@ -43,9 +43,14 @@ export function OfflineProvider({ children }) {
   // but the local server IS reachable — this ping is the source of truth
   const checkServerReachable = useCallback(async () => {
     try {
-      await api.get('/health', { timeout: 5000 });
-      setIsServerReachable(true);
-      return true;
+      // Use native fetch first — it bypasses Chrome's offline blocking
+      // that prevents XMLHttpRequest when navigator.onLine === false
+      const baseUrl = import.meta.env.VITE_API_URL || '/api';
+      const url = baseUrl.startsWith('http') ? `${baseUrl}/health` : `${window.location.origin}${baseUrl}/health`;
+      const res = await fetch(url, { method: 'GET', cache: 'no-store', signal: AbortSignal.timeout(5000) });
+      const reachable = res.ok;
+      setIsServerReachable(reachable);
+      return reachable;
     } catch {
       setIsServerReachable(false);
       return false;

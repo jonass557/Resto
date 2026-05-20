@@ -113,10 +113,15 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-  // In local mode (relative URLs), use XMLHttpRequest adapter to bypass
-  // browser's offline detection that may block requests to localhost
-  if (!navigator.onLine && (!config.baseURL || config.baseURL.startsWith('/'))) {
-    config.timeout = config.timeout || 5000;
+  // In local mode (relative URLs), force requests through even when
+  // browser thinks we're offline (navigator.onLine === false).
+  // On Android tablet with local server, localhost is always reachable.
+  if (!config.baseURL || config.baseURL.startsWith('/')) {
+    config.timeout = config.timeout || 8000;
+    // Use fetch adapter if available — it bypasses Chrome's offline blocking
+    if (!navigator.onLine && typeof fetch === 'function') {
+      config.adapter = 'fetch';
+    }
   }
   return config;
 });
