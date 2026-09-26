@@ -133,7 +133,7 @@ Si le `ping` répond `{ ok: 1 }`, MongoDB fonctionne.
 
 ```bash
 cd /root
-git clone https://github.com/valdes557/manageResto.git restaurant
+git clone https://github.com/jonass557/Resto.git restaurant
 cd restaurant/server
 npm install --omit=dev
 ```
