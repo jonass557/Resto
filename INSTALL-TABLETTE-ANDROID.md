@@ -161,7 +161,7 @@ JWT_EXPIRES_IN=7d
 CLIENT_URL=http://localhost:5000
 NODE_ENV=production
 LOCAL_MODE=true
-CLOUD_API_URL=https://votre-nouveau-serveur.onrender.com
+CLOUD_API_URL=https://resto-api-w3uv.onrender.com
 CLOUD_ADMIN_EMAIL=admin@restaurant.com
 CLOUD_ADMIN_PASSWORD=199211
 EOF

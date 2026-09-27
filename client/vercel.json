@@ -3,7 +3,7 @@
   "outputDirectory": "dist",
   "framework": "vite",
   "rewrites": [
-    { "source": "/api/:path*", "destination": "https://votre-nouveau-serveur.onrender.com/api/:path*" },
+    { "source": "/api/:path*", "destination": "https://resto-api-w3uv.onrender.com/api/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

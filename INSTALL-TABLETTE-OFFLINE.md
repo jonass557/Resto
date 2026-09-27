@@ -100,7 +100,7 @@ LOCAL_MODE=true
 
 # URL du serveur cloud — utilisée uniquement quand Internet est dispo,
 # pour pousser les ventes du jour vers le dashboard admin en ligne.
-CLOUD_API_URL=https://votre-nouveau-serveur.onrender.com
+CLOUD_API_URL=https://resto-api-w3uv.onrender.com
 
 # Identifiants admin du cloud — pour que le local s'authentifie
 # automatiquement au cloud lors du sync push/pull.
