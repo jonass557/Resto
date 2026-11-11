@@ -5,7 +5,8 @@ const _store = new Map();
 const DEFAULT_TTL = 30 * 1000; // 30 seconds
 
 function cacheKey(req) {
-  return `${req.path}?${new URLSearchParams(req.query).toString()}`;
+  const tenant = req.restaurantId ? req.restaurantId.toString() : 'legacy';
+  return `${tenant}:${req.path}?${new URLSearchParams(req.query).toString()}`;
 }
 
 /**

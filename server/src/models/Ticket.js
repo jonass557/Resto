@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const ticketSchema = new mongoose.Schema({
+  restaurant: { type: mongoose.Schema.Types.ObjectId, ref: 'Restaurant', default: null, index: true },
   ticketNumber: { type: String, required: true, unique: true },
   type: {
     type: String,

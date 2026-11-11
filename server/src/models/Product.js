@@ -15,6 +15,7 @@ const optionGroupSchema = new mongoose.Schema({
 });
 
 const productSchema = new mongoose.Schema({
+  restaurant: { type: mongoose.Schema.Types.ObjectId, ref: 'Restaurant', default: null, index: true },
   name: { type: String, required: true, trim: true },
   description: { type: String, default: '' },
   price: { type: Number, required: true, min: 0 },

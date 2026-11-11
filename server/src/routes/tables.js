@@ -1,7 +1,7 @@
 const express = require('express');
 const Table = require('../models/Table');
 const Order = require('../models/Order');
-const { auth, adminOnly } = require('../middleware/auth');
+const { auth, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -9,7 +9,7 @@ const router = express.Router();
 router.get('/', auth, async (req, res) => {
   try {
     const { status, zone } = req.query;
-    const filter = { isActive: true };
+    const filter = { ...req.tenantFilter, isActive: true };
     if (status) filter.status = status;
     if (zone) filter.zone = zone;
 
@@ -40,9 +40,9 @@ router.get('/', auth, async (req, res) => {
 });
 
 // POST /api/tables (agents and admins can create)
-router.post('/', auth, async (req, res) => {
+router.post('/', auth, requireActiveSubscription, async (req, res) => {
   try {
-    const table = new Table(req.body);
+    const table = new Table({ ...req.body, restaurant: req.restaurantId || null });
     await table.save();
     const io = req.app.get('io');
     io.emit('table:created', table);
@@ -53,9 +53,13 @@ router.post('/', auth, async (req, res) => {
 });
 
 // PUT /api/tables/:id
-router.put('/:id', auth, async (req, res) => {
+router.put('/:id', auth, requireActiveSubscription, async (req, res) => {
   try {
-    const table = await Table.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const table = await Table.findOneAndUpdate(
+      { _id: req.params.id, ...req.tenantFilter },
+      req.body,
+      { new: true }
+    );
     if (!table) return res.status(404).json({ success: false, message: 'Table non trouvée' });
     const io = req.app.get('io');
     io.emit('table:updated', table);
@@ -66,10 +70,14 @@ router.put('/:id', auth, async (req, res) => {
 });
 
 // PATCH /api/tables/:id/status
-router.patch('/:id/status', auth, async (req, res) => {
+router.patch('/:id/status', auth, requireActiveSubscription, async (req, res) => {
   try {
     const { status } = req.body;
-    const table = await Table.findByIdAndUpdate(req.params.id, { status }, { new: true });
+    const table = await Table.findOneAndUpdate(
+      { _id: req.params.id, ...req.tenantFilter },
+      { status },
+      { new: true }
+    );
     if (!table) return res.status(404).json({ success: false, message: 'Table non trouvée' });
     const io = req.app.get('io');
     io.emit('table:status-changed', { id: table._id, status });
@@ -80,9 +88,10 @@ router.patch('/:id/status', auth, async (req, res) => {
 });
 
 // DELETE /api/tables/:id
-router.delete('/:id', auth, adminOnly, async (req, res) => {
+router.delete('/:id', auth, adminOnly, requireActiveSubscription, async (req, res) => {
   try {
-    await Table.findByIdAndDelete(req.params.id);
+    const deleted = await Table.findOneAndDelete({ _id: req.params.id, ...req.tenantFilter });
+    if (!deleted) return res.status(404).json({ success: false, message: 'Table non trouvée' });
     const io = req.app.get('io');
     io.emit('table:deleted', req.params.id);
     res.json({ success: true, message: 'Table supprimée' });

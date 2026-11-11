@@ -22,7 +22,7 @@ router.get('/dashboard', auth, SC, async (req, res) => {
     // All stats via aggregation — no full document loads
     const [paymentAgg, orderAgg, ticketCount, productAgg, hourlyAgg] = await Promise.all([
       Payment.aggregate([
-        { $match: { createdAt: { $gte: start, $lt: end }, status: 'completed' } },
+        { $match: { ...req.tenantFilter, createdAt: { $gte: start, $lt: end }, status: 'completed' } },
         { $group: {
           _id: null,
           totalRevenue: { $sum: '$amount' },
@@ -34,12 +34,12 @@ router.get('/dashboard', auth, SC, async (req, res) => {
         }}
       ]),
       Order.aggregate([
-        { $match: { createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' } } },
+        { $match: { ...req.tenantFilter, createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' } } },
         { $group: { _id: null, count: { $sum: 1 }, total: { $sum: '$total' } } }
       ]),
-      Ticket.countDocuments({ createdAt: { $gte: start, $lt: end } }),
+      Ticket.countDocuments({ ...req.tenantFilter, createdAt: { $gte: start, $lt: end } }),
       Order.aggregate([
-        { $match: { createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' } } },
+        { $match: { ...req.tenantFilter, createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' } } },
         { $unwind: '$items' },
         { $group: { _id: '$items.name', quantity: { $sum: '$items.quantity' }, revenue: { $sum: '$items.totalPrice' } } },
         { $sort: { revenue: -1 } },
@@ -47,7 +47,7 @@ router.get('/dashboard', auth, SC, async (req, res) => {
         { $project: { name: '$_id', quantity: 1, revenue: 1, _id: 0 } }
       ]),
       Order.aggregate([
-        { $match: { createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' } } },
+        { $match: { ...req.tenantFilter, createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' } } },
         { $group: { _id: { $hour: '$createdAt' }, orders: { $sum: 1 }, revenue: { $sum: '$total' } } }
       ])
     ]);
@@ -88,13 +88,13 @@ router.get('/agents', auth, adminOnly, SC, async (req, res) => {
 
     // Single aggregation per collection instead of N+1 per-agent queries
     const [agents, orderAggs, paymentAggs] = await Promise.all([
-      User.find({ role: 'agent', isActive: true }).select('firstName lastName email lastLogin').lean(),
+      User.find({ ...req.tenantFilter, role: 'agent', isActive: true }).select('firstName lastName email lastLogin').lean(),
       Order.aggregate([
-        { $match: { createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' } } },
+        { $match: { ...req.tenantFilter, createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' } } },
         { $group: { _id: '$agent', orders: { $sum: 1 } } }
       ]),
       Payment.aggregate([
-        { $match: { createdAt: { $gte: start, $lt: end }, status: 'completed' } },
+        { $match: { ...req.tenantFilter, createdAt: { $gte: start, $lt: end }, status: 'completed' } },
         { $group: {
           _id: '$agent',
           revenue: { $sum: '$amount' },
@@ -141,7 +141,7 @@ router.get('/agent/:id', auth, SC, async (req, res) => {
     if (period === 'today') {
       // Pour aujourd'hui : compter uniquement depuis la session ouverte en cours.
       // Si aucune session ouverte (service clôturé), le CA est 0.
-      const openSession = await CashRegister.findOne({ agent: agentId, status: 'open' });
+      const openSession = await CashRegister.findOne({ ...req.tenantFilter, agent: agentId, status: 'open' });
       if (!openSession) {
         return res.json({
           success: true,
@@ -156,14 +156,14 @@ router.get('/agent/:id', auth, SC, async (req, res) => {
 
     const [orderAgg, paymentAgg, ticketCount] = await Promise.all([
       Order.aggregate([
-        { $match: { agent: new mongoose.Types.ObjectId(agentId), createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' } } },
+        { $match: { ...req.tenantFilter, agent: new mongoose.Types.ObjectId(agentId), createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' } } },
         { $group: { _id: null, count: { $sum: 1 } } }
       ]),
       Payment.aggregate([
-        { $match: { agent: new mongoose.Types.ObjectId(agentId), createdAt: { $gte: start, $lt: end }, status: 'completed' } },
+        { $match: { ...req.tenantFilter, agent: new mongoose.Types.ObjectId(agentId), createdAt: { $gte: start, $lt: end }, status: 'completed' } },
         { $group: { _id: null, revenue: { $sum: '$amount' }, count: { $sum: 1 } } }
       ]),
-      Ticket.countDocuments({ agent: agentId, createdAt: { $gte: start, $lt: end } })
+      Ticket.countDocuments({ ...req.tenantFilter, agent: agentId, createdAt: { $gte: start, $lt: end } })
     ]);
 
     const totalOrders = orderAgg[0]?.count || 0;
@@ -191,6 +191,7 @@ router.get('/sales', auth, SC, async (req, res) => {
     const end = endDate ? new Date(endDate) : new Date();
 
     const payments = await Payment.find({
+      ...req.tenantFilter,
       createdAt: { $gte: start, $lte: end },
       status: 'completed'
     }).populate('agent', 'firstName lastName').sort({ createdAt: -1 });
@@ -228,6 +229,7 @@ router.get('/products', auth, SC, async (req, res) => {
     const { start, end } = getDateRange(period);
 
     const orders = await Order.find({
+      ...req.tenantFilter,
       createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' }
     });
 
@@ -263,6 +265,7 @@ router.get('/agent-history/:id', auth, SC, async (req, res) => {
     end.setHours(23, 59, 59, 999);
 
     const filter = {
+      ...req.tenantFilter,
       agent: agentId,
       status: 'completed',
       createdAt: { $gte: start, $lte: end }
@@ -279,7 +282,7 @@ router.get('/agent-history/:id', auth, SC, async (req, res) => {
         .limit(parseInt(limit))
         .lean(),
       Payment.aggregate([
-        { $match: { agent: new (require('mongoose').Types.ObjectId)(agentId), status: 'completed', createdAt: { $gte: start, $lte: end } } },
+        { $match: { ...req.tenantFilter, agent: new (require('mongoose').Types.ObjectId)(agentId), status: 'completed', createdAt: { $gte: start, $lte: end } } },
         { $group: {
           _id: null,
           totalRevenue: { $sum: '$amount' },
@@ -312,6 +315,7 @@ router.get('/revenue-chart', auth, SC, async (req, res) => {
     const { start, end } = getDateRange(period);
 
     const payments = await Payment.find({
+      ...req.tenantFilter,
       createdAt: { $gte: start, $lt: end },
       status: 'completed'
     }).sort({ createdAt: 1 });
@@ -343,6 +347,7 @@ router.get('/product-analytics', auth, SC, async (req, res) => {
     const { start, end } = getDateRange(period);
 
     const orders = await Order.find({
+      ...req.tenantFilter,
       createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' }
     });
 
@@ -393,13 +398,13 @@ router.get('/agent-performance', auth, adminOnly, SC, async (req, res) => {
 
     // All aggregations in one parallel round-trip
     const [agents, orderAggs, paymentAggs, ticketAggs, totalAgg] = await Promise.all([
-      User.find({ role: 'agent', isActive: true }).select('firstName lastName email lastLogin').lean(),
+      User.find({ ...req.tenantFilter, role: 'agent', isActive: true }).select('firstName lastName email lastLogin').lean(),
       Order.aggregate([
-        { $match: { createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' } } },
+        { $match: { ...req.tenantFilter, createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' } } },
         { $group: { _id: '$agent', orders: { $sum: 1 } } }
       ]),
       Payment.aggregate([
-        { $match: { createdAt: { $gte: start, $lt: end }, status: 'completed' } },
+        { $match: { ...req.tenantFilter, createdAt: { $gte: start, $lt: end }, status: 'completed' } },
         { $group: {
           _id: '$agent',
           revenue: { $sum: '$amount' },
@@ -410,11 +415,11 @@ router.get('/agent-performance', auth, adminOnly, SC, async (req, res) => {
         }}
       ]),
       Ticket.aggregate([
-        { $match: { createdAt: { $gte: start, $lt: end } } },
+        { $match: { ...req.tenantFilter, createdAt: { $gte: start, $lt: end } } },
         { $group: { _id: '$agent', tickets: { $sum: 1 } } }
       ]),
       Payment.aggregate([
-        { $match: { createdAt: { $gte: start, $lt: end }, status: 'completed' } },
+        { $match: { ...req.tenantFilter, createdAt: { $gte: start, $lt: end }, status: 'completed' } },
         { $group: { _id: null, totalRevenue: { $sum: '$amount' }, totalOrders: { $sum: 1 } } }
       ])
     ]);
@@ -464,6 +469,7 @@ router.get('/revenue-history', auth, adminOnly, SC, async (req, res) => {
       const end = new Date(targetYear, targetMonth + 1, 1);
 
       const payments = await Payment.find({
+        ...req.tenantFilter,
         createdAt: { $gte: start, $lt: end },
         status: 'completed'
       }).sort({ createdAt: 1 });
@@ -502,6 +508,7 @@ router.get('/revenue-history', auth, adminOnly, SC, async (req, res) => {
       const end = new Date(targetYear + 1, 0, 1);
 
       const payments = await Payment.find({
+        ...req.tenantFilter,
         createdAt: { $gte: start, $lt: end },
         status: 'completed'
       }).sort({ createdAt: 1 });
@@ -548,14 +555,14 @@ router.get('/daily-report/:date', auth, adminOnly, async (req, res) => {
     const end = new Date(dateStr + 'T23:59:59.999Z');
 
     const [payments, orders, tickets] = await Promise.all([
-      Payment.find({ createdAt: { $gte: start, $lte: end }, status: 'completed' })
+      Payment.find({ ...req.tenantFilter, createdAt: { $gte: start, $lte: end }, status: 'completed' })
         .populate('agent', 'firstName lastName')
         .populate('ticket', 'ticketNumber type')
         .sort({ createdAt: 1 }),
-      Order.find({ createdAt: { $gte: start, $lte: end }, status: { $ne: 'cancelled' } })
+      Order.find({ ...req.tenantFilter, createdAt: { $gte: start, $lte: end }, status: { $ne: 'cancelled' } })
         .populate('agent', 'firstName lastName')
         .populate('table', 'number name'),
-      Ticket.find({ createdAt: { $gte: start, $lte: end } })
+      Ticket.find({ ...req.tenantFilter, createdAt: { $gte: start, $lte: end } })
     ]);
 
     const totalRevenue = payments.reduce((s, p) => s + p.amount, 0);
@@ -633,6 +640,7 @@ router.get('/daily-invoices', auth, adminOnly, async (req, res) => {
     const end = new Date(dateStr + 'T23:59:59.999Z');
 
     const invoices = await Ticket.find({
+      ...req.tenantFilter,
       type: 'invoice',
       isPaid: true,
       createdAt: { $gte: start, $lte: end }

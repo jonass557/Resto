@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const cashRegisterSchema = new mongoose.Schema({
+  restaurant: { type: mongoose.Schema.Types.ObjectId, ref: 'Restaurant', default: null, index: true },
   sessionNumber: { type: String, required: true, unique: true },
   agent: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   openedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

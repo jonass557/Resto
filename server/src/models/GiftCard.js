@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const giftCardSchema = new mongoose.Schema({
+  restaurant: { type: mongoose.Schema.Types.ObjectId, ref: 'Restaurant', default: null, index: true },
   code: { type: String, required: true, unique: true },
   initialBalance: { type: Number, required: true },
   currentBalance: { type: Number, required: true },

@@ -47,8 +47,24 @@ export function AuthProvider({ children }) {
     refresh();
   }, [token]);
 
-  const login = async (email, password) => {
-    const { data } = await authAPI.login({ email, password });
+  const refreshUser = async () => {
+    try {
+      const { data } = await authAPI.getMe();
+      setUser(data.data);
+      localStorage.setItem('user', JSON.stringify(data.data));
+      return data.data;
+    } catch {
+      return null;
+    }
+  };
+
+  const login = async (identifier, password) => {
+    const cleanId = (identifier || '').trim();
+    const { data } = await authAPI.login({
+      identifier: cleanId,
+      email: cleanId,
+      password
+    });
     const { user: userData, token: newToken } = data.data;
     localStorage.setItem('token', newToken);
     localStorage.setItem('user', JSON.stringify(userData));
@@ -57,6 +73,18 @@ export function AuthProvider({ children }) {
     setUser(userData);
     prefetchCriticalData(userData.role);
     return userData;
+  };
+
+  const register = async (payload) => {
+    const { data } = await authAPI.register(payload);
+    const { user: userData, token: newToken } = data.data;
+    localStorage.setItem('token', newToken);
+    localStorage.setItem('user', JSON.stringify(userData));
+    didRefresh.current = true;
+    setToken(newToken);
+    setUser(userData);
+    prefetchCriticalData(userData.role);
+    return { userData, message: data.message };
   };
 
   const logout = () => {
@@ -72,13 +100,22 @@ export function AuthProvider({ children }) {
     localStorage.setItem('user', JSON.stringify(userData));
   };
 
+  const subscriptionState = user?.restaurantData?.subscription || null;
+  const isSubscriptionExpired = Boolean(
+    user?.restaurantData &&
+    (!user.restaurantData.isActive || user.restaurantData.subscription?.isValid === false)
+  );
+
   return (
     <AuthContext.Provider value={{
-      user, token, loading, login, logout, updateUser,
+      user, token, loading, login, register, refreshUser, logout, updateUser,
+      isSuperAdmin: user?.role === 'superadmin',
       isAdmin: user?.role === 'admin',
       isAgent: user?.role === 'agent',
       isCaissier: user?.role === 'caissier',
-      isAuthenticated: !!user
+      isAuthenticated: !!user,
+      subscriptionState,
+      isSubscriptionExpired
     }}>
       {children}
     </AuthContext.Provider>

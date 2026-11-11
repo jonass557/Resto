@@ -3,7 +3,7 @@ const CashRegister = require('../models/CashRegister');
 const Ticket = require('../models/Ticket');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
-const { auth, caissierOnly, caissierOrAdmin } = require('../middleware/auth');
+const { auth, caissierOnly, caissierOrAdmin, requireActiveSubscription } = require('../middleware/auth');
 const { generateSessionNumber } = require('../utils/helpers');
 const { invalidateStats } = require('../utils/statsCache');
 
@@ -13,7 +13,7 @@ const router = express.Router();
 router.get('/', auth, async (req, res) => {
   try {
     const { agent, status, service, startDate, endDate } = req.query;
-    const filter = {};
+    const filter = { ...req.tenantFilter };
     if (agent) filter.agent = agent;
     if (status) filter.status = status;
     if (service) filter.service = parseInt(service);
@@ -37,7 +37,7 @@ router.get('/', auth, async (req, res) => {
 // GET /api/cash-register/current — agent's current open session
 router.get('/current', auth, async (req, res) => {
   try {
-    const session = await CashRegister.findOne({ agent: req.user._id, status: 'open' })
+    const session = await CashRegister.findOne({ ...req.tenantFilter, agent: req.user._id, status: 'open' })
       .populate('agent', 'firstName lastName')
       .populate('openedBy', 'firstName lastName')
       .populate('payments');
@@ -50,11 +50,11 @@ router.get('/current', auth, async (req, res) => {
 // GET /api/cash-register/agents — list active agents for caissier
 router.get('/agents', auth, caissierOnly, async (req, res) => {
   try {
-    const agents = await User.find({ role: 'agent', isActive: true }).select('firstName lastName email');
+    const agents = await User.find({ ...req.tenantFilter, role: 'agent', isActive: true }).select('firstName lastName email');
     // For each agent, check if they have an open session
     const result = [];
     for (const agent of agents) {
-      const openSession = await CashRegister.findOne({ agent: agent._id, status: 'open' })
+      const openSession = await CashRegister.findOne({ ...req.tenantFilter, agent: agent._id, status: 'open' })
         .populate('openedBy', 'firstName lastName');
       result.push({
         _id: agent._id,
@@ -84,12 +84,13 @@ router.get('/agents', auth, caissierOnly, async (req, res) => {
 // GET /api/cash-register/agent-invoices/:agentId — factures d'un agent pour le service ouvert
 router.get('/agent-invoices/:agentId', auth, caissierOnly, async (req, res) => {
   try {
-    const session = await CashRegister.findOne({ agent: req.params.agentId, status: 'open' });
+    const session = await CashRegister.findOne({ ...req.tenantFilter, agent: req.params.agentId, status: 'open' });
     if (!session) {
       return res.json({ success: true, data: { invoices: [], enCours: 0, aEncaisser: 0, paid: [] } });
     }
 
     const invoices = await Ticket.find({
+      ...req.tenantFilter,
       agent: req.params.agentId,
       type: 'invoice',
       createdAt: { $gte: session.openedAt }
@@ -115,7 +116,7 @@ router.get('/agent-invoices/:agentId', auth, caissierOnly, async (req, res) => {
 });
 
 // POST /api/cash-register/open-service — caissier ouvre la caisse d'un agent
-router.post('/open-service', auth, caissierOnly, async (req, res) => {
+router.post('/open-service', auth, caissierOnly, requireActiveSubscription, async (req, res) => {
   try {
     const { agentId, service, openingAmount, notes } = req.body;
     if (!agentId || !service) {
@@ -125,17 +126,18 @@ router.post('/open-service', auth, caissierOnly, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Service invalide (1 ou 2)' });
     }
 
-    const agent = await User.findOne({ _id: agentId, role: 'agent', isActive: true });
+    const agent = await User.findOne({ _id: agentId, ...req.tenantFilter, role: 'agent', isActive: true });
     if (!agent) {
       return res.status(404).json({ success: false, message: 'Agent non trouvé' });
     }
 
-    const existing = await CashRegister.findOne({ agent: agentId, status: 'open' });
+    const existing = await CashRegister.findOne({ ...req.tenantFilter, agent: agentId, status: 'open' });
     if (existing) {
       return res.status(400).json({ success: false, message: `Cet agent a déjà une caisse ouverte (Service ${existing.service})` });
     }
 
     const session = new CashRegister({
+      restaurant: req.restaurantId || null,
       sessionNumber: generateSessionNumber(),
       agent: agentId,
       openedBy: req.user._id,
@@ -152,6 +154,7 @@ router.post('/open-service', auth, caissierOnly, async (req, res) => {
     io.emit('cashRegister:opened', session);
 
     const notif = await Notification.create({
+      restaurant: req.restaurantId || null,
       type: 'cash_opened',
       title: 'Caisse ouverte',
       message: `Le caissier ${req.user.firstName} a ouvert le Service ${service} pour ${agent.firstName} ${agent.lastName}`,
@@ -167,20 +170,21 @@ router.post('/open-service', auth, caissierOnly, async (req, res) => {
 });
 
 // POST /api/cash-register/close-service — caissier clôture la caisse d'un agent
-router.post('/close-service', auth, caissierOnly, async (req, res) => {
+router.post('/close-service', auth, caissierOnly, requireActiveSubscription, async (req, res) => {
   try {
     const { agentId, closingAmount, notes } = req.body;
     if (!agentId) {
       return res.status(400).json({ success: false, message: 'Agent requis' });
     }
 
-    const session = await CashRegister.findOne({ agent: agentId, status: 'open' });
+    const session = await CashRegister.findOne({ ...req.tenantFilter, agent: agentId, status: 'open' });
     if (!session) {
       return res.status(400).json({ success: false, message: 'Aucune caisse ouverte pour cet agent' });
     }
 
     // Vérifier qu'il n'y a aucune facture impayée (en_cours ou a_encaisser)
     const unpaidTickets = await Ticket.find({
+      ...req.tenantFilter,
       agent: agentId,
       type: 'invoice',
       isPaid: false,
@@ -223,6 +227,7 @@ router.post('/close-service', auth, caissierOnly, async (req, res) => {
 
     const agent = await User.findById(agentId);
     const notif = await Notification.create({
+      restaurant: req.restaurantId || null,
       type: 'cash_closed',
       title: 'Caisse clôturée',
       message: `Le caissier ${req.user.firstName} a clôturé le Service ${session.service} de ${agent.firstName} ${agent.lastName} — Total: ${session.totalSales} FCFA`,
@@ -247,15 +252,16 @@ router.get('/service-report/:agentId', auth, caissierOnly, async (req, res) => {
     const { sessionId } = req.query;
     let session;
     if (sessionId) {
-      session = await CashRegister.findById(sessionId);
+      session = await CashRegister.findOne({ _id: sessionId, ...req.tenantFilter });
     } else {
-      session = await CashRegister.findOne({ agent: req.params.agentId, status: 'open' });
+      session = await CashRegister.findOne({ ...req.tenantFilter, agent: req.params.agentId, status: 'open' });
     }
     if (!session) {
       return res.status(404).json({ success: false, message: 'Session non trouvée' });
     }
 
     const paidInvoices = await Ticket.find({
+      ...req.tenantFilter,
       agent: req.params.agentId,
       type: 'invoice',
       isPaid: true,
@@ -278,6 +284,7 @@ router.get('/global-report', auth, caissierOnly, async (req, res) => {
     const dayEnd = new Date(targetDate.setHours(23, 59, 59, 999));
 
     const filter = {
+      ...req.tenantFilter,
       openedAt: { $gte: dayStart, $lte: dayEnd },
       status: 'closed'
     };
@@ -297,6 +304,7 @@ router.get('/global-report', auth, caissierOnly, async (req, res) => {
       if (sess.closedAt) dateFilter.$lte = sess.closedAt;
 
       const invoices = await Ticket.find({
+        ...req.tenantFilter,
         agent: sess.agent._id,
         type: 'invoice',
         isPaid: true,
@@ -331,7 +339,7 @@ router.get('/daily-detail', auth, caissierOnly, async (req, res) => {
     const dayStart = new Date(targetDate); dayStart.setHours(0, 0, 0, 0);
     const dayEnd   = new Date(targetDate); dayEnd.setHours(23, 59, 59, 999);
 
-    const sessions = await CashRegister.find({ openedAt: { $gte: dayStart, $lte: dayEnd }, status: 'closed' })
+    const sessions = await CashRegister.find({ ...req.tenantFilter, openedAt: { $gte: dayStart, $lte: dayEnd }, status: 'closed' })
       .populate('agent', 'firstName lastName')
       .populate('openedBy', 'firstName lastName')
       .populate('closedBy', 'firstName lastName')
@@ -347,6 +355,7 @@ router.get('/daily-detail', auth, caissierOnly, async (req, res) => {
       if (sess.closedAt) dateFilter.$lte = sess.closedAt;
 
       const invoices = await Ticket.find({
+        ...req.tenantFilter,
         agent: sess.agent._id,
         type: 'invoice',
         isPaid: true,
@@ -422,9 +431,9 @@ router.get('/daily-detail', auth, caissierOnly, async (req, res) => {
 });
 
 // POST /api/cash-register/close-all — clôturer toutes les caisses ouvertes d'un coup
-router.post('/close-all', auth, caissierOnly, async (req, res) => {
+router.post('/close-all', auth, caissierOnly, requireActiveSubscription, async (req, res) => {
   try {
-    const openSessions = await CashRegister.find({ status: 'open' })
+    const openSessions = await CashRegister.find({ ...req.tenantFilter, status: 'open' })
       .populate('agent', 'firstName lastName');
 
     if (openSessions.length === 0) {
@@ -436,6 +445,7 @@ router.post('/close-all', auth, caissierOnly, async (req, res) => {
     for (const sess of openSessions) {
       if (!sess.agent) continue; // agent supprimé
       const unpaid = await Ticket.find({
+        ...req.tenantFilter,
         agent: sess.agent._id,
         type: 'invoice',
         isPaid: false,
@@ -466,6 +476,7 @@ router.post('/close-all', auth, caissierOnly, async (req, res) => {
     io.emit('cashRegister:closed', { closedCount: openSessions.length });
 
     const notif = await Notification.create({
+      restaurant: req.restaurantId || null,
       type: 'cash_closed',
       title: 'Clôture journalière',
       message: `${req.user.firstName} a clôturé ${openSessions.length} caisse(s) — Fin de journée`,
@@ -486,7 +497,7 @@ router.post('/close-all', auth, caissierOnly, async (req, res) => {
 // GET /api/cash-register/:id
 router.get('/:id', auth, async (req, res) => {
   try {
-    const session = await CashRegister.findById(req.params.id)
+    const session = await CashRegister.findOne({ _id: req.params.id, ...req.tenantFilter })
       .populate('agent', 'firstName lastName')
       .populate('openedBy', 'firstName lastName')
       .populate('closedBy', 'firstName lastName')

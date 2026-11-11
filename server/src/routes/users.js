@@ -8,7 +8,7 @@ const router = express.Router();
 router.get('/', auth, adminOnly, async (req, res) => {
   try {
     const { role, isActive, search } = req.query;
-    const filter = {};
+    const filter = { ...req.tenantFilter };
     if (role) filter.role = role;
     if (isActive !== undefined) filter.isActive = isActive === 'true';
     if (search) {
@@ -38,7 +38,10 @@ router.post('/', auth, adminOnly, async (req, res) => {
       }
     }
 
-    const userData = { firstName, lastName, password, role: role || 'agent', phone };
+    if (role === 'superadmin' && req.user.role !== 'superadmin') {
+      return res.status(403).json({ success: false, message: 'Rôle superadmin non autorisé' });
+    }
+    const userData = { firstName, lastName, password, role: role || 'agent', phone, restaurant: req.restaurantId || null };
     if (email && email.trim()) userData.email = email.toLowerCase().trim();
     const user = new User(userData);
     await user.save();
@@ -55,7 +58,7 @@ router.post('/', auth, adminOnly, async (req, res) => {
 // GET /api/users/:id
 router.get('/:id', auth, adminOnly, async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select('-password');
+    const user = await User.findOne({ _id: req.params.id, ...req.tenantFilter }).select('-password');
     if (!user) return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
     res.json({ success: true, data: user });
   } catch (error) {
@@ -67,13 +70,18 @@ router.get('/:id', auth, adminOnly, async (req, res) => {
 router.put('/:id', auth, adminOnly, async (req, res) => {
   try {
     const { firstName, lastName, email, role, phone, isActive, password } = req.body;
-    const user = await User.findById(req.params.id);
+    const user = await User.findOne({ _id: req.params.id, ...req.tenantFilter });
     if (!user) return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
 
     if (firstName) user.firstName = firstName;
     if (lastName) user.lastName = lastName;
-    if (email) user.email = email;
-    if (role) user.role = role;
+    if (email !== undefined) user.email = email ? email.toLowerCase().trim() : undefined;
+    if (role) {
+      if (role === 'superadmin' && req.user.role !== 'superadmin') {
+        return res.status(403).json({ success: false, message: 'Rôle superadmin non autorisé' });
+      }
+      user.role = role;
+    }
     if (phone !== undefined) user.phone = phone;
     if (isActive !== undefined) user.isActive = isActive;
     if (password) user.password = password;
@@ -92,16 +100,16 @@ router.put('/:id', auth, adminOnly, async (req, res) => {
 // DELETE /api/users/:id
 router.delete('/:id', auth, adminOnly, async (req, res) => {
   try {
-    const user = await User.findById(req.params.id);
+    const user = await User.findOne({ _id: req.params.id, ...req.tenantFilter });
     if (!user) return res.status(404).json({ success: false, message: 'Utilisateur non trouvé' });
     if (user.role === 'admin') {
-      const adminCount = await User.countDocuments({ role: 'admin', isActive: true });
+      const adminCount = await User.countDocuments({ ...req.tenantFilter, role: 'admin', isActive: true });
       if (adminCount <= 1) {
         return res.status(400).json({ success: false, message: 'Impossible de supprimer le dernier administrateur' });
       }
     }
 
-    await User.findByIdAndDelete(req.params.id);
+    await User.findOneAndDelete({ _id: req.params.id, ...req.tenantFilter });
 
     const io = req.app.get('io');
     io.emit('user:deleted', req.params.id);

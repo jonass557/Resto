@@ -6,7 +6,7 @@ const Table = require('../models/Table');
 const Client = require('../models/Client');
 const CashRegister = require('../models/CashRegister');
 const Notification = require('../models/Notification');
-const { auth } = require('../middleware/auth');
+const { auth, requireActiveSubscription } = require('../middleware/auth');
 const { generatePaymentNumber } = require('../utils/helpers');
 const { invalidateStats } = require('../utils/statsCache');
 
@@ -16,7 +16,7 @@ const router = express.Router();
 router.get('/', auth, async (req, res) => {
   try {
     const { method, agent, startDate, endDate, page = 1, limit = 50 } = req.query;
-    const filter = {};
+    const filter = { ...req.tenantFilter };
     if (method) filter.method = method;
     if (agent) filter.agent = agent;
     if (startDate || endDate) {
@@ -44,7 +44,7 @@ router.get('/', auth, async (req, res) => {
 });
 
 // POST /api/payments - Process payment
-router.post('/', auth, async (req, res) => {
+router.post('/', auth, requireActiveSubscription, async (req, res) => {
   try {
     const {
       ticketId, method, amountReceived,
@@ -52,12 +52,12 @@ router.post('/', auth, async (req, res) => {
       mixedPayments, notes
     } = req.body;
 
-    const ticket = await Ticket.findById(ticketId).populate('orders');
+    const ticket = await Ticket.findOne({ _id: ticketId, ...req.tenantFilter }).populate('orders');
     if (!ticket) return res.status(404).json({ success: false, message: 'Ticket non trouvé' });
     if (ticket.isPaid) return res.status(400).json({ success: false, message: 'Ce ticket est déjà payé' });
 
     // Find open cash register
-    const cashRegister = await CashRegister.findOne({ agent: req.user._id, status: 'open' });
+    const cashRegister = await CashRegister.findOne({ ...req.tenantFilter, agent: req.user._id, status: 'open' });
     if (!cashRegister) {
       return res.status(400).json({ success: false, message: 'Veuillez ouvrir une caisse avant de procéder au paiement' });
     }
@@ -65,6 +65,7 @@ router.post('/', auth, async (req, res) => {
     const change = method === 'cash' ? Math.max(0, amountReceived - ticket.total) : 0;
 
     const payment = new Payment({
+      restaurant: req.restaurantId || null,
       paymentNumber: generatePaymentNumber(),
       ticket: ticket._id,
       table: ticket.table,
@@ -161,6 +162,7 @@ router.post('/', auth, async (req, res) => {
       methodDesc = parts.join(' + ');
     }
     const notif = await Notification.create({
+      restaurant: req.restaurantId || null,
       type: 'payment_received',
       title: 'Paiement reçu',
       message: `${req.user.firstName} ${req.user.lastName} a encaissé ${ticket.total} FCFA par ${methodDesc} — Facture ${ticket.ticketNumber}${table ? ' (Table ' + (table.number || '') + ')' : ''}`,
@@ -181,9 +183,9 @@ router.post('/', auth, async (req, res) => {
 });
 
 // POST /api/payments/:id/refund
-router.post('/:id/refund', auth, async (req, res) => {
+router.post('/:id/refund', auth, requireActiveSubscription, async (req, res) => {
   try {
-    const payment = await Payment.findById(req.params.id);
+    const payment = await Payment.findOne({ _id: req.params.id, ...req.tenantFilter });
     if (!payment) return res.status(404).json({ success: false, message: 'Paiement non trouvé' });
 
     payment.status = 'refunded';

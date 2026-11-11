@@ -350,14 +350,14 @@ router.post('/print-ticket', auth, async (req, res) => {
 
     // If ticketId is provided, fetch ticket data from DB
     if (ticketId && !ticketData) {
-      const ticket = await Ticket.findById(ticketId)
+      const ticket = await Ticket.findOne({ _id: ticketId, ...req.tenantFilter })
         .populate('table', 'number name zone')
         .populate('agent', 'firstName lastName')
         .populate('client', 'firstName lastName')
         .populate('payment');
       if (!ticket) return res.status(404).json({ success: false, message: 'Ticket non trouvé' });
 
-      const settings = await Settings.findOne();
+      const settings = await Settings.findOne(req.tenantFilter);
       const mmc = settings?.mobileMoneyConfig || {};
 
       ticketData = {
@@ -395,7 +395,7 @@ router.post('/print-ticket', auth, async (req, res) => {
 
     // Always fall back to DB printer config if not provided in request
     if (!printerConfig || !printerConfig.type) {
-      const settings = await Settings.findOne();
+      const settings = await Settings.findOne(req.tenantFilter);
       printerConfig = settings?.printerConfig || {};
     }
 
@@ -554,7 +554,7 @@ router.post('/print-global-report', auth, async (req, res) => {
     const dayStart = new Date(targetDate); dayStart.setHours(0, 0, 0, 0);
     const dayEnd   = new Date(targetDate); dayEnd.setHours(23, 59, 59, 999);
 
-    const sessionQuery = { openedAt: { $gte: dayStart, $lte: dayEnd }, status: 'closed' };
+    const sessionQuery = { ...req.tenantFilter, openedAt: { $gte: dayStart, $lte: dayEnd }, status: 'closed' };
     if (service && service !== 'all') sessionQuery.service = Number(service);
 
     const sessions = await CashRegister.find(sessionQuery)
@@ -569,7 +569,7 @@ router.post('/print-global-report', auth, async (req, res) => {
       if (!sess.agent) continue;
       const dateFilter = { $gte: sess.openedAt };
       if (sess.closedAt) dateFilter.$lte = sess.closedAt;
-      const invoices = await Ticket.find({ agent: sess.agent._id, type: 'invoice', isPaid: true, createdAt: dateFilter })
+      const invoices = await Ticket.find({ ...req.tenantFilter, agent: sess.agent._id, type: 'invoice', isPaid: true, createdAt: dateFilter })
         .populate('payment').sort({ createdAt: 1 });
       const sessionTotal = invoices.reduce((s, i) => s + i.total, 0);
       grandTotal   += sessionTotal;
@@ -581,7 +581,7 @@ router.post('/print-global-report', auth, async (req, res) => {
     }
 
     // --- Build ESC/POS ---
-    const settings = await Settings.findOne();
+    const settings = await Settings.findOne(req.tenantFilter);
     const config = settings?.printerConfig || {};
     const cols = (config.paperWidth || 80) === 58 ? 32 : 48;
     const ESC = '\x1B';
@@ -746,7 +746,7 @@ router.post('/print-raw', auth, async (req, res) => {
 
     let config = printerConfig || {};
     if (!config.type || !config.address) {
-      const settings = await Settings.findOne();
+      const settings = await Settings.findOne(req.tenantFilter);
       config = settings?.printerConfig || {};
     }
 
@@ -770,7 +770,7 @@ router.post('/print-raw', auth, async (req, res) => {
 // GET /api/printer/status
 router.get('/status', auth, async (req, res) => {
   try {
-    const settings = await Settings.findOne();
+    const settings = await Settings.findOne(req.tenantFilter);
     const config = settings?.printerConfig || { type: 'none' };
 
     if (config.type === 'network' && config.address) {

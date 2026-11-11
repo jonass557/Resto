@@ -4,7 +4,7 @@ const Table = require('../models/Table');
 const Ticket = require('../models/Ticket');
 const Product = require('../models/Product');
 const CashRegister = require('../models/CashRegister');
-const { auth } = require('../middleware/auth');
+const { auth, requireActiveSubscription } = require('../middleware/auth');
 const { generateOrderNumber, generateTicketNumber } = require('../utils/helpers');
 
 const router = express.Router();
@@ -13,7 +13,7 @@ const router = express.Router();
 router.get('/', auth, async (req, res) => {
   try {
     const { table, agent, status, startDate, endDate, activeSession, page = 1, limit = 50 } = req.query;
-    const filter = {};
+    const filter = { ...req.tenantFilter };
     if (table) filter.table = table;
     if (agent) filter.agent = agent;
     if (status) filter.status = status;
@@ -23,7 +23,7 @@ router.get('/', auth, async (req, res) => {
       if (endDate) filter.createdAt.$lte = new Date(endDate);
     }
     if (activeSession === 'true') {
-      const openSessions = await CashRegister.find({ status: 'open' });
+      const openSessions = await CashRegister.find({ ...req.tenantFilter, status: 'open' });
       if (openSessions.length === 0) {
         return res.json({ success: true, data: [], pagination: { total: 0, page: 1, limit: parseInt(limit), pages: 0 } });
       }
@@ -54,7 +54,7 @@ router.get('/', auth, async (req, res) => {
 // GET /api/orders/:id
 router.get('/:id', auth, async (req, res) => {
   try {
-    const order = await Order.findById(req.params.id)
+    const order = await Order.findOne({ _id: req.params.id, ...req.tenantFilter })
       .populate('table').populate('agent', 'firstName lastName')
       .populate('client').populate('items.product')
       .lean();
@@ -67,9 +67,9 @@ router.get('/:id', auth, async (req, res) => {
 
 // POST /api/orders - Create new order
 // Supports: dine_in (table required), takeaway, delivery (deliveryInfo required)
-router.post('/', auth, async (req, res) => {
+router.post('/', auth, requireActiveSubscription, async (req, res) => {
   try {
-    const openSession = await CashRegister.findOne({ agent: req.user._id, status: 'open' });
+    const openSession = await CashRegister.findOne({ ...req.tenantFilter, agent: req.user._id, status: 'open' });
     if (!openSession) {
       return res.status(403).json({ success: false, message: 'Votre caisse n\'est pas ouverte. Contactez le caissier pour ouvrir votre service.' });
     }
@@ -80,7 +80,7 @@ router.post('/', auth, async (req, res) => {
     // Validate table for dine-in orders
     if (orderType === 'dine_in') {
       if (!tableId) return res.status(400).json({ success: false, message: 'Table requise pour une commande sur place' });
-      table = await Table.findById(tableId);
+      table = await Table.findOne({ _id: tableId, ...req.tenantFilter });
       if (!table) return res.status(404).json({ success: false, message: 'Table non trouvée' });
     }
 
@@ -97,7 +97,7 @@ router.post('/', auth, async (req, res) => {
     let taxAmount = 0;
 
     for (const item of items) {
-      const product = await Product.findById(item.productId).populate('category', 'name');
+      const product = await Product.findOne({ _id: item.productId, ...req.tenantFilter }).populate('category', 'name');
       if (!product) continue;
       if (!product.isAvailable) continue;
 
@@ -157,6 +157,7 @@ router.post('/', auth, async (req, res) => {
     const ticketNum = generateTicketNumber('order');
 
     const order = new Order({
+      restaurant: req.restaurantId || null,
       orderNumber,
       orderType,
       table: table ? table._id : null,
@@ -184,6 +185,7 @@ router.post('/', auth, async (req, res) => {
 
     // Create order ticket (auto-printed per order)
     const ticket = new Ticket({
+      restaurant: req.restaurantId || null,
       ticketNumber: ticketNum,
       type: 'order',
       orderType,
@@ -241,8 +243,8 @@ router.post('/', auth, async (req, res) => {
 router.patch('/:id/status', auth, async (req, res) => {
   try {
     const { status } = req.body;
-    const order = await Order.findByIdAndUpdate(
-      req.params.id,
+    const order = await Order.findOneAndUpdate(
+      { _id: req.params.id, ...req.tenantFilter },
       { status },
       { new: true }
     ).populate('table', 'number name').populate('agent', 'firstName lastName');
@@ -255,7 +257,7 @@ router.patch('/:id/status', auth, async (req, res) => {
     // If cancelled, restore stock
     if (status === 'cancelled') {
       for (const item of order.items) {
-        const product = await Product.findById(item.product);
+        const product = await Product.findOne({ _id: item.product, ...req.tenantFilter });
         if (product && product.stock !== -1) {
           product.stock += item.quantity;
           await product.save();
@@ -273,7 +275,7 @@ router.patch('/:id/status', auth, async (req, res) => {
 router.patch('/:id/items/:itemId/status', auth, async (req, res) => {
   try {
     const { status } = req.body;
-    const order = await Order.findById(req.params.id);
+    const order = await Order.findOne({ _id: req.params.id, ...req.tenantFilter });
     if (!order) return res.status(404).json({ success: false, message: 'Commande non trouvée' });
 
     const item = order.items.id(req.params.itemId);
@@ -294,7 +296,7 @@ router.patch('/:id/items/:itemId/status', auth, async (req, res) => {
 // DELETE /api/orders/:id
 router.delete('/:id', auth, async (req, res) => {
   try {
-    const order = await Order.findById(req.params.id);
+    const order = await Order.findOne({ _id: req.params.id, ...req.tenantFilter });
     if (!order) return res.status(404).json({ success: false, message: 'Commande non trouvée' });
 
     // Remove from table
@@ -304,14 +306,14 @@ router.delete('/:id', auth, async (req, res) => {
 
     // Restore stock
     for (const item of order.items) {
-      const product = await Product.findById(item.product);
+      const product = await Product.findOne({ _id: item.product, ...req.tenantFilter });
       if (product && product.stock !== -1) {
         product.stock += item.quantity;
         await product.save();
       }
     }
 
-    await Order.findByIdAndDelete(req.params.id);
+    await Order.findOneAndDelete({ _id: req.params.id, ...req.tenantFilter });
 
     const io = req.app.get('io');
     io.emit('order:deleted', req.params.id);

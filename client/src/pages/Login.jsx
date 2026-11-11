@@ -4,7 +4,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { UtensilsCrossed, Loader2, Mail, Lock, Eye, EyeOff, ChefHat, Utensils, Coffee, Wine } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { COUNTRIES } from '@/data/countries';
+import {
+  UtensilsCrossed, Loader2, Mail, Lock, Eye, EyeOff,
+  ChefHat, Utensils, Coffee, Wine, Phone, Globe
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 
 function FloatingIcons() {
@@ -38,16 +43,22 @@ function FloatingIcons() {
 }
 
 export default function Login() {
+  const [mode, setMode] = useState('login'); // 'login' | 'register'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [regCountry, setRegCountry] = useState('CI');
+  const [regPhone, setRegPhone] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regPassword, setRegPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [serverWaking, setServerWaking] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const { login, logout } = useAuth();
+  const { login, register, logout } = useAuth();
   const navigate = useNavigate();
   const pollRef = useRef(null);
   const apiBase = import.meta.env.VITE_API_URL || '/api';
+  const selectedCountry = COUNTRIES.find(c => c.code === regCountry) || COUNTRIES[0];
   // Detect if we're served from the same origin (local/offline mode)
   // In that case the server is already up — no need for wake polling
   const isLocalMode = !import.meta.env.VITE_API_URL || import.meta.env.VITE_API_URL === '/api';
@@ -56,12 +67,19 @@ export default function Login() {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
   };
 
+  const getHomeRoute = (role) => {
+    if (role === 'superadmin') return '/super-admin';
+    if (role === 'admin') return '/admin';
+    if (role === 'caissier') return '/caissier';
+    return '/agent/restaurant';
+  };
+
   const doLogin = useCallback(async (emailVal, passVal) => {
     try {
       const user = await login(emailVal, passVal);
       stopPoll();
       toast.success(`Bienvenue, ${user.firstName}!`);
-      navigate(user.role === 'admin' ? '/admin' : user.role === 'caissier' ? '/caissier' : '/agent/restaurant');
+      navigate(getHomeRoute(user.role));
       return 'ok';
     } catch (err) {
       if (!err.response) return 'network'; // still waking
@@ -114,7 +132,37 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!password) { toast.error('Mot de passe requis'); return; }
+    if (mode === 'register') {
+      const cleanLocal = regPhone.replace(/\D/g, '');
+      if (!cleanLocal || cleanLocal.length < 6) {
+        toast.error('Veuillez saisir un numéro de téléphone valide (sans indicatif)');
+        return;
+      }
+      if (!/^\d{5,6}$/.test(regPassword)) {
+        toast.error('Le mot de passe doit être un code à 5 ou 6 chiffres');
+        return;
+      }
+      setLoading(true);
+      try {
+        const { userData, message } = await register({
+          country: selectedCountry.code,
+          countryName: selectedCountry.name,
+          dialCode: selectedCountry.dialCode,
+          phone: cleanLocal,
+          email: regEmail.trim() || undefined,
+          password: regPassword,
+        });
+        toast.success(message || 'Compte restaurant créé avec 30 jours d\'essai gratuit !');
+        navigate(getHomeRoute(userData.role));
+      } catch (err) {
+        toast.error(err.response?.data?.message || 'Erreur lors de l\'inscription');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    if (!password) { toast.error('Mot de passe (code) requis'); return; }
     setLoading(true);
     const result = await doLogin(email, password);
     if (result === 'network') startWakePolling(email, password);
@@ -190,54 +238,182 @@ export default function Login() {
           </div>
 
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-8">
+            <div className="flex rounded-xl bg-gray-100 dark:bg-gray-900 p-1 mb-6">
+              <button
+                type="button"
+                onClick={() => setMode('login')}
+                className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  mode === 'login'
+                    ? 'bg-white dark:bg-gray-800 text-blue-600 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Connexion
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode('register')}
+                className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  mode === 'register'
+                    ? 'bg-white dark:bg-gray-800 text-blue-600 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Créer un restaurant
+              </button>
+            </div>
+
             <div className="mb-6">
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Connexion</h2>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                {mode === 'login' ? 'Connexion' : 'Inscription Restaurant'}
+              </h2>
               <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">
-                Entrez vos identifiants pour accéder au système
+                {mode === 'login'
+                  ? 'Entrez votre code à 5 ou 6 chiffres (email/téléphone optionnel)'
+                  : 'Profitez de 30 jours d\'essai gratuit pour gérer votre restaurant'}
               </p>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
-              <div className="space-y-2">
-                <Label htmlFor="email" className="text-sm font-medium">Email <span className="text-gray-400 font-normal text-xs">(optionnel)</span></Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="email"
-                    type="text"
-                    placeholder="votre@email.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    autoComplete="email"
-                    disabled={loading}
-                    className="pl-10 h-12 rounded-xl border-gray-200 focus:border-blue-500 focus:ring-blue-500 transition-all"
-                  />
-                </div>
-              </div>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {mode === 'login' ? (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="email" className="text-sm font-medium">
+                      Email ou téléphone <span className="text-gray-400 font-normal text-xs">(optionnel)</span>
+                    </Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        id="email"
+                        type="text"
+                        placeholder="votre@email.com ou téléphone"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        autoComplete="username"
+                        disabled={loading}
+                        className="pl-10 h-12 rounded-xl border-gray-200 focus:border-blue-500 focus:ring-blue-500 transition-all"
+                      />
+                    </div>
+                  </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="password" className="text-sm font-medium">Mot de passe</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="password"
-                    type={showPassword ? 'text' : 'password'}
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    autoComplete="current-password"
-                    disabled={loading}
-                    className="pl-10 pr-10 h-12 rounded-xl border-gray-200 focus:border-blue-500 focus:ring-blue-500 transition-all"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-              </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="password" className="text-sm font-medium">Mot de passe (code 5 ou 6 chiffres)</Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        id="password"
+                        type={showPassword ? 'text' : 'password'}
+                        placeholder="••••••"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        autoComplete="current-password"
+                        disabled={loading}
+                        className="pl-10 pr-10 h-12 rounded-xl border-gray-200 focus:border-blue-500 focus:ring-blue-500 transition-all"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Pays *</Label>
+                    <Select value={regCountry} onValueChange={setRegCountry} disabled={loading}>
+                      <SelectTrigger className="h-12 rounded-xl border-gray-200">
+                        <div className="flex items-center gap-2 truncate">
+                          <Globe className="h-4 w-4 text-gray-400 shrink-0" />
+                          <SelectValue />
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent className="max-h-72">
+                        {COUNTRIES.map((c) => (
+                          <SelectItem key={c.code} value={c.code}>
+                            {c.flag} {c.name} ({c.dialCode})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="regPhone" className="text-sm font-medium">
+                      Numéro de téléphone * <span className="text-gray-400 font-normal text-xs">(sans l&apos;indicatif)</span>
+                    </Label>
+                    <div className="flex gap-2">
+                      <div className="h-12 px-3 rounded-xl border border-gray-200 bg-gray-50 dark:bg-gray-900 flex items-center gap-1.5 text-sm font-semibold shrink-0">
+                        <span>{selectedCountry.flag}</span>
+                        <span>{selectedCountry.dialCode}</span>
+                      </div>
+                      <div className="relative flex-1">
+                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <Input
+                          id="regPhone"
+                          type="tel"
+                          inputMode="numeric"
+                          placeholder="0700000000"
+                          value={regPhone}
+                          onChange={(e) => setRegPhone(e.target.value.replace(/[^\d\s]/g, ''))}
+                          disabled={loading}
+                          required
+                          className="pl-10 h-12 rounded-xl border-gray-200 focus:border-blue-500 focus:ring-blue-500 transition-all"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="regEmail" className="text-sm font-medium">
+                      Email <span className="text-gray-400 font-normal text-xs">(optionnel)</span>
+                    </Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        id="regEmail"
+                        type="email"
+                        placeholder="restaurant@email.com"
+                        value={regEmail}
+                        onChange={(e) => setRegEmail(e.target.value)}
+                        disabled={loading}
+                        className="pl-10 h-12 rounded-xl border-gray-200 focus:border-blue-500 focus:ring-blue-500 transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="regPassword" className="text-sm font-medium">
+                      Mot de passe (code à 5 ou 6 chiffres) *
+                    </Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        id="regPassword"
+                        type={showPassword ? 'text' : 'password'}
+                        inputMode="numeric"
+                        maxLength={6}
+                        placeholder="Ex: 12345 ou 123456"
+                        value={regPassword}
+                        onChange={(e) => setRegPassword(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        disabled={loading}
+                        required
+                        className="pl-10 pr-10 h-12 rounded-xl border-gray-200 focus:border-blue-500 focus:ring-blue-500 transition-all tracking-widest"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
 
               <Button
                 type="submit"
@@ -247,10 +423,16 @@ export default function Login() {
                 {loading ? (
                   <>
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    {serverWaking ? 'Démarrage serveur...' : 'Connexion en cours...'}
+                    {serverWaking
+                      ? 'Démarrage serveur...'
+                      : mode === 'login'
+                      ? 'Connexion en cours...'
+                      : 'Création du restaurant...'}
                   </>
-                ) : (
+                ) : mode === 'login' ? (
                   'Se connecter'
+                ) : (
+                  'Créer mon restaurant (30j gratuits)'
                 )}
               </Button>
             </form>

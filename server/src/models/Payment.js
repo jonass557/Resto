@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const paymentSchema = new mongoose.Schema({
+  restaurant: { type: mongoose.Schema.Types.ObjectId, ref: 'Restaurant', default: null, index: true },
   paymentNumber: { type: String, required: true, unique: true },
   ticket: { type: mongoose.Schema.Types.ObjectId, ref: 'Ticket', required: true },
   table: { type: mongoose.Schema.Types.ObjectId, ref: 'Table' },

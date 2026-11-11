@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const notificationSchema = new mongoose.Schema({
+  restaurant: { type: mongoose.Schema.Types.ObjectId, ref: 'Restaurant', default: null, index: true },
   type: {
     type: String,
     enum: ['cash_opened', 'cash_closed', 'agent_login', 'payment_received', 'invoice_created', 'invoice_deleted', 'ticket_deleted'],

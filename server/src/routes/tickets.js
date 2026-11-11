@@ -8,7 +8,7 @@ const CashRegister = require('../models/CashRegister');
 const User = require('../models/User');
 const Settings = require('../models/Settings');
 const { buildEscPosReceipt, sanitizeIP, isPrivateIP, isCloudHosted, connectNetworkPrinter } = require('./printer');
-const { auth, adminOnly } = require('../middleware/auth');
+const { auth, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 const { generateTicketNumber } = require('../utils/helpers');
 
 const router = express.Router();
@@ -17,7 +17,7 @@ const router = express.Router();
 router.get('/', auth, async (req, res) => {
   try {
     const { type, table, agent, isPaid, memoStatus, startDate, endDate, activeSession, page = 1, limit = 50 } = req.query;
-    const filter = {};
+    const filter = { ...req.tenantFilter };
     if (type) filter.type = type;
     if (table) filter.table = table;
     if (agent) filter.agent = agent;
@@ -29,7 +29,7 @@ router.get('/', auth, async (req, res) => {
       if (endDate) filter.createdAt.$lte = new Date(endDate);
     }
     if (activeSession === 'true') {
-      const openSessions = await CashRegister.find({ status: 'open' });
+      const openSessions = await CashRegister.find({ ...req.tenantFilter, status: 'open' });
       if (openSessions.length === 0) {
         return res.json({ success: true, data: [], pagination: { total: 0, page: 1, limit: parseInt(limit), pages: 0 } });
       }
@@ -63,8 +63,8 @@ router.get('/counts', auth, async (req, res) => {
   try {
     const agentId = req.user._id;
     const [enCours, aEncaisser] = await Promise.all([
-      Ticket.countDocuments({ agent: agentId, type: 'invoice', isPaid: false, memoStatus: 'en_cours' }),
-      Ticket.countDocuments({ agent: agentId, type: 'invoice', isPaid: false, memoStatus: 'a_encaisser' })
+      Ticket.countDocuments({ ...req.tenantFilter, agent: agentId, type: 'invoice', isPaid: false, memoStatus: 'en_cours' }),
+      Ticket.countDocuments({ ...req.tenantFilter, agent: agentId, type: 'invoice', isPaid: false, memoStatus: 'a_encaisser' })
     ]);
     res.json({ success: true, data: { enCours, aEncaisser } });
   } catch (error) {
@@ -75,7 +75,7 @@ router.get('/counts', auth, async (req, res) => {
 // GET /api/tickets/:id
 router.get('/:id', auth, async (req, res) => {
   try {
-    const ticket = await Ticket.findById(req.params.id)
+    const ticket = await Ticket.findOne({ _id: req.params.id, ...req.tenantFilter })
       .populate('table').populate('agent', 'firstName lastName')
       .populate('client').populate('orders').populate('payment');
     if (!ticket) return res.status(404).json({ success: false, message: 'Ticket non trouvé' });
@@ -87,12 +87,13 @@ router.get('/:id', auth, async (req, res) => {
 
 // POST /api/tickets/invoice/:tableId - Generate global invoice for a table (dine_in)
 // Merges all active orders on the table into one single invoice ticket for payment
-router.post('/invoice/:tableId', auth, async (req, res) => {
+router.post('/invoice/:tableId', auth, requireActiveSubscription, async (req, res) => {
   try {
-    const table = await Table.findById(req.params.tableId).populate('currentOrders');
+    const table = await Table.findOne({ _id: req.params.tableId, ...req.tenantFilter }).populate('currentOrders');
     if (!table) return res.status(404).json({ success: false, message: 'Table non trouvée' });
 
     const activeOrders = await Order.find({
+      ...req.tenantFilter,
       _id: { $in: table.currentOrders },
       status: { $nin: ['cancelled', 'paid'] }
     });
@@ -126,6 +127,7 @@ router.post('/invoice/:tableId', auth, async (req, res) => {
     const total = subtotal + taxAmount - discount;
 
     const invoice = new Ticket({
+      restaurant: req.restaurantId || null,
       ticketNumber: generateTicketNumber('invoice'),
       type: 'invoice',
       orderType: 'dine_in',
@@ -155,7 +157,7 @@ router.post('/invoice/:tableId', auth, async (req, res) => {
 });
 
 // POST /api/tickets/invoice-orders - Generate invoice from specific order IDs (delivery/takeaway)
-router.post('/invoice-orders', auth, async (req, res) => {
+router.post('/invoice-orders', auth, requireActiveSubscription, async (req, res) => {
   try {
     const { orderIds } = req.body;
     if (!orderIds || orderIds.length === 0) {
@@ -163,6 +165,7 @@ router.post('/invoice-orders', auth, async (req, res) => {
     }
 
     const orders = await Order.find({
+      ...req.tenantFilter,
       _id: { $in: orderIds },
       status: { $nin: ['cancelled', 'paid'] }
     });
@@ -196,6 +199,7 @@ router.post('/invoice-orders', auth, async (req, res) => {
     const firstOrder = orders[0];
 
     const invoice = new Ticket({
+      restaurant: req.restaurantId || null,
       ticketNumber: generateTicketNumber('invoice'),
       type: 'invoice',
       orderType: firstOrder.orderType,
@@ -228,8 +232,8 @@ router.post('/invoice-orders', auth, async (req, res) => {
 // PATCH /api/tickets/:id/printed
 router.patch('/:id/printed', auth, async (req, res) => {
   try {
-    const ticket = await Ticket.findByIdAndUpdate(
-      req.params.id,
+    const ticket = await Ticket.findOneAndUpdate(
+      { _id: req.params.id, ...req.tenantFilter },
       { isPrinted: true, printedAt: new Date() },
       { new: true }
     );
@@ -241,9 +245,9 @@ router.patch('/:id/printed', auth, async (req, res) => {
 });
 
 // PATCH /api/tickets/:id/mark-paid — Admin force-mark ticket as paid
-router.patch('/:id/mark-paid', auth, adminOnly, async (req, res) => {
+router.patch('/:id/mark-paid', auth, adminOnly, requireActiveSubscription, async (req, res) => {
   try {
-    const ticket = await Ticket.findById(req.params.id);
+    const ticket = await Ticket.findOne({ _id: req.params.id, ...req.tenantFilter });
     if (!ticket) return res.status(404).json({ success: false, message: 'Ticket non trouvé' });
     if (ticket.isPaid) return res.status(400).json({ success: false, message: 'Ce ticket est déjà payé' });
 
@@ -253,14 +257,14 @@ router.patch('/:id/mark-paid', auth, adminOnly, async (req, res) => {
     // Also mark related order tickets as paid if this is an invoice
     if (ticket.type === 'invoice' && ticket.orders.length > 0) {
       await Ticket.updateMany(
-        { orders: { $in: ticket.orders }, type: 'order', isPaid: false },
+        { ...req.tenantFilter, orders: { $in: ticket.orders }, type: 'order', isPaid: false },
         { isPaid: true }
       );
     }
 
     // Mark orders as paid
     if (ticket.orders.length > 0) {
-      await Order.updateMany({ _id: { $in: ticket.orders } }, { status: 'paid' });
+      await Order.updateMany({ ...req.tenantFilter, _id: { $in: ticket.orders } }, { status: 'paid' });
     }
 
     const io = req.app.get('io');
@@ -273,9 +277,9 @@ router.patch('/:id/mark-paid', auth, adminOnly, async (req, res) => {
 });
 
 // POST /api/tickets/direct-invoice — Créer une facture directement (sans commande préalable)
-router.post('/direct-invoice', auth, async (req, res) => {
+router.post('/direct-invoice', auth, requireActiveSubscription, async (req, res) => {
   try {
-    const openSession = await CashRegister.findOne({ agent: req.user._id, status: 'open' });
+    const openSession = await CashRegister.findOne({ ...req.tenantFilter, agent: req.user._id, status: 'open' });
     if (!openSession) {
       return res.status(403).json({ success: false, message: 'Votre caisse n\'est pas ouverte. Contactez le caissier pour ouvrir votre service.' });
     }
@@ -295,6 +299,7 @@ router.post('/direct-invoice', auth, async (req, res) => {
     });
 
     const invoice = new Ticket({
+      restaurant: req.restaurantId || null,
       ticketNumber: generateTicketNumber('invoice'),
       type: 'invoice',
       orderType: 'dine_in',
@@ -322,10 +327,10 @@ router.post('/direct-invoice', auth, async (req, res) => {
 });
 
 // PATCH /api/tickets/:id/a-encaisser — Mémoriser la facture dans "À Encaisser"
-router.patch('/:id/a-encaisser', auth, async (req, res) => {
+router.patch('/:id/a-encaisser', auth, requireActiveSubscription, async (req, res) => {
   try {
     const ticket = await Ticket.findOneAndUpdate(
-      { _id: req.params.id, agent: req.user._id, isPaid: false },
+      { _id: req.params.id, ...req.tenantFilter, agent: req.user._id, isPaid: false },
       { memoStatus: 'a_encaisser' },
       { new: true }
     );
@@ -339,9 +344,9 @@ router.patch('/:id/a-encaisser', auth, async (req, res) => {
 });
 
 // PATCH /api/tickets/:id/add-items — Ajouter des articles à une facture (En cours ou À encaisser)
-router.patch('/:id/add-items', auth, async (req, res) => {
+router.patch('/:id/add-items', auth, requireActiveSubscription, async (req, res) => {
   try {
-    const openSession = await CashRegister.findOne({ agent: req.user._id, status: 'open' });
+    const openSession = await CashRegister.findOne({ ...req.tenantFilter, agent: req.user._id, status: 'open' });
     if (!openSession) {
       return res.status(403).json({ success: false, message: 'Votre caisse n\'est pas ouverte. Contactez le caissier pour ouvrir votre service.' });
     }
@@ -349,7 +354,7 @@ router.patch('/:id/add-items', auth, async (req, res) => {
     if (!items || items.length === 0) {
       return res.status(400).json({ success: false, message: 'Articles requis' });
     }
-    const ticket = await Ticket.findOne({ _id: req.params.id, agent: req.user._id, isPaid: false });
+    const ticket = await Ticket.findOne({ _id: req.params.id, ...req.tenantFilter, agent: req.user._id, isPaid: false });
     if (!ticket) return res.status(404).json({ success: false, message: 'Facture non trouvée' });
 
     const prevStatus = ticket.memoStatus;
@@ -390,8 +395,8 @@ router.post('/:id/admin-delete', auth, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Mot de passe administrateur requis' });
     }
 
-    // Check password against all active admins
-    const admins = await User.find({ role: 'admin', isActive: true });
+    // Check password against all active admins of this restaurant
+    const admins = await User.find({ ...req.tenantFilter, role: 'admin', isActive: true });
     let admin = null;
     for (const a of admins) {
       const isMatch = await a.comparePassword(password);
@@ -401,13 +406,13 @@ router.post('/:id/admin-delete', auth, async (req, res) => {
       return res.status(401).json({ success: false, message: 'Mot de passe administrateur invalide' });
     }
 
-    const ticket = await Ticket.findById(req.params.id)
+    const ticket = await Ticket.findOne({ _id: req.params.id, ...req.tenantFilter })
       .populate('table', 'number name')
       .populate('agent', 'firstName lastName');
     if (!ticket) return res.status(404).json({ success: false, message: 'Ticket non trouvé' });
 
     // Capture ticket data for printing before deletion
-    const settings = await Settings.findOne();
+    const settings = await Settings.findOne(req.tenantFilter);
     const mmc = settings?.mobileMoneyConfig || {};
     const ticketPrintData = {
       ticketNumber: ticket.ticketNumber,
@@ -442,7 +447,7 @@ router.post('/:id/admin-delete', auth, async (req, res) => {
     const ticketType = ticket.type;
     const tableNumber = ticket.table?.number || null;
 
-    await Ticket.findByIdAndDelete(req.params.id);
+    await Ticket.findOneAndDelete({ _id: req.params.id, ...req.tenantFilter });
 
     if (!ticket.isPaid && ticket.table) {
       const tableId = ticket.table._id || ticket.table;
@@ -458,6 +463,7 @@ router.post('/:id/admin-delete', auth, async (req, res) => {
     }
 
     const notif = await Notification.create({
+      restaurant: req.restaurantId || null,
       type: ticketType === 'invoice' ? 'invoice_deleted' : 'ticket_deleted',
       title: ticketType === 'invoice' ? 'Facture supprimée' : 'Ticket supprimé',
       message: `Supprimé par l'admin ${admin.firstName} ${admin.lastName} : ${ticketType === 'invoice' ? 'facture' : 'ticket'} ${ticketNumber}${tableNumber ? ' (Table ' + tableNumber + ')' : ''}`,
@@ -522,7 +528,7 @@ router.post('/:id/admin-delete', auth, async (req, res) => {
 // DELETE /api/tickets/:id — Admin only can delete a ticket or invoice
 router.delete('/:id', auth, adminOnly, async (req, res) => {
   try {
-    const ticket = await Ticket.findById(req.params.id).populate('table', 'number name');
+    const ticket = await Ticket.findOne({ _id: req.params.id, ...req.tenantFilter }).populate('table', 'number name');
     if (!ticket) return res.status(404).json({ success: false, message: 'Ticket non trouvé' });
 
     // If paid, also remove the payment
@@ -534,7 +540,7 @@ router.delete('/:id', auth, adminOnly, async (req, res) => {
     const ticketType = ticket.type;
     const tableNumber = ticket.table?.number || null;
 
-    await Ticket.findByIdAndDelete(req.params.id);
+    await Ticket.findOneAndDelete({ _id: req.params.id, ...req.tenantFilter });
 
     // Si ticket/facture non payé avec une table → libérer la table si plus de commandes actives
     if (!ticket.isPaid && ticket.table) {
@@ -555,6 +561,7 @@ router.delete('/:id', auth, adminOnly, async (req, res) => {
 
     // Notify
     const notif = await Notification.create({
+      restaurant: req.restaurantId || null,
       type: ticketType === 'invoice' ? 'invoice_deleted' : 'ticket_deleted',
       title: ticketType === 'invoice' ? 'Facture supprimée' : 'Ticket supprimé',
       message: `L'administrateur a supprimé ${ticketType === 'invoice' ? 'la facture' : 'le ticket'} ${ticketNumber}${tableNumber ? ' (Table ' + tableNumber + ')' : ''}`,

@@ -21,6 +21,7 @@ const orderItemSchema = new mongoose.Schema({
 });
 
 const orderSchema = new mongoose.Schema({
+  restaurant: { type: mongoose.Schema.Types.ObjectId, ref: 'Restaurant', default: null, index: true },
   orderNumber: { type: String, required: true, unique: true },
   orderType: {
     type: String,

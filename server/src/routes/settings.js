@@ -7,9 +7,9 @@ const router = express.Router();
 // GET /api/settings
 router.get('/', auth, async (req, res) => {
   try {
-    let settings = await Settings.findOne();
+    let settings = await Settings.findOne(req.tenantFilter);
     if (!settings) {
-      settings = new Settings();
+      settings = new Settings({ restaurant: req.restaurantId || null });
       await settings.save();
     }
     res.json({ success: true, data: settings });
@@ -21,9 +21,9 @@ router.get('/', auth, async (req, res) => {
 // PUT /api/settings
 router.put('/', auth, adminOnly, async (req, res) => {
   try {
-    let settings = await Settings.findOne();
+    let settings = await Settings.findOne(req.tenantFilter);
     if (!settings) {
-      settings = new Settings(req.body);
+      settings = new Settings({ restaurant: req.restaurantId || null, ...req.body });
     } else {
       Object.assign(settings, req.body);
     }

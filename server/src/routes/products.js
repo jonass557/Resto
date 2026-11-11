@@ -1,6 +1,6 @@
 const express = require('express');
 const Product = require('../models/Product');
-const { auth, adminOnly } = require('../middleware/auth');
+const { auth, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -8,7 +8,7 @@ const router = express.Router();
 router.get('/', auth, async (req, res) => {
   try {
     const { category, search, isAvailable, page = 1, limit = 10000 } = req.query;
-    const filter = {};
+    const filter = { ...req.tenantFilter };
     if (category) filter.category = category;
     if (isAvailable !== undefined) filter.isAvailable = isAvailable === 'true';
     if (search) {
@@ -41,7 +41,7 @@ router.get('/', auth, async (req, res) => {
 // GET /api/products/:id
 router.get('/:id', auth, async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id).populate('category').lean();
+    const product = await Product.findOne({ _id: req.params.id, ...req.tenantFilter }).populate('category').lean();
     if (!product) return res.status(404).json({ success: false, message: 'Produit non trouvé' });
     res.json({ success: true, data: product });
   } catch (error) {
@@ -50,9 +50,9 @@ router.get('/:id', auth, async (req, res) => {
 });
 
 // POST /api/products
-router.post('/', auth, adminOnly, async (req, res) => {
+router.post('/', auth, adminOnly, requireActiveSubscription, async (req, res) => {
   try {
-    const product = new Product(req.body);
+    const product = new Product({ ...req.body, restaurant: req.restaurantId || null });
     await product.save();
     await product.populate('category', 'name color icon');
 
@@ -66,9 +66,12 @@ router.post('/', auth, adminOnly, async (req, res) => {
 });
 
 // PUT /api/products/:id
-router.put('/:id', auth, adminOnly, async (req, res) => {
+router.put('/:id', auth, adminOnly, requireActiveSubscription, async (req, res) => {
   try {
-    const product = await Product.findByIdAndUpdate(req.params.id, req.body, {
+    const product = await Product.findOneAndUpdate(
+      { _id: req.params.id, ...req.tenantFilter },
+      req.body,
+      {
       new: true, runValidators: true
     }).populate('category', 'name color icon');
 
@@ -84,9 +87,9 @@ router.put('/:id', auth, adminOnly, async (req, res) => {
 });
 
 // DELETE /api/products/:id
-router.delete('/:id', auth, adminOnly, async (req, res) => {
+router.delete('/:id', auth, adminOnly, requireActiveSubscription, async (req, res) => {
   try {
-    const product = await Product.findByIdAndDelete(req.params.id);
+    const product = await Product.findOneAndDelete({ _id: req.params.id, ...req.tenantFilter });
     if (!product) return res.status(404).json({ success: false, message: 'Produit non trouvé' });
 
     const io = req.app.get('io');
@@ -99,10 +102,10 @@ router.delete('/:id', auth, adminOnly, async (req, res) => {
 });
 
 // PATCH /api/products/:id/stock
-router.patch('/:id/stock', auth, async (req, res) => {
+router.patch('/:id/stock', auth, requireActiveSubscription, async (req, res) => {
   try {
     const { quantity, operation } = req.body;
-    const product = await Product.findById(req.params.id);
+    const product = await Product.findOne({ _id: req.params.id, ...req.tenantFilter });
     if (!product) return res.status(404).json({ success: false, message: 'Produit non trouvé' });
 
     if (product.stock !== -1) {

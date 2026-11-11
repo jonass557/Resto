@@ -2,7 +2,7 @@ const express = require('express');
 const Payment = require('../models/Payment');
 const Expense = require('../models/Expense');
 const Ticket = require('../models/Ticket');
-const { auth, adminOnly } = require('../middleware/auth');
+const { auth, adminOnly, requireActiveSubscription } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -18,6 +18,7 @@ router.get('/journal', auth, adminOnly, async (req, res) => {
     // Revenues (payments)
     if (!type || type === 'revenue') {
       const payments = await Payment.find({
+        ...req.tenantFilter,
         createdAt: { $gte: start, $lte: end }, status: 'completed'
       }).populate('agent', 'firstName lastName').populate('ticket', 'ticketNumber');
 
@@ -38,6 +39,7 @@ router.get('/journal', auth, adminOnly, async (req, res) => {
     // Expenses
     if (!type || type === 'expense') {
       const expenses = await Expense.find({
+        ...req.tenantFilter,
         date: { $gte: start, $lte: end }
       }).populate('agent', 'firstName lastName');
 
@@ -58,6 +60,7 @@ router.get('/journal', auth, adminOnly, async (req, res) => {
     // Refunds
     if (!type || type === 'refund') {
       const refunds = await Payment.find({
+        ...req.tenantFilter,
         createdAt: { $gte: start, $lte: end }, status: 'refunded'
       }).populate('agent', 'firstName lastName');
 
@@ -99,6 +102,7 @@ router.get('/revenue', auth, adminOnly, async (req, res) => {
     const end = endDate ? new Date(endDate) : new Date();
 
     const payments = await Payment.find({
+      ...req.tenantFilter,
       createdAt: { $gte: start, $lte: end }, status: 'completed'
     }).populate('agent', 'firstName lastName');
 
@@ -127,7 +131,7 @@ router.get('/revenue', auth, adminOnly, async (req, res) => {
 router.get('/expenses', auth, async (req, res) => {
   try {
     const { category, startDate, endDate, page = 1, limit = 50 } = req.query;
-    const filter = {};
+    const filter = { ...req.tenantFilter };
     if (category) filter.category = category;
     if (startDate || endDate) {
       filter.date = {};
@@ -152,9 +156,9 @@ router.get('/expenses', auth, async (req, res) => {
   }
 });
 
-router.post('/expenses', auth, async (req, res) => {
+router.post('/expenses', auth, requireActiveSubscription, async (req, res) => {
   try {
-    const expense = new Expense({ ...req.body, agent: req.user._id });
+    const expense = new Expense({ ...req.body, restaurant: req.restaurantId || null, agent: req.user._id });
     await expense.save();
     await expense.populate('agent', 'firstName lastName');
     const io = req.app.get('io');
@@ -165,9 +169,9 @@ router.post('/expenses', auth, async (req, res) => {
   }
 });
 
-router.put('/expenses/:id', auth, async (req, res) => {
+router.put('/expenses/:id', auth, requireActiveSubscription, async (req, res) => {
   try {
-    const expense = await Expense.findByIdAndUpdate(req.params.id, req.body, { new: true })
+    const expense = await Expense.findOneAndUpdate({ _id: req.params.id, ...req.tenantFilter }, req.body, { new: true })
       .populate('agent', 'firstName lastName');
     if (!expense) return res.status(404).json({ success: false, message: 'Dépense non trouvée' });
     res.json({ success: true, data: expense });
@@ -176,9 +180,9 @@ router.put('/expenses/:id', auth, async (req, res) => {
   }
 });
 
-router.delete('/expenses/:id', auth, adminOnly, async (req, res) => {
+router.delete('/expenses/:id', auth, adminOnly, requireActiveSubscription, async (req, res) => {
   try {
-    await Expense.findByIdAndDelete(req.params.id);
+    await Expense.findOneAndDelete({ _id: req.params.id, ...req.tenantFilter });
     res.json({ success: true, message: 'Dépense supprimée' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -193,9 +197,9 @@ router.get('/balance', auth, adminOnly, async (req, res) => {
     const end = endDate ? new Date(endDate) : new Date();
 
     const [payments, refunds, expenses] = await Promise.all([
-      Payment.find({ createdAt: { $gte: start, $lte: end }, status: 'completed' }),
-      Payment.find({ createdAt: { $gte: start, $lte: end }, status: 'refunded' }),
-      Expense.find({ date: { $gte: start, $lte: end } })
+      Payment.find({ ...req.tenantFilter, createdAt: { $gte: start, $lte: end }, status: 'completed' }),
+      Payment.find({ ...req.tenantFilter, createdAt: { $gte: start, $lte: end }, status: 'refunded' }),
+      Expense.find({ ...req.tenantFilter, date: { $gte: start, $lte: end } })
     ]);
 
     const totalRevenue = payments.reduce((sum, p) => sum + p.amount, 0);
@@ -231,9 +235,9 @@ router.get('/ledger', auth, adminOnly, async (req, res) => {
     const end = endDate ? new Date(endDate) : new Date();
 
     const [payments, expenses] = await Promise.all([
-      Payment.find({ createdAt: { $gte: start, $lte: end } })
+      Payment.find({ ...req.tenantFilter, createdAt: { $gte: start, $lte: end } })
         .populate('agent', 'firstName lastName').sort({ createdAt: 1 }),
-      Expense.find({ date: { $gte: start, $lte: end } })
+      Expense.find({ ...req.tenantFilter, date: { $gte: start, $lte: end } })
         .populate('agent', 'firstName lastName').sort({ date: 1 })
     ]);
 

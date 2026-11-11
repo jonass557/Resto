@@ -8,13 +8,21 @@ import {
   UtensilsCrossed, LayoutDashboard, ShoppingCart, Receipt, CreditCard,
   Users, BarChart3, Package, Settings, LogOut, Wallet,
   BookOpen, UserCircle, Printer, TrendingUp, FileText, PieChart, Truck,
-  BookMarked, ChevronLeft, ChevronRight, ClipboardList
+  BookMarked, ChevronLeft, ChevronRight, ClipboardList, Crown, Building2, KeyRound
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import SyncStatusBar from '@/components/SyncStatusBar';
+
+const superAdminNav = [
+  { to: '/super-admin', icon: LayoutDashboard, label: 'Vue Globale', end: true },
+  { to: '/super-admin/restaurants', icon: Building2, label: 'Restaurants' },
+  { to: '/super-admin/plans', icon: CreditCard, label: 'Plans & Prix' },
+  { to: '/super-admin/payments', icon: Wallet, label: 'Paiements & Retraits' },
+  { to: '/super-admin/settings', icon: KeyRound, label: 'Clés API iKeepay' },
+];
 
 const adminNav = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true },
@@ -29,6 +37,7 @@ const adminNav = [
   { to: '/admin/reports', icon: FileText, label: 'Rapports' },
   { to: '/admin/revenue-history', icon: PieChart, label: 'Historique CA' },
   { to: '/admin/daily-invoices', icon: Printer, label: 'Facture Globale' },
+  { to: '/admin/subscription', icon: Crown, label: 'Abonnement & Plans' },
   { to: '/admin/settings', icon: Settings, label: 'Paramètres' },
 ];
 
@@ -71,7 +80,7 @@ function useSidebarCounts(isAgent, socket) {
 }
 
 export default function Sidebar({ onNavigate, collapsed, onToggleCollapse }) {
-  const { user, isAdmin, logout } = useAuth();
+  const { user, isAdmin, isSuperAdmin, logout } = useAuth();
   const { socket } = useSocket();
   const navigate = useNavigate();
   const isAgent = user?.role === 'agent';
@@ -116,7 +125,13 @@ export default function Sidebar({ onNavigate, collapsed, onToggleCollapse }) {
     { to: '/agent/settings', icon: Settings, label: 'Paramètres' },
   ];
 
-  const navItems = isAdmin ? adminNav : isCaissier ? caissierNav : agentNav;
+  const navItems = isSuperAdmin
+    ? superAdminNav
+    : isAdmin
+    ? adminNav
+    : isCaissier
+    ? caissierNav
+    : agentNav;
 
   return (
     <aside className={cn(
@@ -132,8 +147,12 @@ export default function Sidebar({ onNavigate, collapsed, onToggleCollapse }) {
         )}
         {!collapsed && (
           <div className="flex-1 min-w-0">
-            <h2 className="font-bold text-sm truncate">Restaurant Manager</h2>
-            <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
+            <h2 className="font-bold text-sm truncate">
+              {user?.restaurantData?.name || 'Restaurant Manager'}
+            </h2>
+            <p className="text-xs text-muted-foreground capitalize">
+              {user?.role === 'superadmin' ? 'Super Administrateur' : user?.role}
+            </p>
           </div>
         )}
         {/* Collapse toggle — desktop only */}

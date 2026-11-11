@@ -179,6 +179,9 @@ router.post('/receive', auth, async (req, res) => {
         // Remove fields that shouldn't be overwritten on the cloud
         delete doc.__v;
         doc.syncedToCloud = true;
+        if (req.restaurantId && !doc.restaurant) {
+          doc.restaurant = req.restaurantId;
+        }
         // Cast _id, references and dates from JSON strings → proper BSON types.
         // Without this, Model.collection.insertOne stores strings → Mongoose's
         // findById/populate/sort on the cloud admin side fails to match them.
@@ -223,7 +226,7 @@ router.get('/export/:collection', auth, async (req, res) => {
     if (!entry) {
       return res.status(400).json({ success: false, message: `Collection inconnue: ${collection}` });
     }
-    const docs = await entry.Model.find({}).lean();
+    const docs = await entry.Model.find(req.tenantFilter).lean();
     res.json({ success: true, data: docs });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -233,7 +236,7 @@ router.get('/export/:collection', auth, async (req, res) => {
 // ── GET /api/sync/export-settings — Cloud exports the singleton settings doc ─
 router.get('/export-settings', auth, async (req, res) => {
   try {
-    const settings = await Settings.findOne({}).lean();
+    const settings = await Settings.findOne(req.tenantFilter).lean();
     res.json({ success: true, data: settings });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -272,14 +275,17 @@ async function getCloudToken() {
 // cast back to ObjectId before raw insert/update — otherwise Mongoose's
 // auto-cast on read won't match them (e.g. findById(stringId) returns null).
 const REF_FIELDS_BY_MODEL = {
-  Product:      ['category'],
-  CashRegister: ['agent', 'openedBy', 'closedBy', 'payments'],
-  Order:        ['agent', 'table', 'user', 'client'],
-  Ticket:      ['agent', 'order', 'cashRegister', 'client'],
-  Payment:      ['agent', 'user', 'order', 'ticket', 'cashRegister'],
-  Notification: ['agent'],
-  Expense:      ['createdBy', 'user'],
-  Client:       [],
+  User:         ['restaurant'],
+  Category:     ['restaurant'],
+  Table:        ['restaurant'],
+  Product:      ['restaurant', 'category'],
+  CashRegister: ['restaurant', 'agent', 'openedBy', 'closedBy', 'payments'],
+  Order:        ['restaurant', 'agent', 'table', 'user', 'client'],
+  Ticket:       ['restaurant', 'agent', 'order', 'cashRegister', 'client'],
+  Payment:      ['restaurant', 'agent', 'user', 'order', 'ticket', 'cashRegister'],
+  Notification: ['restaurant', 'agent'],
+  Expense:      ['restaurant', 'createdBy', 'user'],
+  Client:       ['restaurant'],
 };
 
 // Date fields arrive as ISO strings over JSON. Raw insert/update bypasses
@@ -331,8 +337,12 @@ async function upsertSyncedDoc(Model, doc) {
     const collectionName = Model.modelName;
     let conflictQuery = null;
     if (collectionName === 'User' && doc.email) conflictQuery = { email: doc.email };
-    else if (collectionName === 'Table' && typeof doc.number === 'number') conflictQuery = { number: doc.number };
-    else if (collectionName === 'Category' && doc.name) conflictQuery = { name: doc.name };
+    else if (collectionName === 'Table' && typeof doc.number === 'number') {
+      conflictQuery = doc.restaurant ? { number: doc.number, restaurant: doc.restaurant } : { number: doc.number };
+    }
+    else if (collectionName === 'Category' && doc.name) {
+      conflictQuery = doc.restaurant ? { name: doc.name, restaurant: doc.restaurant } : { name: doc.name };
+    }
 
     if (conflictQuery) {
       const conflict = await Model.findOne(conflictQuery);

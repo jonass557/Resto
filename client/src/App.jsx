@@ -34,6 +34,12 @@ const Reports = lazy(() => import('./pages/admin/Reports'));
 const AdminSettings = lazy(() => import('./pages/admin/AdminSettings'));
 const RevenueHistory = lazy(() => import('./pages/admin/RevenueHistory'));
 const DailyInvoices = lazy(() => import('./pages/admin/DailyInvoices'));
+const Subscription = lazy(() => import('./pages/admin/Subscription'));
+const SuperAdminDashboard = lazy(() => import('./pages/superadmin/SuperAdminDashboard'));
+const SuperAdminRestaurants = lazy(() => import('./pages/superadmin/SuperAdminRestaurants'));
+const SuperAdminPlans = lazy(() => import('./pages/superadmin/SuperAdminPlans'));
+const SuperAdminPayments = lazy(() => import('./pages/superadmin/SuperAdminPayments'));
+const SuperAdminSettings = lazy(() => import('./pages/superadmin/SuperAdminSettings'));
 
 function PageLoader() {
   return (
@@ -56,7 +62,14 @@ function ProtectedRoute({ children, requiredRole }) {
 
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (requiredRole && user?.role !== requiredRole) {
-    const home = user?.role === 'admin' ? '/admin' : user?.role === 'caissier' ? '/caissier' : '/agent';
+    const home =
+      user?.role === 'superadmin'
+        ? '/super-admin'
+        : user?.role === 'admin'
+        ? '/admin'
+        : user?.role === 'caissier'
+        ? '/caissier'
+        : '/agent';
     return <Navigate to={home} replace />;
   }
 
@@ -119,7 +132,21 @@ export default function App() {
           <Route path="reports" element={<Suspense fallback={<PageLoader />}><Reports /></Suspense>} />
           <Route path="revenue-history" element={<Suspense fallback={<PageLoader />}><RevenueHistory /></Suspense>} />
           <Route path="daily-invoices" element={<Suspense fallback={<PageLoader />}><DailyInvoices /></Suspense>} />
+          <Route path="subscription" element={<Suspense fallback={<PageLoader />}><Subscription /></Suspense>} />
           <Route path="settings" element={<Suspense fallback={<PageLoader />}><AdminSettings /></Suspense>} />
+        </Route>
+
+        {/* Super Admin Routes */}
+        <Route path="/super-admin" element={
+          <ProtectedRoute requiredRole="superadmin">
+            <MainLayout />
+          </ProtectedRoute>
+        }>
+          <Route index element={<Suspense fallback={<PageLoader />}><SuperAdminDashboard /></Suspense>} />
+          <Route path="restaurants" element={<Suspense fallback={<PageLoader />}><SuperAdminRestaurants /></Suspense>} />
+          <Route path="plans" element={<Suspense fallback={<PageLoader />}><SuperAdminPlans /></Suspense>} />
+          <Route path="payments" element={<Suspense fallback={<PageLoader />}><SuperAdminPayments /></Suspense>} />
+          <Route path="settings" element={<Suspense fallback={<PageLoader />}><SuperAdminSettings /></Suspense>} />
         </Route>
 
         {/* Caissier Routes */}

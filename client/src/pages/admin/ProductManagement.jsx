@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { productsAPI, categoriesAPI, invalidateCache, readCache } from '@/services/api';
+import { productsAPI, categoriesAPI, uploadAPI, invalidateCache, readCache } from '@/services/api';
 import TopBar from '@/components/layout/TopBar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -25,7 +25,8 @@ export default function ProductManagement() {
   // Product dialog
   const [productDialog, setProductDialog] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
-  const [productForm, setProductForm] = useState({ name: '', price: '', category: '', description: '', taxRate: '0', isAvailable: true });
+  const [productForm, setProductForm] = useState({ name: '', price: '', category: '', description: '', taxRate: '0', image: '', isAvailable: true });
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   // Category dialog
   const [categoryDialog, setCategoryDialog] = useState(false);
@@ -74,9 +75,28 @@ export default function ProductManagement() {
   const filtered = selectedCategory === 'all' ? products : products.filter(p => p.category?._id === selectedCategory);
 
   // Product handlers
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingImage(true);
+    try {
+      const res = await uploadAPI.uploadImage(file);
+      const url = res.data?.data?.url;
+      if (url) {
+        setProductForm(prev => ({ ...prev, image: url }));
+        toast.success('Image uploadée avec succès');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Erreur lors de l\'upload Cloudinary');
+    } finally {
+      setUploadingImage(false);
+      e.target.value = '';
+    }
+  };
+
   const openCreateProduct = () => {
     setEditingProduct(null);
-    setProductForm({ name: '', price: '', category: '', description: '', taxRate: '0', isAvailable: true });
+    setProductForm({ name: '', price: '', category: '', description: '', taxRate: '0', image: '', isAvailable: true });
     setProductDialog(true);
   };
 
@@ -85,7 +105,8 @@ export default function ProductManagement() {
     setProductForm({
       name: product.name, price: product.price.toString(),
       category: product.category?._id || '', description: product.description || '',
-      taxRate: (product.taxRate || 0).toString(), isAvailable: product.isAvailable
+      taxRate: (product.taxRate || 0).toString(), image: product.image || '',
+      isAvailable: product.isAvailable
     });
     setProductDialog(true);
   };
@@ -282,6 +303,35 @@ export default function ProductManagement() {
               </Select>
             </div>
             <div><Label>Description</Label><Input value={productForm.description} onChange={e => setProductForm({...productForm, description: e.target.value})} /></div>
+            <div>
+              <Label>Image du plat <span className="text-muted-foreground text-xs font-normal">(optionnel)</span></Label>
+              <div className="space-y-2 mt-1">
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    disabled={uploadingImage}
+                    onChange={handleImageUpload}
+                    className="cursor-pointer"
+                  />
+                  {uploadingImage && <Loader2 className="w-4 h-4 animate-spin shrink-0 text-primary" />}
+                </div>
+                {productForm.image && (
+                  <div className="flex items-center gap-3 p-2 rounded-lg border bg-muted/40">
+                    <img src={productForm.image} alt="Aperçu" className="w-14 h-14 object-cover rounded-md" />
+                    <Input
+                      value={productForm.image}
+                      onChange={e => setProductForm({...productForm, image: e.target.value})}
+                      placeholder="URL de l'image"
+                      className="text-xs flex-1"
+                    />
+                    <Button type="button" size="sm" variant="ghost" onClick={() => setProductForm({...productForm, image: ''})}>
+                      Retirer
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
             <div><Label>Taux de taxe (%)</Label><Input type="number" value={productForm.taxRate} onChange={e => setProductForm({...productForm, taxRate: e.target.value})} /></div>
             <div className="flex items-center gap-2">
               <Switch checked={productForm.isAvailable} onCheckedChange={v => setProductForm({...productForm, isAvailable: v})} />

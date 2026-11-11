@@ -162,6 +162,7 @@ api.interceptors.response.use(
 // Auth
 export const authAPI = {
   login: (data) => api.post('/auth/login', data),
+  register: (data) => api.post('/auth/register', data),
   getMe: () => api.get('/auth/me'),
   updateProfile: (data) => api.put('/auth/profile', data),
   changePassword: (data) => api.put('/auth/password', data),
@@ -389,6 +390,43 @@ export const notificationsAPI = {
   markRead: (id) => api.patch(`/notifications/${id}/read`),
   delete: (id) => api.delete(`/notifications/${id}`),
   deleteAll: () => api.delete('/notifications'),
+};
+
+// Cloudinary Image Upload
+export const uploadAPI = {
+  uploadImage: (file) => {
+    const formData = new FormData();
+    formData.append('image', file);
+    return api.post('/upload/image', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+};
+
+// Restaurant Subscription & Plans (iKeepay)
+export const subscriptionAPI = {
+  getPlans: () => api.get('/subscription/plans'),
+  getStatus: () => api.get('/subscription/status'),
+  pay: (data) => api.post('/subscription/pay', data),
+  verify: (reference) => api.get(`/subscription/verify/${reference}`),
+};
+
+// Super Admin Platform Management
+export const superAdminAPI = {
+  getDashboard: () => api.get('/super-admin/dashboard'),
+  getRestaurants: (params) => api.get('/super-admin/restaurants', { params }),
+  updateRestaurantSubscription: (id, data) => api.put(`/super-admin/restaurants/${id}/subscription`, data),
+  updateRestaurantStatus: (id, data) => api.put(`/super-admin/restaurants/${id}/status`, data),
+  deleteRestaurant: (id) => api.delete(`/super-admin/restaurants/${id}`),
+  getPlans: () => api.get('/super-admin/plans'),
+  createPlan: (data) => api.post('/super-admin/plans', data),
+  updatePlan: (id, data) => api.put(`/super-admin/plans/${id}`, data),
+  deletePlan: (id) => api.delete(`/super-admin/plans/${id}`),
+  getSettings: () => api.get('/super-admin/settings'),
+  updateSettings: (data) => api.put('/super-admin/settings', data),
+  getTransactions: (params) => api.get('/super-admin/transactions', { params }),
+  payout: (data) => api.post('/super-admin/payout', data),
+  verifyTransaction: (reference) => api.get(`/super-admin/verify/${reference}`),
 };
 
 export default api;

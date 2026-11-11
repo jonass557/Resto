@@ -35,6 +35,10 @@ const printerRoutes = require('./routes/printer');
 const settingsRoutes = require('./routes/settings');
 const notificationRoutes = require('./routes/notifications');
 const syncRoutes = require('./routes/sync');
+const uploadRoutes = require('./routes/upload');
+const subscriptionRoutes = require('./routes/subscription');
+const superAdminRoutes = require('./routes/superAdmin');
+const { bootstrapPlatform } = require('./utils/bootstrap');
 
 const app = express();
 const server = http.createServer(app);
@@ -74,7 +78,10 @@ app.use((req, res, next) => {
   }
   next();
 });
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({
+  limit: '10mb',
+  verify: (req, res, buf) => { req.rawBody = buf; }
+}));
 app.use(express.urlencoded({ extended: true }));
 if (process.env.NODE_ENV !== 'production') {
   app.use(morgan('dev'));
@@ -100,6 +107,9 @@ app.use('/api/printer', printerRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/sync', syncRoutes);
+app.use('/api/upload', uploadRoutes);
+app.use('/api/subscription', subscriptionRoutes);
+app.use('/api/super-admin', superAdminRoutes);
 
 const PORT = process.env.PORT || 5000;
 
@@ -360,6 +370,7 @@ connectWithRetry()
   .then(async () => {
     console.log('MongoDB connecté avec succès');
     await ensureAdminExists();
+    await bootstrapPlatform();
 
     // Nettoyage automatique : supprimer les sessions caisse fermées depuis plus de 30 jours
     const cleanCashHistory = async () => {
